@@ -1,7 +1,0 @@
-bin/
-obj/
-publish/
-publish_self_contained/
-*.user
-.vs/
-client database/

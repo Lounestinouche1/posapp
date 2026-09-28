@@ -1,0 +1,291 @@
+[
+  {
+    "Name": "kitchen",
+    "WindowsPrinter": "VLPT2",
+    "Header": "Kitchen",
+    "Footer": "Thank you",
+    "CutAfterPrint": true,
+    "Layout": [
+      {
+        "Component": "Header",
+        "FontSize": 26,
+        "Bold": true,
+        "Underline": true,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "OrderType",
+        "FontSize": 10,
+        "Bold": true,
+        "Underline": true,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "OrderNumber",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Room",
+        "FontSize": 12,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Table",
+        "FontSize": 12,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Operator",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Separator",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Products",
+        "FontSize": 15,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Separator",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Footer",
+        "FontSize": 10,
+        "Bold": true,
+        "Underline": true,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Blank line",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Cutter",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      }
+    ],
+    "LogoPath": ""
+  },
+  {
+    "Name": "Bill",
+    "WindowsPrinter": "VLPT2",
+    "Header": "BILL",
+    "Footer": "Thank you",
+    "CutAfterPrint": true,
+    "Layout": [
+      {
+        "Component": "Header",
+        "FontSize": 32,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Room",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Table",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Operator",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Items",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Total",
+        "FontSize": 32,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Right"
+      },
+      {
+        "Component": "Footer",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Blank line",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Cutter",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      }
+    ],
+    "LogoPath": ""
+  },
+  {
+    "Name": "Payment",
+    "WindowsPrinter": "VLPT2",
+    "Header": "PAYMENT",
+    "Footer": "Thank you",
+    "CutAfterPrint": true,
+    "Layout": [
+      {
+        "Component": "Logo",
+        "FontSize": 8,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Header",
+        "FontSize": 32,
+        "Bold": true,
+        "Underline": true,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "PaymentNumber",
+        "FontSize": 10,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Room",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Table",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Operator",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Date",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Time",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Separator",
+        "FontSize": 12,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Items",
+        "FontSize": 15,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Separator",
+        "FontSize": 12,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Total",
+        "FontSize": 26,
+        "Bold": true,
+        "Underline": true,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Separator",
+        "FontSize": 12,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Footer",
+        "FontSize": 22,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Blank line",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Cutter",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      }
+    ],
+    "LogoPath": "C:\\Users\\IT\\Pictures\\Saved Pictures\\restaurants\\WoodchekenLogo.png"
+  }
+]

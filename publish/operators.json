@@ -1,0 +1,16 @@
+[
+  {
+    "Name": "Manager",
+    "Permissions": [
+      "All permissions"
+    ]
+  },
+  {
+    "Name": "Cashier",
+    "Permissions": [
+      "Take payments",
+      "View sales",
+      "Manage rooms"
+    ]
+  }
+]

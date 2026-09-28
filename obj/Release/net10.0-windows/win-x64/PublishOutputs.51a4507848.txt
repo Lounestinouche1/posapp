@@ -1,0 +1,2 @@
+D:\vscode projects\VectronPOS\publish\Vectron POS.pdb
+D:\vscode projects\VectronPOS\publish\Vectron POS.exe

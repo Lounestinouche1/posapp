@@ -1,0 +1,24 @@
+[
+  {
+    "Name": "Manager",
+    "Permissions": [
+      "Take payments",
+      "Discounts",
+      "Refunds",
+      "View sales",
+      "Manage products",
+      "Manage rooms",
+      "Manage operators",
+      "Settings"
+    ],
+    "Password": "1234"
+  },
+  {
+    "Name": "Cashier",
+    "Permissions": [
+      "Take payments",
+      "View sales"
+    ],
+    "Password": ""
+  }
+]

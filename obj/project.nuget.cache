@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "TX9pcAHCtO0=",
+  "success": true,
+  "projectFilePath": "D:\\vscode projects\\VectronPOS\\VectronPOS.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\IT\\.nuget\\packages\\microsoft.net.illink.tasks\\10.0.12\\microsoft.net.illink.tasks.10.0.12.nupkg.sha512"
+  ],
+  "logs": []
+}

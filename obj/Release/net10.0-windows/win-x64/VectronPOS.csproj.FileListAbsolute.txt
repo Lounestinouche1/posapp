@@ -1,0 +1,14 @@
+D:\vscode projects\VectronPOS\bin\Release\net10.0-windows\win-x64\Vectron POS.exe
+D:\vscode projects\VectronPOS\bin\Release\net10.0-windows\win-x64\Vectron POS.deps.json
+D:\vscode projects\VectronPOS\bin\Release\net10.0-windows\win-x64\Vectron POS.runtimeconfig.json
+D:\vscode projects\VectronPOS\bin\Release\net10.0-windows\win-x64\Vectron POS.dll
+D:\vscode projects\VectronPOS\bin\Release\net10.0-windows\win-x64\Vectron POS.pdb
+D:\vscode projects\VectronPOS\obj\Release\net10.0-windows\win-x64\VectronPOS.GeneratedMSBuildEditorConfig.editorconfig
+D:\vscode projects\VectronPOS\obj\Release\net10.0-windows\win-x64\VectronPOS.AssemblyInfoInputs.cache
+D:\vscode projects\VectronPOS\obj\Release\net10.0-windows\win-x64\VectronPOS.AssemblyInfo.cs
+D:\vscode projects\VectronPOS\obj\Release\net10.0-windows\win-x64\VectronPOS.csproj.CoreCompileInputs.cache
+D:\vscode projects\VectronPOS\obj\Release\net10.0-windows\win-x64\Vectron POS.dll
+D:\vscode projects\VectronPOS\obj\Release\net10.0-windows\win-x64\refint\Vectron POS.dll
+D:\vscode projects\VectronPOS\obj\Release\net10.0-windows\win-x64\Vectron POS.pdb
+D:\vscode projects\VectronPOS\obj\Release\net10.0-windows\win-x64\VectronPOS.genruntimeconfig.cache
+D:\vscode projects\VectronPOS\obj\Release\net10.0-windows\win-x64\ref\Vectron POS.dll

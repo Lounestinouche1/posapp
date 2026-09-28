@@ -1,0 +1,74 @@
+[
+  {
+    "Name": "kitchen",
+    "WindowsPrinter": "VLPT2",
+    "Header": "Kitchen",
+    "Footer": "work fast",
+    "CutAfterPrint": true,
+    "Layout": [
+      {
+        "Component": "Header",
+        "FontSize": 12,
+        "Bold": true,
+        "Underline": false,
+        "Alignment": "Center"
+      },
+      {
+        "Component": "Room",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Table",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Operator",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Products",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Blank line",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Blank line",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Blank line",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      },
+      {
+        "Component": "Cutter",
+        "FontSize": 10,
+        "Bold": false,
+        "Underline": false,
+        "Alignment": "Left"
+      }
+    ]
+  }
+]

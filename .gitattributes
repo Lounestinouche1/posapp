@@ -1,0 +1,1 @@
+publish_self_contained/Vectron[[:space:]]POS.exe filter=lfs diff=lfs merge=lfs -text

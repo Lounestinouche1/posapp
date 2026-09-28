@@ -1,0 +1,22 @@
+[
+  {
+    "Name": "General",
+    "ImagePath": "",
+    "PrinterDestination": "kitchen"
+  },
+  {
+    "Name": "Food",
+    "ImagePath": "",
+    "PrinterDestination": "VLPT2"
+  },
+  {
+    "Name": "Drinks",
+    "ImagePath": "",
+    "PrinterDestination": "kitchen"
+  },
+  {
+    "Name": "Desserts",
+    "ImagePath": "",
+    "PrinterDestination": "VLPT2"
+  }
+]
