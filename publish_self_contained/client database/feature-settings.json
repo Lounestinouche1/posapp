@@ -21,5 +21,6 @@
   "AuditLog": false,
   "EmailReceipts": false,
   "MultiLanguage": false,
-  "MultiBranch": false
+  "MultiBranch": false,
+  "OnScreenKeyboard": true
 }

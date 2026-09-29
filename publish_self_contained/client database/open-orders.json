@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "Room": "Terrace",
+    "Table": "Table 1",
+    "Operator": "Manager",
+    "Created": "2026-09-29T11:55:58.3908721+01:00",
+    "Items": [
+      {
+        "Product": "Margherita",
+        "Family": "General",
+        "Quantity": 1,
+        "UnitPrice": 12.50,
+        "Category": "Popular",
+        "PrinterDestination": "kitchen",
+        "Note": "",
+        "Modifiers": "",
+        "Discount": 0,
+        "DiscountType": "",
+        "Course": 0
+      }
+    ],
+    "Note": "",
+    "OrderNumber": 1,
+    "BillNumber": 1,
+    "OrderType": "Dine-in",
+    "CustomerName": "",
+    "SeatCount": 0
+  }
+]

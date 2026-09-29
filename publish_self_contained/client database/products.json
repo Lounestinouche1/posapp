@@ -6,7 +6,8 @@
     "Color": "#F4B860",
     "Family": "General",
     "ImagePath": "D:\\vscode projects\\VectronPOS\\publish_self_contained\\images\\024595f15268488e96e40dfc7e307420.PNG",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Crispy Chicken",
@@ -15,7 +16,8 @@
     "Color": "#F08A5D",
     "Family": "General",
     "ImagePath": "D:\\vscode projects\\VectronPOS\\publish_self_contained\\images\\e3fb8197e54a4df8b67fe4fe653aaefd.PNG",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Garden Bowl",
@@ -24,7 +26,8 @@
     "Color": "#70C1B3",
     "Family": "General",
     "ImagePath": "D:\\vscode projects\\VectronPOS\\publish_self_contained\\images\\210166e33fec4cf5b05d03e24b31c257.PNG",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Classic Burger",
@@ -33,7 +36,8 @@
     "Color": "#DDA15E",
     "Family": "General",
     "ImagePath": "D:\\vscode projects\\VectronPOS\\publish_self_contained\\images\\3e14f244ac634daeb8e9b785daba6fea.PNG",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Truffle Pasta",
@@ -42,7 +46,8 @@
     "Color": "#A7C957",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Grilled Salmon",
@@ -51,7 +56,8 @@
     "Color": "#F28482",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Steak Frites",
@@ -60,7 +66,8 @@
     "Color": "#E07A5F",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Veggie Wrap",
@@ -69,7 +76,8 @@
     "Color": "#81B29A",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Lemonade",
@@ -78,7 +86,8 @@
     "Color": "#F6BD60",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Espresso",
@@ -87,7 +96,8 @@
     "Color": "#9C6644",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Sparkling Water",
@@ -96,7 +106,8 @@
     "Color": "#5DA9E9",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "House Red",
@@ -105,7 +116,8 @@
     "Color": "#9B2226",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Cheesecake",
@@ -114,7 +126,8 @@
     "Color": "#F7CAD0",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Chocolate Tart",
@@ -123,7 +136,8 @@
     "Color": "#8D5524",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
   },
   {
     "Name": "Fruit Plate",
@@ -132,6 +146,17 @@
     "Color": "#90BE6D",
     "Family": "General",
     "ImagePath": "",
-    "PrinterDestination": ""
+    "PrinterDestination": "",
+    "Barcode": ""
+  },
+  {
+    "Name": "garantita",
+    "Category": "Popular",
+    "Price": 50.00,
+    "Color": "#70C1B3",
+    "Family": "General",
+    "ImagePath": "",
+    "PrinterDestination": "",
+    "Barcode": ""
   }
 ]

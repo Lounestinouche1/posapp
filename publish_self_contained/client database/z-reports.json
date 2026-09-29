@@ -1,0 +1,20 @@
+[
+  {
+    "Time": "2026-09-28T12:49:52.2328127+01:00",
+    "Transactions": 1,
+    "Gross": 15.90,
+    "Operator": "Manager"
+  },
+  {
+    "Time": "2026-09-28T12:57:32.5418277+01:00",
+    "Transactions": 3,
+    "Gross": 40.90,
+    "Operator": "Manager"
+  },
+  {
+    "Time": "2026-09-28T14:51:39.0622371+01:00",
+    "Transactions": 4,
+    "Gross": 53.40,
+    "Operator": "Manager"
+  }
+]

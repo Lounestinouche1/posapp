@@ -923,5 +923,117 @@
     "CustomerName": "",
     "OrderType": "Takeaway",
     "Discount": 0
+  },
+  {
+    "Time": "2026-09-28T12:49:30.4886395+01:00",
+    "Total": 15.90,
+    "Table": "Table 2",
+    "Operator": "Manager",
+    "Items": [
+      {
+        "Product": "Crispy Chicken",
+        "Family": "General",
+        "Quantity": 1,
+        "UnitPrice": 15.90,
+        "Category": "Popular",
+        "PrinterDestination": "kitchen",
+        "Note": "double fromage",
+        "Modifiers": "",
+        "Discount": 0,
+        "DiscountType": "",
+        "Course": 0
+      }
+    ],
+    "PaymentNumber": 1,
+    "BillNumber": 1,
+    "Tip": 0,
+    "PaymentType": "Cash",
+    "CustomerName": "",
+    "OrderType": "Takeaway",
+    "Discount": 0
+  },
+  {
+    "Time": "2026-09-28T12:50:51.5918072+01:00",
+    "Total": 12.50,
+    "Table": "Table 1",
+    "Operator": "Manager",
+    "Items": [
+      {
+        "Product": "Margherita",
+        "Family": "General",
+        "Quantity": 1,
+        "UnitPrice": 12.50,
+        "Category": "Popular",
+        "PrinterDestination": "kitchen",
+        "Note": "double fromage",
+        "Modifiers": "",
+        "Discount": 0,
+        "DiscountType": "",
+        "Course": 0
+      }
+    ],
+    "PaymentNumber": 2,
+    "BillNumber": 2,
+    "Tip": 0,
+    "PaymentType": "Card",
+    "CustomerName": "",
+    "OrderType": "Takeaway",
+    "Discount": 0
+  },
+  {
+    "Time": "2026-09-28T12:57:16.9964802+01:00",
+    "Total": 12.50,
+    "Table": "Table 2",
+    "Operator": "Manager",
+    "Items": [
+      {
+        "Product": "Margherita",
+        "Family": "General",
+        "Quantity": 1,
+        "UnitPrice": 12.50,
+        "Category": "Popular",
+        "PrinterDestination": "kitchen",
+        "Note": "double fromage",
+        "Modifiers": "",
+        "Discount": 0,
+        "DiscountType": "",
+        "Course": 0
+      }
+    ],
+    "PaymentNumber": 3,
+    "BillNumber": 3,
+    "Tip": 0,
+    "PaymentType": "Card",
+    "CustomerName": "",
+    "OrderType": "Takeaway",
+    "Discount": 0
+  },
+  {
+    "Time": "2026-09-28T14:17:39.5620234+01:00",
+    "Total": 12.50,
+    "Table": "Table 1",
+    "Operator": "Manager",
+    "Items": [
+      {
+        "Product": "Margherita",
+        "Family": "General",
+        "Quantity": 1,
+        "UnitPrice": 12.50,
+        "Category": "Popular",
+        "PrinterDestination": "kitchen",
+        "Note": "",
+        "Modifiers": "",
+        "Discount": 0,
+        "DiscountType": "",
+        "Course": 0
+      }
+    ],
+    "PaymentNumber": 4,
+    "BillNumber": 4,
+    "Tip": 0,
+    "PaymentType": "Cash",
+    "CustomerName": "",
+    "OrderType": "Dine-in",
+    "Discount": 0
   }
 ]

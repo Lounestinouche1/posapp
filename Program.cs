@@ -12,6 +12,7 @@ internal static class Program
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
+        OnScreenKeyboard.Register();
         Application.Run(new PosForm());
     }
 }
@@ -33,6 +34,151 @@ internal sealed record AuditEntry(DateTime Time, string Operator, string Action,
 internal sealed record HappyHourRule(string Name, TimeSpan Start, TimeSpan End, decimal DiscountPercent, List<string> Days);
 internal sealed record StockAlert(string ProductName, string Ingredient, decimal Remaining, decimal MinStock);
 internal sealed record RegisterSettings(string Currency, decimal TvaRate, bool PricesIncludeTva, string NetworkPath = "", bool IsMainPc = true);
+
+internal sealed record ZReportRecord(DateTime Time, int Transactions, decimal Gross, string Operator);
+
+internal sealed record ReportLine(string Text, int Style);
+
+internal static class ReportLineStyles
+{
+    public const int Normal = 0, Header = 1, Title = 2, Small = 3, Rule = 4, Spacer = 5;
+    public static double Height(int style) => style switch { Title => 25, Header => 16, Small => 12, Rule => 9, Spacer => 8, _ => 14 };
+    public static double FontSize(int style) => style switch { Title => 14, Small => 8, _ => 10 };
+    public static bool IsBold(int style) => style is Title or Header;
+}
+
+internal sealed class DayReportData
+{
+    public bool CloseDay;
+    public DateTime Time;
+    public string Operator = "";
+    public string Currency = "";
+    public int Transactions;
+    public int ItemsSold;
+    public decimal Gross;
+    public decimal Discounts;
+    public decimal Tips;
+    public List<(string Name, int Count, decimal Total)> ByPayment = [];
+    public List<(string Name, int Count, decimal Total)> ByOperator = [];
+    public List<(string Name, int Qty, decimal Total)> ByProduct = [];
+    public List<(string Name, int Qty, decimal Total)> ByFamily = [];
+}
+
+internal static class TicketPdf
+{
+    private const double PageW = 595.28, PageH = 841.89, Margin = 40;
+
+    public static void Save(string path, IReadOnlyList<ReportLine> lines)
+    {
+        var pages = Paginate(lines);
+        var objects = new List<string>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [" + string.Join(" ", Enumerable.Range(0, Math.Max(pages.Count, 1)).Select(i => $"{5 + i * 2} 0 R")) + "] /Count " + Math.Max(pages.Count, 1) + " >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>"
+        };
+        for (var i = 0; i < pages.Count; i++)
+        {
+            var content = BuildContent(pages[i]);
+            var pageNum = 5 + i * 2;
+            objects.Add(FormattableString.Invariant($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PageW:0.###} {PageH:0.###}] /Resources << /Font << /FN 3 0 R /FB 4 0 R >> >> /Contents {pageNum + 1} 0 R >>"));
+            objects.Add($"<< /Length {content.Length} >>\nstream\n{content}\nendstream");
+        }
+        if (pages.Count == 0)
+        {
+            var content = BuildContent([]);
+            objects.Add(FormattableString.Invariant($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PageW:0.###} {PageH:0.###}] /Resources << /Font << /FN 3 0 R /FB 4 0 R >> >> /Contents 6 0 R >>"));
+            objects.Add($"<< /Length {content.Length} >>\nstream\n{content}\nendstream");
+        }
+        WriteFile(path, objects);
+    }
+
+    private static List<List<(ReportLine Line, double Top)>> Paginate(IReadOnlyList<ReportLine> lines)
+    {
+        var pages = new List<List<(ReportLine, double)>>();
+        var page = new List<(ReportLine, double)>();
+        var y = PageH - Margin;
+        foreach (var line in lines)
+        {
+            var h = ReportLineStyles.Height(line.Style);
+            if (y - h < Margin)
+            {
+                pages.Add(page);
+                page = [];
+                y = PageH - Margin;
+            }
+            page.Add((line, y - h));
+            y -= h;
+        }
+        pages.Add(page);
+        return pages;
+    }
+
+    private static string BuildContent(List<(ReportLine Line, double Top)> page)
+    {
+        var sb = new StringBuilder();
+        foreach (var (line, top) in page)
+        {
+            if (line.Style == ReportLineStyles.Spacer) continue;
+            if (line.Style == ReportLineStyles.Rule)
+            {
+                var ry = top + ReportLineStyles.Height(line.Style) / 2;
+                sb.Append(FormattableString.Invariant($"0.6 G 0.75 w {Margin:0.##} {ry:0.##} m {PageW - Margin:0.##} {ry:0.##} l S\n"));
+                continue;
+            }
+            var size = ReportLineStyles.FontSize(line.Style);
+            var maxChars = (int)((PageW - Margin * 2) / (0.6 * size));
+            var text = line.Text.Length > maxChars ? line.Text[..maxChars] : line.Text;
+            var baseline = top + size;
+            sb.Append(line.Style == ReportLineStyles.Small ? "0.5 g\n" : "0 g\n");
+            sb.Append(FormattableString.Invariant($"BT /{(ReportLineStyles.IsBold(line.Style) ? "FB" : "FN")} {size:0.#} Tf {Margin:0.##} {baseline:0.##} Td ("));
+            AppendEscaped(sb, text);
+            sb.Append(") Tj ET\n");
+        }
+        return sb.ToString();
+    }
+
+    private static readonly Dictionary<char, byte> WinAnsiSpecials = new()
+    {
+        ['€'] = 0x80, ['‚'] = 0x82, ['„'] = 0x84, ['…'] = 0x85, ['†'] = 0x86, ['‡'] = 0x87,
+        ['ˆ'] = 0x88, ['‰'] = 0x89, ['Š'] = 0x8A, ['‹'] = 0x8B, ['Œ'] = 0x8C, ['Ž'] = 0x8E,
+        ['‘'] = 0x91, ['’'] = 0x92, ['“'] = 0x93, ['”'] = 0x94, ['•'] = 0x95, ['–'] = 0x96,
+        ['—'] = 0x97, ['˜'] = 0x98, ['™'] = 0x99, ['š'] = 0x9A, ['›'] = 0x9B, ['œ'] = 0x9C,
+        ['ž'] = 0x9E, ['Ÿ'] = 0x9F
+    };
+
+    private static void AppendEscaped(StringBuilder sb, string text)
+    {
+        foreach (var ch in text)
+        {
+            if (ch is '\\' or '(' or ')') { sb.Append('\\').Append(ch); continue; }
+            byte b;
+            if (ch < 0x80 || ch <= 0xFF) b = (byte)ch;
+            else if (!WinAnsiSpecials.TryGetValue(ch, out b)) b = (byte)'?';
+            if (b < 32 || b > 126) sb.Append('\\').Append(Convert.ToString(b, 8).PadLeft(3, '0'));
+            else sb.Append((char)b);
+        }
+    }
+
+    private static void WriteFile(string path, List<string> objects)
+    {
+        using var ms = new MemoryStream();
+        void W(string s) { var bytes = Encoding.ASCII.GetBytes(s); ms.Write(bytes, 0, bytes.Length); }
+        W("%PDF-1.4\n");
+        var offsets = new List<long>();
+        for (var i = 0; i < objects.Count; i++)
+        {
+            offsets.Add(ms.Position);
+            W($"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
+        }
+        var xrefPos = ms.Position;
+        W($"xref\n0 {objects.Count + 1}\n0000000000 65535 f \n");
+        foreach (var off in offsets) W($"{off:D10} 00000 n \n");
+        W($"trailer\n<< /Size {objects.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefPos}\n%%EOF\n");
+        File.WriteAllBytes(path, ms.ToArray());
+    }
+}
 
 internal sealed class FeatureSettings
 {
@@ -59,6 +205,7 @@ internal sealed class FeatureSettings
     public bool EmailReceipts { get; set; } = false;
     public bool MultiLanguage { get; set; } = false;
     public bool MultiBranch { get; set; } = false;
+    public bool OnScreenKeyboard { get; set; } = true;
 }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
 {
@@ -128,6 +275,7 @@ internal sealed class PosStore
     private string shiftsFile => Path.Combine(dataFolder, "shifts.json");
     private string auditFile => Path.Combine(dataFolder, "audit-log.json");
     private string happyHourFile => Path.Combine(dataFolder, "happy-hour.json");
+    private string zReportsFile => Path.Combine(dataFolder, "z-reports.json");
     private FileSystemWatcher? watcher;
     public event Action? DataChanged;
     private volatile bool suppressWatcher;
@@ -165,6 +313,7 @@ internal sealed class PosStore
     public List<ShiftRecord> Shifts { get; private set; } = [];
     public List<AuditEntry> AuditLog { get; private set; } = [];
     public List<HappyHourRule> HappyHourRules { get; private set; } = [];
+    public List<ZReportRecord> ZReports { get; private set; } = [];
     public int OrderCounter { get; private set; }
     public int BillCounter { get; private set; }
     public int PaymentCounter { get; private set; }
@@ -253,6 +402,8 @@ internal sealed class PosStore
             AuditLog = JsonSerializer.Deserialize<List<AuditEntry>>(File.ReadAllText(auditFile), JsonOptions) ?? AuditLog;
         if (File.Exists(happyHourFile))
             HappyHourRules = JsonSerializer.Deserialize<List<HappyHourRule>>(File.ReadAllText(happyHourFile), JsonOptions) ?? HappyHourRules;
+        if (File.Exists(zReportsFile))
+            ZReports = JsonSerializer.Deserialize<List<ZReportRecord>>(File.ReadAllText(zReportsFile), JsonOptions) ?? ZReports;
         if (File.Exists(countersFile))
         {
             var counters = JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(countersFile), JsonOptions);
@@ -362,6 +513,9 @@ internal sealed class PosStore
     public void SaveShifts(List<ShiftRecord> shifts) { Shifts = shifts; suppressWatcher = true; File.WriteAllText(shiftsFile, JsonSerializer.Serialize(shifts, JsonOptions)); suppressWatcher = false; }
     public void SaveAuditLog(List<AuditEntry> log) { AuditLog = log; suppressWatcher = true; File.WriteAllText(auditFile, JsonSerializer.Serialize(log, JsonOptions)); suppressWatcher = false; }
     public void SaveHappyHours(List<HappyHourRule> rules) { HappyHourRules = rules; suppressWatcher = true; File.WriteAllText(happyHourFile, JsonSerializer.Serialize(rules, JsonOptions)); suppressWatcher = false; }
+    public void SaveZReports(List<ZReportRecord> recs) { ZReports = recs; suppressWatcher = true; File.WriteAllText(zReportsFile, JsonSerializer.Serialize(recs, JsonOptions)); suppressWatcher = false; }
+    public void RecordZReport(int transactions, decimal gross, string op) { ZReports.Add(new(DateTime.Now, transactions, gross, op)); SaveZReports(ZReports); }
+    public bool ZReportPrintedToday() => ZReports.Any(z => z.Time.Date == DateTime.Today);
     public void LogAudit(string op, string action, string detail = "") { AuditLog.Add(new(DateTime.Now, op, action, detail)); SaveAuditLog(AuditLog); }
 
     public void AddOpenOrder(OpenOrder order)
@@ -524,6 +678,8 @@ internal sealed class PosForm : Form
     private Button payButton = new();
     private Button splitBillButton = new();
     private Button transferButton = new();
+    private Button discountButton = new();
+    private decimal basketDiscountPercent;
     private readonly Label greetingLabel = new();
     private Button roomsNavButton = new();
     private Button settingsNavButton = new();
@@ -543,6 +699,7 @@ internal sealed class PosForm : Form
 
     public PosForm()
     {
+        OnScreenKeyboard.IsEnabled = () => store.Features.OnScreenKeyboard;
         ApplyCurrencyCulture(store.RegisterSettings.Currency);
         Text = "Vectron POS";
         StartPosition = FormStartPosition.Manual;
@@ -586,6 +743,7 @@ internal sealed class PosForm : Form
     private void OnDataChanged()
     {
         if (InvokeRequired) { BeginInvoke(OnDataChanged); return; }
+        ApplyCurrencyCulture(store.RegisterSettings.Currency);
         products = store.Products;
         RenderProducts();
         RenderRooms();
@@ -613,7 +771,7 @@ internal sealed class PosForm : Form
                         else basket.Add((product, item.Quantity, 0, item.Note));
                     }
                 }
-                noteButton.Visible = true;
+                UpdateOrderButtons();
                 RenderBasket();
                 orderLabel.Text = OrderContextText();
             }
@@ -621,7 +779,7 @@ internal sealed class PosForm : Form
             {
                 hasOpenOrder = false;
                 basket.Clear();
-                noteButton.Visible = false;
+                UpdateOrderButtons();
                 RenderBasket();
                 orderLabel.Text = OrderContextText();
             }
@@ -631,7 +789,14 @@ internal sealed class PosForm : Form
     private void ApplyOrderPcRestrictions()
     {
         payButton.Visible = !isOrderPc;
+        UpdateOrderButtons();
+    }
+
+    private void UpdateOrderButtons()
+    {
         noteButton.Visible = !isOrderPc && hasOpenOrder;
+        splitBillButton.Visible = !isOrderPc && hasOpenOrder && store.Features.SplitBill;
+        transferButton.Visible = hasOpenOrder && store.Features.TableTransfer;
     }
 
     private void BuildUi()
@@ -697,7 +862,7 @@ internal sealed class PosForm : Form
         basketList.WrapContents = false;
         basketList.AutoScroll = true;
         basketList.Padding = new Padding(0, 18, 0, 8);
-        var summary = new Panel { Dock = DockStyle.Bottom, Height = 154 };
+        var summary = new Panel { Dock = DockStyle.Bottom, Height = 204 };
         totalLabel.AutoSize = true;
         totalLabel.Font = new Font("Segoe UI Semibold", 22F);
         totalLabel.Location = new Point(0, 8);
@@ -716,15 +881,19 @@ internal sealed class PosForm : Form
         noteButton.Click += (_, _) => PrintBill();
         payButton = ActionButton("Take payment", 158, 70, 152, 48, mint);
         payButton.Click += (_, _) => CompleteSale();
-        splitBillButton = ActionButton("Split bill", 316, 70, 70, 48, Color.FromArgb(100, 80, 140));
+        splitBillButton = ActionButton("Split bill", 158, 166, 74, 34, Color.FromArgb(100, 80, 140));
         splitBillButton.Font = new Font("Segoe UI", 8F);
         splitBillButton.Visible = false;
         splitBillButton.Click += (_, _) => SplitBill();
-        transferButton = ActionButton("Transfer", 316, 126, 70, 34, Color.FromArgb(80, 100, 140));
+        transferButton = ActionButton("Transfer", 236, 166, 74, 34, Color.FromArgb(80, 100, 140));
         transferButton.Font = new Font("Segoe UI", 8F);
         transferButton.Visible = false;
         transferButton.Click += (_, _) => TransferTable();
-        summary.Controls.AddRange([totalCaption, totalLabel, orderButton, noteButton, payButton, splitBillButton, transferButton]);
+        discountButton = ActionButton("Discount", 158, 126, 152, 34, Color.FromArgb(200, 140, 60));
+        discountButton.Font = new Font("Segoe UI", 9F);
+        discountButton.Visible = store.Features.Discounts;
+        discountButton.Click += (_, _) => ShowDiscountDialog();
+        summary.Controls.AddRange([totalCaption, totalLabel, orderButton, noteButton, payButton, splitBillButton, transferButton, discountButton]);
         orderPanel.Controls.Add(basketList);
         orderPanel.Controls.Add(summary);
         orderPanel.Controls.Add(orderHeader);
@@ -902,9 +1071,7 @@ internal sealed class PosForm : Form
                         }
                     }
                 }
-                noteButton.Visible = hasOpenOrder;
-                splitBillButton.Visible = hasOpenOrder && store.Features.SplitBill;
-                transferButton.Visible = hasOpenOrder && store.Features.TableTransfer;
+                UpdateOrderButtons();
                 RenderBasket();
                 orderLabel.Text = OrderContextText();
                 ShowOrder();
@@ -1019,7 +1186,10 @@ internal sealed class PosForm : Form
             row.Controls.AddRange([name, price]);
             basketList.Controls.Add(row);
         }
-        totalLabel.Text = Total().ToString("C");
+        if (basket.Count == 0) basketDiscountPercent = 0;
+        totalLabel.Text = NetTotal().ToString("C");
+        discountButton.Text = basketDiscountPercent > 0 ? $"Discount {basketDiscountPercent:0.#}%" : "Discount";
+        discountButton.Visible = store.Features.Discounts && (currentOperator == null || HasPermission("Discounts"));
         basketList.ResumeLayout();
     }
 
@@ -1127,7 +1297,7 @@ internal sealed class PosForm : Form
 
         basket.RemoveAll(item => item.Product == product);
         hasOpenOrder = updatedItems.Count > 0;
-        noteButton.Visible = hasOpenOrder;
+        UpdateOrderButtons();
         RenderBasket();
         var currentRoom = store.Rooms.FirstOrDefault(r => r.Name == selectedRoom);
         if (currentRoom != null) RenderTableMap(currentRoom);
@@ -1135,6 +1305,10 @@ internal sealed class PosForm : Form
     }
 
     private decimal Total() => basket.Sum(item => item.Product.Price * item.Count);
+
+    private decimal DiscountAmount() => basketDiscountPercent <= 0 ? 0 : Math.Round(Total() * basketDiscountPercent / 100m, 2);
+
+    private decimal NetTotal() => Total() - DiscountAmount();
 
     private void PlaceOrder()
     {
@@ -1164,10 +1338,10 @@ internal sealed class PosForm : Form
             store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, currentOperator.Name, DateTime.Now, lines, "", orderNum, orderNum, OrderType: orderType));
         }
         PrintTickets(lines, orderType: orderType);
-        MessageBox.Show($"Order placed for {selectedTable}\n{Total():C}\n{orderType}", "Order saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show($"Order placed for {selectedTable}\n{NetTotal():C}\n{orderType}", "Order saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
         basket.Clear();
         hasOpenOrder = true;
-        noteButton.Visible = true;
+        UpdateOrderButtons();
         RenderBasket();
         var currentRoom = store.Rooms.FirstOrDefault(r => r.Name == selectedRoom);
         if (currentRoom != null) RenderTableMap(currentRoom);
@@ -1213,6 +1387,101 @@ internal sealed class PosForm : Form
         }
     }
 
+    private void ShowDiscountDialog()
+    {
+        if (basket.Count == 0)
+        {
+            MessageBox.Show("Add items to the order first.", "Discount", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (currentOperator != null && !HasPermission("Discounts"))
+        {
+            MessageBox.Show("You do not have permission to apply discounts.", "Discount", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var gross = Total();
+        using var form = new Form
+        {
+            Text = "Discount",
+            Size = new Size(400, 565),
+            StartPosition = FormStartPosition.CenterParent,
+            BackColor = background,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 10F),
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false
+        };
+
+        var entry = basketDiscountPercent > 0 ? ((int)Math.Round(basketDiscountPercent)).ToString() : "";
+        var orderCaption = new Label { Text = $"Order total: {gross:C}", AutoSize = true, Location = new Point(20, 15), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 10F) };
+        var percentCaption = new Label { Text = "DISCOUNT %", AutoSize = true, Location = new Point(20, 45), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F) };
+        var percentValue = new Label { Text = "0%", AutoSize = true, Location = new Point(20, 66), ForeColor = Color.Orange, Font = new Font("Segoe UI Semibold", 30F) };
+        var resultCaption = new Label { Text = "NEW TOTAL", AutoSize = true, Location = new Point(20, 122), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F) };
+        var resultValue = new Label { Text = gross.ToString("C"), AutoSize = true, Location = new Point(20, 143), ForeColor = mint, Font = new Font("Segoe UI Semibold", 26F) };
+
+        void RefreshPreview()
+        {
+            var hasValue = decimal.TryParse(entry, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var raw);
+            var percent = hasValue ? Math.Min(raw, 100m) : 0m;
+            percentValue.Text = string.IsNullOrEmpty(entry) ? "0%" : $"{entry}%";
+            var net = gross - Math.Round(gross * percent / 100m, 2);
+            resultValue.Text = net.ToString("C");
+        }
+
+        void KeyClick(string key)
+        {
+            switch (key)
+            {
+                case "C": entry = ""; break;
+                case "<": if (entry.Length > 0) entry = entry[..^1]; break;
+                default:
+                    if (entry.Length < 3)
+                    {
+                        if (entry == "0") entry = key == "0" ? entry : key;
+                        else entry += key;
+                    }
+                    break;
+            }
+            RefreshPreview();
+        }
+
+        var rows = new[] { new[] { "7", "8", "9" }, new[] { "4", "5", "6" }, new[] { "1", "2", "3" }, new[] { "C", "0", "<" } };
+        for (int r = 0; r < rows.Length; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                var key = rows[r][c];
+                var display = key == "<" ? "⌫" : key;
+                var color = key == "C" || key == "<" ? Color.FromArgb(60, 72, 92) : panelLight;
+                var btn = ActionButton(display, 20 + c * 120, 185 + r * 64, 110, 56, color);
+                btn.Font = new Font("Segoe UI Semibold", 16F);
+                btn.Click += (_, _) => KeyClick(key);
+                form.Controls.Add(btn);
+            }
+        }
+
+        var applyBtn = new Button { Text = "Apply", Location = new Point(20, 449), Size = new Size(230, 50), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
+        applyBtn.FlatAppearance.BorderSize = 0;
+        applyBtn.Click += (_, _) =>
+        {
+            var percent = decimal.TryParse(entry, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var raw) ? Math.Min(raw, 100m) : 0m;
+            basketDiscountPercent = percent > 0 ? percent : 0;
+            form.DialogResult = DialogResult.OK;
+        };
+        var cancelBtn = new Button { Text = "Cancel", Location = new Point(260, 449), Size = new Size(110, 50), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10F) };
+        cancelBtn.FlatAppearance.BorderSize = 0;
+        cancelBtn.Click += (_, _) => form.DialogResult = DialogResult.Cancel;
+
+        form.Controls.AddRange([orderCaption, percentCaption, percentValue, resultCaption, resultValue, applyBtn, cancelBtn]);
+        form.AcceptButton = applyBtn;
+        form.CancelButton = cancelBtn;
+        RefreshPreview();
+        form.ShowDialog(this);
+        RenderBasket();
+    }
+
     private void CompleteSale()
     {
         if (basket.Count == 0) return;
@@ -1228,18 +1497,16 @@ internal sealed class PosForm : Form
         typeForm.Controls.AddRange([typeLabel, dineBtn, takeBtn]);
         if (typeForm.ShowDialog() != DialogResult.OK) return;
 
-        decimal discount = 0; string discountType = ""; decimal tip = 0; string paymentType = "Cash"; string customerName = "";
+        decimal discount = DiscountAmount(); decimal tip = 0; string paymentType = "Cash"; string customerName = "";
 
         using var payForm = new Form { Text = "Payment", Size = new Size(420, 440), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
         var yPos = 15;
         Control MakeRow(string label, Control ctrl) { var p = new Panel { Location = new Point(20, yPos), Size = new Size(370, 38) }; var l = new Label { Text = label, AutoSize = true, Location = new Point(0, 8) }; ctrl.Location = new Point(150, 4); ctrl.Size = new Size(ctrl.Width, 30); p.Controls.AddRange([l, ctrl]); yPos += 44; return p; }
 
-        var totalBeforeDiscount = basket.Sum(item => item.Product.Price * item.Count);
-        var totalLabel = new Label { Text = $"Total: {totalBeforeDiscount:C}", AutoSize = true, Font = new Font("Segoe UI Semibold", 14F), ForeColor = mint, Location = new Point(20, yPos) }; yPos += 36;
+        var totalBeforeDiscount = Total();
+        var totalLabel = new Label { Text = $"Total: {totalBeforeDiscount - discount:C}", AutoSize = true, Font = new Font("Segoe UI Semibold", 14F), ForeColor = mint, Location = new Point(20, yPos) }; yPos += 36;
 
-        var discountTypeCombo = new ComboBox { Size = new Size(100, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 4) };
-        discountTypeCombo.Items.AddRange(["%", "Fixed"]); discountTypeCombo.SelectedIndex = 0;
-        var discountInput = new NumericUpDown { Minimum = 0, Maximum = 100, Value = 0, Size = new Size(80, 30), BackColor = panelLight, ForeColor = Color.White, Location = new Point(260, 4) };
+        var discountValue = new Label { Text = basketDiscountPercent > 0 ? $"-{discount:C} ({basketDiscountPercent:0.#}%)" : "None", AutoSize = true, ForeColor = basketDiscountPercent > 0 ? Color.Orange : Color.FromArgb(143, 154, 171) };
         var tipInput = new NumericUpDown { Minimum = 0, Maximum = 10000, Value = 0, Size = new Size(120, 30), BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 4) };
 
         var paymentCombo = new ComboBox { Size = new Size(150, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 4) };
@@ -1252,15 +1519,13 @@ internal sealed class PosForm : Form
 
         payForm.Controls.AddRange([
             totalLabel,
-            MakeRow("Discount:", discountTypeCombo), discountInput,
+            MakeRow("Discount:", discountValue),
             MakeRow("Tip:", tipInput),
             MakeRow("Payment:", paymentCombo),
             MakeRow("Customer:", customerCombo)
         ]);
-        payForm.Controls.Add(totalLabel);
-        discountInput.Location = new Point(260, yPos - 88); tipInput.Location = new Point(280, yPos - 44);
 
-        var payOk = new Button { Text = "Accept payment", Location = new Point(20, yPos), Size = new Size(370, 48), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
+        var payOk = new Button { Text = $"Accept payment  {totalBeforeDiscount - discount:C}", Location = new Point(20, yPos), Size = new Size(370, 48), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
         payOk.FlatAppearance.BorderSize = 0;
         payOk.Click += (_, _) => payForm.DialogResult = DialogResult.OK;
         payForm.Controls.Add(payOk);
@@ -1268,11 +1533,6 @@ internal sealed class PosForm : Form
 
         if (payForm.ShowDialog() != DialogResult.OK) return;
 
-        if (discountInput.Value > 0)
-        {
-            discount = discountTypeCombo.SelectedIndex == 0 ? totalBeforeDiscount * discountInput.Value / 100m : discountInput.Value;
-            discountType = discountTypeCombo.Text;
-        }
         tip = tipInput.Value;
         paymentType = paymentCombo.Text;
         customerName = customerCombo.Text == "(none)" ? "" : customerCombo.Text;
@@ -1361,10 +1621,10 @@ internal sealed class PosForm : Form
             }
         }
 
-        MessageBox.Show($"Payment accepted\n{Total():C}  •  {selectedTable}", "Sale complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show($"Payment accepted\n{finalTotal:C}  •  {selectedTable}", "Sale complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         basket.Clear();
         hasOpenOrder = false;
-        noteButton.Visible = false;
+        UpdateOrderButtons();
         salesLabel.Text = TodaySales();
         RenderBasket();
         var currentRoom = store.Rooms.FirstOrDefault(r => r.Name == selectedRoom);
@@ -1646,12 +1906,17 @@ internal sealed class PosForm : Form
 
     private static void ApplyCurrencyCulture(string currency)
     {
+        var symbol = currency switch { "EUR" => "€", "USD" => "$", "GBP" => "£", "DZD" => "DA", _ => currency };
         var ci = new System.Globalization.CultureInfo("fr-FR");
-        ci.NumberFormat.CurrencySymbol = currency;
+        ci.NumberFormat.CurrencySymbol = symbol;
         ci.NumberFormat.CurrencyPositivePattern = 3;
         ci.NumberFormat.CurrencyNegativePattern = 3;
         System.Threading.Thread.CurrentThread.CurrentCulture = ci;
         System.Threading.Thread.CurrentThread.CurrentUICulture = ci;
+        System.Globalization.CultureInfo.DefaultThreadCurrentCulture = ci;
+        System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = ci;
+        System.Globalization.CultureInfo.CurrentCulture = ci;
+        System.Globalization.CultureInfo.CurrentUICulture = ci;
     }
 
     private string TodaySales() => $"TODAY  {store.Sales.Where(sale => sale.Time.Date == DateTime.Today).Sum(sale => sale.Total):C}";
@@ -1749,6 +2014,10 @@ internal sealed class PosForm : Form
         {
             store.SaveRegisterSettings(settings);
             ApplyCurrencyCulture(settings.Currency);
+            salesLabel.Text = TodaySales();
+            RenderProducts();
+            RenderBasket();
+            totalLabel.Text = NetTotal().ToString("C");
         });
         form.TopLevel = false;
         form.FormBorderStyle = FormBorderStyle.None;
@@ -1757,7 +2026,7 @@ internal sealed class PosForm : Form
         form.Show();
         ShowView(panel, "Currency settings", ShowSettings);
         salesLabel.Text = TodaySales();
-        totalLabel.Text = Total().ToString("C");
+        RenderBasket();
     }
 
     private void ShowNetworkSettings()
@@ -1799,34 +2068,168 @@ internal sealed class PosForm : Form
 
     private void EndDay()
     {
+        using var dlg = new Form
+        {
+            Text = "End of day",
+            Size = new Size(430, 275),
+            StartPosition = FormStartPosition.CenterParent,
+            BackColor = background,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 10F),
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false
+        };
+        var info = new Label
+        {
+            Text = "Choose a report type:",
+            Location = new Point(20, 15),
+            AutoSize = true,
+            ForeColor = Color.White
+        };
+        var xRadio = new RadioButton
+        {
+            Text = "X report — interim read, the day stays open",
+            Location = new Point(20, 48),
+            Size = new Size(385, 24),
+            ForeColor = Color.White,
+            Checked = true
+        };
+        var zRadio = new RadioButton
+        {
+            Text = "Z report — closes the day and records it",
+            Location = new Point(20, 78),
+            Size = new Size(385, 24),
+            ForeColor = Color.White
+        };
+        var printBtn = new Button { Text = "Print", Location = new Point(20, 120), Size = new Size(190, 44), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.OK };
+        printBtn.FlatAppearance.BorderSize = 0;
+        var pdfBtn = new Button { Text = "Export as PDF", Location = new Point(220, 120), Size = new Size(190, 44), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.Yes };
+        pdfBtn.FlatAppearance.BorderSize = 0;
+        var cancelBtn = new Button { Text = "Cancel", Location = new Point(20, 178), Size = new Size(390, 36), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.Cancel };
+        cancelBtn.FlatAppearance.BorderSize = 0;
+        dlg.Controls.AddRange([info, xRadio, zRadio, printBtn, pdfBtn, cancelBtn]);
+        var choice = dlg.ShowDialog();
+        if (choice == DialogResult.Cancel) return;
+        var isZ = zRadio.Checked;
+        if (choice == DialogResult.OK) PrintDayReport(isZ);
+        else ExportDayReportPdf(isZ);
+    }
+
+    private DayReportData? BuildDayReport(bool closeDay)
+    {
+        var kind = closeDay ? "Z REPORT" : "X REPORT";
         var todaySales = store.Sales.Where(s => s.Time.Date == DateTime.Today).ToList();
         if (todaySales.Count == 0)
         {
-            MessageBox.Show("No sales today.", "End day", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
+            MessageBox.Show($"No sales today — {kind} not available.", kind, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return null;
         }
-        var confirm = MessageBox.Show($"Print end-of-day report?\n\n{todaySales.Count} transactions  •  {todaySales.Sum(s => s.Total):C} total", "End day", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-        if (confirm != DialogResult.Yes) return;
+        var allLines = todaySales.SelectMany(s => s.Items ?? []).ToList();
+        return new DayReportData
+        {
+            CloseDay = closeDay,
+            Time = DateTime.Now,
+            Operator = currentOperator.Name,
+            Currency = store.RegisterSettings.Currency,
+            Transactions = todaySales.Count,
+            ItemsSold = allLines.Sum(l => l.Quantity),
+            Gross = todaySales.Sum(s => s.Total),
+            Discounts = todaySales.Sum(s => s.Discount),
+            Tips = todaySales.Sum(s => s.Tip),
+            ByPayment = todaySales.GroupBy(s => string.IsNullOrWhiteSpace(s.PaymentType) ? "Cash" : s.PaymentType).Select(g => (Name: g.Key, Count: g.Count(), Total: g.Sum(s => s.Total))).OrderByDescending(x => x.Total).ToList(),
+            ByOperator = todaySales.GroupBy(s => s.Operator).Select(g => (Name: g.Key, Count: g.Count(), Total: g.Sum(s => s.Total))).OrderByDescending(x => x.Total).ToList(),
+            ByProduct = allLines.GroupBy(l => l.Product).Select(g => (Name: g.Key, Qty: g.Sum(l => l.Quantity), Total: g.Sum(l => l.UnitPrice * l.Quantity))).OrderByDescending(x => x.Total).Take(10).ToList(),
+            ByFamily = allLines.GroupBy(l => l.Family).Select(g => (Name: g.Key, Qty: g.Sum(l => l.Quantity), Total: g.Sum(l => l.UnitPrice * l.Quantity))).OrderByDescending(x => x.Total).ToList()
+        };
+    }
 
-        var currency = store.RegisterSettings.Currency;
-        var allLines = todaySales.SelectMany(s => s.Items).ToList();
-        var totalRevenue = todaySales.Sum(s => s.Total);
-        var totalItems = allLines.Sum(l => l.Quantity);
-        var byProduct = allLines.GroupBy(l => l.Product).Select(g => (Name: g.Key, Qty: g.Sum(l => l.Quantity), Total: g.Sum(l => l.UnitPrice * l.Quantity))).OrderByDescending(x => x.Total).ToList();
-        var byFamily = allLines.GroupBy(l => l.Family).Select(g => (Name: g.Key, Qty: g.Sum(l => l.Quantity), Total: g.Sum(l => l.UnitPrice * l.Quantity))).OrderByDescending(x => x.Total).ToList();
-        var byOperator = todaySales.GroupBy(s => s.Operator).Select(g => (Name: g.Key, Count: g.Count(), Total: g.Sum(s => s.Total))).OrderByDescending(x => x.Total).ToList();
+    private bool ConfirmZReport(DayReportData data)
+    {
+        if (!data.CloseDay) return true;
+        var msg = $"Close the day with a Z report?\n\n{data.Transactions} transactions  •  {data.Gross:C} total";
+        if (store.ZReportPrintedToday()) msg += "\n\nA Z report was already printed today.";
+        return MessageBox.Show(msg, "Z report", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+    }
+
+    private void FinalizeDayReport(DayReportData data, string action)
+    {
+        var detail = $"{data.Transactions} transactions  •  {data.Gross:N2} {data.Currency}";
+        if (data.CloseDay)
+        {
+            store.RecordZReport(data.Transactions, data.Gross, currentOperator.Name);
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Z report", $"{action}: {detail}");
+            MessageBox.Show($"Z report {action} — day closed.\n{detail}", "Z report", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        else
+        {
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "X report", $"{action}: {detail}");
+            MessageBox.Show($"X report {action} — day stays open.\n{detail}", "X report", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+
+    private List<ReportLine> BuildReportLines(DayReportData d, bool asPdf)
+    {
+        static string Trunc(string s, int n) => s.Length <= n ? s : s[..(n - 1)] + "...";
+        var cur = d.Currency;
+        var lines = new List<ReportLine>
+        {
+            new(d.CloseDay ? "Z REPORT" : "X REPORT", ReportLineStyles.Title),
+            new(d.CloseDay ? "END OF DAY READ - DAY CLOSED" : "MID-DAY READ - DAY STAYS OPEN", ReportLineStyles.Header),
+            new($"{d.Time:dd/MM/yyyy HH:mm}  Operator: {d.Operator}", ReportLineStyles.Normal),
+            new("", ReportLineStyles.Rule),
+            new("SUMMARY", ReportLineStyles.Header),
+            new($"Transactions:   {d.Transactions}", ReportLineStyles.Normal),
+            new($"Items sold:     {d.ItemsSold}", ReportLineStyles.Normal),
+            new($"Gross:          {d.Gross:N2} {cur}", ReportLineStyles.Normal),
+            new($"Discounts:      {d.Discounts:N2} {cur}", ReportLineStyles.Normal),
+            new($"Tips:           {d.Tips:N2} {cur}", ReportLineStyles.Normal),
+            new("", ReportLineStyles.Spacer),
+            new("PAYMENT BREAKDOWN", ReportLineStyles.Header),
+            new($"{"Type",-14} {"Sales",-6} {"Total",10}", ReportLineStyles.Header),
+            new("", ReportLineStyles.Rule)
+        };
+        lines.AddRange(d.ByPayment.Select(p => new ReportLine($"{Trunc(p.Name, 14),-14} {p.Count,-6} {p.Total:N2} {cur}", ReportLineStyles.Normal)));
+        lines.Add(new("", ReportLineStyles.Spacer));
+        lines.Add(new("BY OPERATOR", ReportLineStyles.Header));
+        lines.Add(new($"{"Sales",-6} {"Operator",-24} {"Total",10}", ReportLineStyles.Header));
+        lines.Add(new("", ReportLineStyles.Rule));
+        lines.AddRange(d.ByOperator.Select(o => new ReportLine($"{o.Count,-6} {Trunc(o.Name, 24),-24} {o.Total:N2} {cur}", ReportLineStyles.Normal)));
+        lines.Add(new("", ReportLineStyles.Spacer));
+        lines.Add(new("TOP PRODUCTS", ReportLineStyles.Header));
+        lines.Add(new($"{"Qty",-6} {"Product",-24} {"Total",10}", ReportLineStyles.Header));
+        lines.Add(new("", ReportLineStyles.Rule));
+        lines.AddRange(d.ByProduct.Select(p => new ReportLine($"{p.Qty,-6} {Trunc(p.Name, 24),-24} {p.Total:N2} {cur}", ReportLineStyles.Normal)));
+        lines.Add(new("", ReportLineStyles.Spacer));
+        lines.Add(new("BY FAMILY", ReportLineStyles.Header));
+        lines.Add(new($"{"Qty",-6} {"Family",-24} {"Total",10}", ReportLineStyles.Header));
+        lines.Add(new("", ReportLineStyles.Rule));
+        lines.AddRange(d.ByFamily.Select(f => new ReportLine($"{f.Qty,-6} {Trunc(f.Name, 24),-24} {f.Total:N2} {cur}", ReportLineStyles.Normal)));
+        lines.Add(new("", ReportLineStyles.Spacer));
+        lines.Add(new("", ReportLineStyles.Rule));
+        lines.Add(new($"{(asPdf ? "Exported" : "Printed")}: {DateTime.Now:dd/MM/yyyy HH:mm}   {(d.CloseDay ? "Day closed" : "Day stays open")}", ReportLineStyles.Small));
+        return lines;
+    }
+
+    private void PrintDayReport(bool closeDay)
+    {
+        var data = BuildDayReport(closeDay);
+        if (data == null) return;
+        if (!ConfirmZReport(data)) return;
+        var kind = closeDay ? "Z REPORT" : "X REPORT";
 
         var payDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Payment") ?? store.PrinterDestinations.FirstOrDefault(d => d.Name == "Bill");
         if (payDest == null || string.IsNullOrWhiteSpace(payDest.WindowsPrinter))
         {
-            MessageBox.Show("No printer configured for reports.\nSet a Payment or Bill printer in Settings > Printer routing.", "End day", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("No printer configured for reports.\nSet a Payment or Bill printer in Settings > Printer routing.", kind, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
+        var renderLines = BuildReportLines(data, false);
         try
         {
             using var document = new PrintDocument { PrinterSettings = { PrinterName = payDest.WindowsPrinter } };
-            if (!document.PrinterSettings.IsValid) { MessageBox.Show("Printer not available.", "End day", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (!document.PrinterSettings.IsValid) { MessageBox.Show("Printer not available.", kind, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             document.PrintPage += (_, args) =>
             {
                 if (args.Graphics == null) return;
@@ -1838,43 +2241,51 @@ internal sealed class PosForm : Form
                 using var headerFont = new Font("Consolas", 10F, FontStyle.Bold);
                 using var font = new Font("Consolas", 10F);
                 using var smallFont = new Font("Consolas", 8F);
-
-                g.DrawString("DAILY REPORT", titleFont, Brushes.Black, margin, y); y += 25;
-                g.DrawString(DateTime.Now.ToString("dd/MM/yyyy"), font, Brushes.Black, margin, y); y += 16;
-                g.DrawLine(Pens.Black, margin, y, margin + width, y); y += 8;
-
-                g.DrawString("SUMMARY", headerFont, Brushes.Black, margin, y); y += 16;
-                g.DrawString($"Transactions:  {todaySales.Count}", font, Brushes.Black, margin, y); y += 14;
-                g.DrawString($"Items sold:    {totalItems}", font, Brushes.Black, margin, y); y += 14;
-                g.DrawString($"Revenue:       {totalRevenue:N2} {currency}", font, Brushes.Black, margin, y); y += 20;
-
-                g.DrawString("BY PRODUCT", headerFont, Brushes.Black, margin, y); y += 16;
-                g.DrawString($"{"Qty",-6} {"Product",-24} {"Total",10}", headerFont, Brushes.Black, margin, y); y += 14;
-                g.DrawLine(Pens.Gray, margin, y, margin + width, y); y += 4;
-                foreach (var p in byProduct) { g.DrawString($"{p.Qty,-6} {p.Name,-24} {p.Total:N2} {currency}", font, Brushes.Black, margin, y); y += 14; }
-                y += 6;
-
-                g.DrawString("BY FAMILY", headerFont, Brushes.Black, margin, y); y += 16;
-                g.DrawString($"{"Qty",-6} {"Family",-24} {"Total",10}", headerFont, Brushes.Black, margin, y); y += 14;
-                g.DrawLine(Pens.Gray, margin, y, margin + width, y); y += 4;
-                foreach (var f in byFamily) { g.DrawString($"{f.Qty,-6} {f.Name,-24} {f.Total:N2} {currency}", font, Brushes.Black, margin, y); y += 14; }
-                y += 6;
-
-                g.DrawString("BY OPERATOR", headerFont, Brushes.Black, margin, y); y += 16;
-                g.DrawString($"{"Sales",-6} {"Operator",-24} {"Total",10}", headerFont, Brushes.Black, margin, y); y += 14;
-                g.DrawLine(Pens.Gray, margin, y, margin + width, y); y += 4;
-                foreach (var o in byOperator) { g.DrawString($"{o.Count,-6} {o.Name,-24} {o.Total:N2} {currency}", font, Brushes.Black, margin, y); y += 14; }
-                y += 10;
-
-                g.DrawLine(Pens.Black, margin, y, margin + width, y); y += 5;
-                g.DrawString($"Printed: {DateTime.Now:dd/MM/yyyy HH:mm}", smallFont, Brushes.Gray, margin, y);
+                using var grayPen = new Pen(Color.Gray);
+                foreach (var line in renderLines)
+                {
+                    switch (line.Style)
+                    {
+                        case ReportLineStyles.Title: g.DrawString(line.Text, titleFont, Brushes.Black, margin, y); break;
+                        case ReportLineStyles.Header: g.DrawString(line.Text, headerFont, Brushes.Black, margin, y); break;
+                        case ReportLineStyles.Small: g.DrawString(line.Text, smallFont, Brushes.Gray, margin, y); break;
+                        case ReportLineStyles.Rule: g.DrawLine(grayPen, margin, y + 4, margin + width, y + 4); break;
+                        case ReportLineStyles.Spacer: break;
+                        default: g.DrawString(line.Text, font, Brushes.Black, margin, y); break;
+                    }
+                    y += (int)ReportLineStyles.Height(line.Style);
+                }
             };
             document.Print();
-            MessageBox.Show($"Daily report printed.\n{todaySales.Count} transactions  •  {totalRevenue:N2} {currency}", "End day", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            FinalizeDayReport(data, "printed");
         }
         catch (Exception error)
         {
-            MessageBox.Show($"Could not print report: {error.Message}", "End day", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show($"Could not print report: {error.Message}", kind, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void ExportDayReportPdf(bool closeDay)
+    {
+        var data = BuildDayReport(closeDay);
+        if (data == null) return;
+        if (!ConfirmZReport(data)) return;
+        var kind = closeDay ? "Z REPORT" : "X REPORT";
+        using var save = new SaveFileDialog
+        {
+            Title = "Export report as PDF",
+            Filter = "PDF file|*.pdf",
+            FileName = $"{(closeDay ? "Z" : "X")}-report-{DateTime.Now:yyyy-MM-dd-HHmm}.pdf"
+        };
+        if (save.ShowDialog() != DialogResult.OK) return;
+        try
+        {
+            TicketPdf.Save(save.FileName, BuildReportLines(data, true));
+            FinalizeDayReport(data, "exported to PDF");
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show($"Could not export PDF: {error.Message}", kind, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -1963,8 +2374,8 @@ internal sealed class PosForm : Form
     {
         var existing = store.GetOpenOrder(selectedRoom, selectedTable);
         if (existing == null || existing.Items.Count == 0) return;
-        using var form = new Form { Text = "Split bill", Size = new Size(500, 420), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
-        var topLabel = new Label { Text = "Select items for each split:", AutoSize = true, Location = new Point(15, 10), ForeColor = mint };
+        using var form = new Form { Text = "Split bill", Size = new Size(500, 380), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var topLabel = new Label { Text = "Select the items this person pays for:", AutoSize = true, Location = new Point(15, 10), ForeColor = mint };
         var itemChecks = new List<(CheckBox cb, SoldLine line)>();
         int y = 40;
         foreach (var item in existing.Items)
@@ -1973,35 +2384,113 @@ internal sealed class PosForm : Form
             itemChecks.Add((cb, item));
             y += 28;
         }
-        var splitCountLabel = new Label { Text = "Number of splits:", AutoSize = true, Location = new Point(15, y + 5) };
-        var splitCount = new NumericUpDown { Minimum = 2, Maximum = 10, Value = 2, Location = new Point(160, y + 3), Size = new Size(60, 28), BackColor = panelLight, ForeColor = Color.White };
-        y += 40;
-        var okBtn = new Button { Text = "Split & Pay", Location = new Point(15, y), Size = new Size(140, 38), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+        y += 12;
+        var okBtn = new Button { Text = "Pay selected items", Location = new Point(15, y), Size = new Size(170, 38), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
         okBtn.FlatAppearance.BorderSize = 0;
         okBtn.Click += (_, _) => form.DialogResult = DialogResult.OK;
-        form.Controls.AddRange([topLabel, splitCountLabel, splitCount, okBtn]);
+        form.Controls.AddRange([topLabel, okBtn]);
         foreach (var (cb, _) in itemChecks) form.Controls.Add(cb);
         form.AcceptButton = okBtn;
         if (form.ShowDialog() != DialogResult.OK) return;
         var selectedLines = itemChecks.Where(x => x.cb.Checked).Select(x => x.line).ToList();
-        if (selectedLines.Count == 0) return;
-        int splits = (int)splitCount.Value;
-        var perSplit = Math.Round(selectedLines.Sum(l => l.UnitPrice * l.Quantity) / splits, 2);
-        var payNum = store.NextPaymentNumber();
-        for (int i = 0; i < splits; i++)
+        if (selectedLines.Count == 0)
         {
-            var partialLines = selectedLines.Select(l => new SoldLine(l.Product, l.Family, 1, l.UnitPrice, l.Category, l.PrinterDestination, l.Note, l.Modifiers)).ToList();
-            store.AddSale(new Sale(DateTime.Now, perSplit, selectedTable, currentOperator.Name, partialLines, payNum + i, existing.BillNumber));
+            MessageBox.Show("Select at least one item to pay for.", "Split bill", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var selectedTotal = selectedLines.Sum(l => l.UnitPrice * l.Quantity);
+
+        using var payForm = new Form { Text = "Split payment", Size = new Size(400, 268), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var payTotal = new Label { Text = $"Total: {selectedTotal:C}", AutoSize = true, Font = new Font("Segoe UI Semibold", 16F), ForeColor = mint, Location = new Point(20, 20) };
+        var payInfo = new Label { Text = $"{selectedLines.Sum(l => l.Quantity)} item(s) on this payment", AutoSize = true, ForeColor = Color.FromArgb(143, 154, 171), Location = new Point(22, 56) };
+        var payTypeLabel = new Label { Text = "Payment type:", AutoSize = true, Location = new Point(20, 100) };
+        var paymentCombo = new ComboBox { Size = new Size(210, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 96) };
+        paymentCombo.Items.AddRange(["Cash", "Card", "Transfer", "Mobile"]);
+        paymentCombo.SelectedIndex = 0;
+        var payOk = new Button { Text = $"Accept payment  {selectedTotal:C}", Location = new Point(20, 142), Size = new Size(345, 46), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
+        payOk.FlatAppearance.BorderSize = 0;
+        payOk.Click += (_, _) => payForm.DialogResult = DialogResult.OK;
+        var payCancel = new Button { Text = "Cancel", Location = new Point(20, 198), Size = new Size(345, 34), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        payCancel.FlatAppearance.BorderSize = 0;
+        payCancel.Click += (_, _) => payForm.DialogResult = DialogResult.Cancel;
+        payForm.Controls.AddRange([payTotal, payInfo, payTypeLabel, paymentCombo, payOk, payCancel]);
+        payForm.AcceptButton = payOk;
+        payForm.CancelButton = payCancel;
+        if (payForm.ShowDialog() != DialogResult.OK) return;
+        var paymentType = paymentCombo.Text;
+
+        var payNum = store.NextPaymentNumber();
+        store.AddSale(new Sale(DateTime.Now, selectedTotal, selectedTable, currentOperator.Name, selectedLines, payNum, existing.BillNumber, PaymentType: paymentType, OrderType: existing.OrderType, CustomerName: existing.CustomerName));
+        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Payment", $"Split {selectedTotal:C} ({paymentType}) {selectedTable}");
+        if (store.Features.StockManagement && store.Recipes.Count > 0)
+        {
+            var alerts = new List<StockAlert>();
+            foreach (var line in selectedLines)
+            {
+                if (store.Recipes.TryGetValue(line.Product, out var recipeItems))
+                {
+                    foreach (var ri in recipeItems)
+                    {
+                        var idx = store.Ingredients.FindIndex(i => i.Name == ri.Ingredient);
+                        if (idx >= 0)
+                        {
+                            var ingr = store.Ingredients[idx];
+                            var newStock = ingr.Stock - ri.Quantity * line.Quantity;
+                            store.Ingredients[idx] = ingr with { Stock = newStock };
+                            if (store.Features.InventoryAlerts && newStock <= ingr.MinStock)
+                                alerts.Add(new StockAlert(line.Product, ri.Ingredient, newStock, ingr.MinStock));
+                        }
+                    }
+                }
+            }
+            store.SaveIngredients(store.Ingredients);
+            if (alerts.Count > 0)
+                MessageBox.Show("LOW STOCK ALERTS:\n\n" + string.Join("\n", alerts.Select(a => $"• {a.Ingredient}: {a.Remaining:F1} remaining (min: {a.MinStock:F1})\n  Used by: {a.ProductName}")),
+                    "Stock Alert", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         var remaining = existing.Items.Except(selectedLines).ToList();
         store.RemoveOpenOrder(selectedRoom, selectedTable);
         if (remaining.Count > 0)
-            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, currentOperator.Name, existing.Created, remaining, existing.Note, existing.OrderNumber, existing.BillNumber));
-        MessageBox.Show($"Split into {splits} payments of {perSplit:C} each", "Split bill", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, currentOperator.Name, existing.Created, remaining, existing.Note, existing.OrderNumber, existing.BillNumber, existing.OrderType, existing.CustomerName, existing.SeatCount));
+
+        var payDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Payment");
+        if (payDest != null && !string.IsNullOrWhiteSpace(payDest.WindowsPrinter))
+        {
+            try
+            {
+                if (isOrderPc)
+                {
+                    var escPosBytes = BuildEscPosBytes(payDest, selectedLines, selectedRoom, selectedTable, currentOperator.Name, billNumber: existing.BillNumber, paymentNumber: payNum);
+                    TcpPrintClient.SendPrintJob(GetMainPcHost(), payDest.WindowsPrinter, escPosBytes);
+                }
+                else if (payDest.CutAfterPrint)
+                {
+                    try { RawPrinter.PrintTicket(payDest, selectedRoom, selectedTable, currentOperator.Name, selectedLines, ResolvePrinterName(payDest), billNumber: existing.BillNumber, paymentNumber: payNum); }
+                    catch (InvalidOperationException) { PrintWindowsTicket(payDest, selectedLines, billNumber: existing.BillNumber, paymentNumber: payNum); }
+                }
+                else PrintWindowsTicket(payDest, selectedLines, billNumber: existing.BillNumber, paymentNumber: payNum);
+            }
+            catch (Exception error)
+            {
+                MessageBox.Show($"Could not print payment: {error.Message}", "Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        MessageBox.Show($"Payment accepted\n{selectedTotal:C}  •  {selectedTable}", "Split bill", MessageBoxButtons.OK, MessageBoxIcon.Information);
         basket.Clear();
-        if (remaining.Count > 0) { hasOpenOrder = true; foreach (var item in remaining) { var p = products.FirstOrDefault(pr => pr.Name == item.Product); if (p != null) basket.Add((p, item.Quantity, 0, item.Note)); } }
-        else { hasOpenOrder = false; noteButton.Visible = false; }
+        hasOpenOrder = remaining.Count > 0;
+        if (hasOpenOrder)
+            foreach (var item in remaining)
+            {
+                var p = products.FirstOrDefault(pr => pr.Name == item.Product);
+                if (p != null) basket.Add((p, item.Quantity, 0, item.Note));
+            }
+        UpdateOrderButtons();
+        salesLabel.Text = TodaySales();
         RenderBasket();
+        orderLabel.Text = OrderContextText();
+        var currentRoom = store.Rooms.FirstOrDefault(r => r.Name == selectedRoom);
+        if (currentRoom != null) RenderTableMap(currentRoom);
     }
 
     private void TransferTable()
@@ -2034,6 +2523,7 @@ internal sealed class PosForm : Form
         MessageBox.Show($"Order transferred to {destTable} ({destRoom})", "Transfer", MessageBoxButtons.OK, MessageBoxIcon.Information);
         basket.Clear();
         hasOpenOrder = false;
+        UpdateOrderButtons();
         RenderBasket();
         ShowRooms();
     }
@@ -2240,6 +2730,336 @@ internal sealed class PosForm : Form
     }
 }
 
+internal static class OnScreenKeyboard
+{
+    public static Func<bool> IsEnabled = static () => false;
+
+    public static void Register() => Application.AddMessageFilter(new KeyboardMessageFilter());
+}
+
+internal sealed class KeyboardMessageFilter : IMessageFilter
+{
+    public bool PreFilterMessage(ref Message m)
+    {
+        if (m.Msg != 0x0201 && m.Msg != 0x0203) return false;
+        if (KeyboardForm.IsOpen || !OnScreenKeyboard.IsEnabled()) return false;
+        if (Control.FromHandle(m.HWnd) is not TextBox tb) return false;
+        if (tb.IsDisposed || !tb.Enabled || !tb.Visible || tb.ReadOnly) return false;
+        if (tb.FindForm() is KeyboardForm) return false;
+        if (!tb.IsHandleCreated) return false;
+        var lParam = (int)m.LParam;
+        var clickPoint = new Point((short)(lParam & 0xFFFF), (short)((lParam >> 16) & 0xFFFF));
+        if (!tb.ClientRectangle.Contains(clickPoint)) return false;
+        KeyboardForm.ShowFor(tb);
+        return false;
+    }
+}
+
+internal sealed class KeyboardForm : Form
+{
+    private static readonly Color background = Color.FromArgb(19, 24, 33);
+    private static readonly Color mint = Color.FromArgb(71, 214, 174);
+    private static readonly Color dimText = Color.FromArgb(143, 154, 171);
+    private static readonly Color darkKey = Color.FromArgb(45, 56, 74);
+    private static readonly Color darkKey2 = Color.FromArgb(60, 72, 92);
+
+    private readonly TextBox target;
+    private readonly bool numericOnly;
+    private readonly Label preview;
+    private readonly Panel abcPanel = new();
+    private readonly Panel symPanel = new();
+    private readonly Panel numPanel = new();
+    private readonly List<(Button Button, char Character)> letterKeys = [];
+    private Button shiftButton = new();
+    private bool shift;
+
+    public static bool IsOpen { get; private set; }
+
+    public static void ShowFor(TextBox textBox)
+    {
+        if (IsOpen || textBox.IsDisposed) return;
+        using var form = new KeyboardForm(textBox);
+        IsOpen = true;
+        try
+        {
+            var owner = textBox.TopLevelControl as Form;
+            if (owner != null && !owner.IsDisposed) form.ShowDialog(owner);
+            else form.ShowDialog();
+        }
+        finally
+        {
+            IsOpen = false;
+            ReleaseStaleCapture(textBox);
+        }
+    }
+
+    private static void ReleaseStaleCapture(TextBox textBox)
+    {
+        if (textBox.IsDisposed || !textBox.IsHandleCreated) return;
+        try
+        {
+            textBox.BeginInvoke(() =>
+            {
+                if (!textBox.IsDisposed && textBox.IsHandleCreated) textBox.Capture = false;
+            });
+        }
+        catch (InvalidOperationException) { }
+    }
+
+    private KeyboardForm(TextBox textBox)
+    {
+        target = textBox;
+        numericOnly = IsNumericTarget(textBox);
+        Text = "Keyboard";
+        StartPosition = FormStartPosition.Manual;
+        FormBorderStyle = FormBorderStyle.None;
+        ShowInTaskbar = false;
+        KeyPreview = true;
+        BackColor = background;
+        ForeColor = Color.White;
+        Font = new Font("Segoe UI", 10F);
+        Size = new Size(780, 344);
+
+        var title = string.IsNullOrWhiteSpace(target.Name) ? "Text" : target.Name;
+        title = char.ToUpperInvariant(title[0]) + title[1..];
+        var fieldCaption = new Label { Text = title, AutoSize = true, Location = new Point(12, 16), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
+        preview = new Label { Text = target.Text, Location = new Point(120, 10), Size = new Size(520, 32), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(12, 16, 24), ForeColor = Color.White, Font = new Font("Segoe UI", 12F), TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
+        var headerDone = new Button { Text = "✓ Done", Location = new Point(654, 10), Size = new Size(114, 32), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 11F) };
+        headerDone.FlatAppearance.BorderSize = 0;
+        headerDone.Click += (_, _) => DialogResult = DialogResult.OK;
+        AcceptButton = headerDone;
+
+        foreach (var panel in new[] { abcPanel, symPanel, numPanel })
+        {
+            panel.SetBounds(0, 46, 780, 298);
+            panel.BackColor = background;
+        }
+
+        BuildAbcPanel();
+        BuildSymbolsPanel();
+        BuildNumericPanel();
+
+        Controls.AddRange([fieldCaption, preview, headerDone, abcPanel, symPanel, numPanel]);
+        abcPanel.Visible = !numericOnly;
+        symPanel.Visible = false;
+        numPanel.Visible = numericOnly;
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        var area = Screen.FromControl(target).WorkingArea;
+        Location = new Point(area.Left + (area.Width - Width) / 2, area.Top + area.Height - Height);
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        var key = keyData & Keys.KeyCode;
+        if (key == Keys.Escape) { Close(); return true; }
+        if (key == Keys.Enter) { DialogResult = DialogResult.OK; return true; }
+        if (key == Keys.Back) { Backspace(); return true; }
+        char ch;
+        if (key >= Keys.A && key <= Keys.Z) ch = (char)('a' + (key - Keys.A));
+        else if (key >= Keys.D0 && key <= Keys.D9) ch = (char)('0' + (key - Keys.D0));
+        else if (key >= Keys.NumPad0 && key <= Keys.NumPad9) ch = (char)('0' + (key - Keys.NumPad0));
+        else if (key == Keys.Space) ch = ' ';
+        else if (key == Keys.OemPeriod || key == Keys.Decimal) ch = '.';
+        else if (key == Keys.Oemcomma) ch = ',';
+        else return base.ProcessCmdKey(ref msg, keyData);
+        if (char.IsLetter(ch) && (Control.ModifierKeys.HasFlag(Keys.Shift) || IsKeyLocked(Keys.CapsLock))) ch = char.ToUpperInvariant(ch);
+        if (!numericOnly || char.IsDigit(ch) || ch == '.') Insert(ch);
+        return true;
+    }
+
+    private static bool IsNumericTarget(TextBox textBox)
+    {
+        for (Control? parent = textBox.Parent; parent != null; parent = parent.Parent)
+            if (parent is NumericUpDown) return true;
+        return false;
+    }
+
+    private Button MakeKey(Panel panel, string text, int col, int row, int span, Color back, int fontSize = 14)
+    {
+        var button = new Button
+        {
+            Text = text,
+            Location = new Point(8 + col * 76, 8 + row * 56),
+            Size = new Size(span * 76 - 4, 52),
+            BackColor = back,
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI Semibold", fontSize)
+        };
+        button.FlatAppearance.BorderSize = 0;
+        panel.Controls.Add(button);
+        return button;
+    }
+
+    private void BuildAbcPanel()
+    {
+        AddCharRow(abcPanel, "1234567890", 0);
+        AddLetterRow(abcPanel, "qwertyuiop", 1);
+        AddLetterRow(abcPanel, "asdfghjkl'", 2);
+
+        shiftButton = MakeKey(abcPanel, "⇧", 0, 3, 2, darkKey2, 16);
+        shiftButton.Click += (_, _) => ToggleShift();
+        var row = "zxcvbnm".ToCharArray();
+        for (int i = 0; i < row.Length; i++)
+        {
+            var character = row[i];
+            var button = MakeKey(abcPanel, character.ToString(), 2 + i, 3, 1, darkKey);
+            letterKeys.Add((button, character));
+            button.Click += (_, _) => InsertLetter(character);
+        }
+        var back = MakeKey(abcPanel, "⌫", 9, 3, 1, darkKey2, 16);
+        back.Click += (_, _) => Backspace();
+
+        BuildFooter(abcPanel, "123", 4, () =>
+        {
+            abcPanel.Visible = false;
+            symPanel.Visible = true;
+        });
+    }
+
+    private void BuildSymbolsPanel()
+    {
+        AddCharRow(symPanel, "1234567890", 0);
+        AddCharRow(symPanel, "@#$%&*()-_", 1);
+        AddCharRow(symPanel, "=+;:\"'~`\\/", 2);
+        AddCharRow(symPanel, "!?{}[]<>|", 3);
+        var back = MakeKey(symPanel, "⌫", 9, 3, 1, darkKey2, 16);
+        back.Click += (_, _) => Backspace();
+        BuildFooter(symPanel, "ABC", 4, () =>
+        {
+            symPanel.Visible = false;
+            abcPanel.Visible = true;
+        });
+    }
+
+    private void BuildNumericPanel()
+    {
+        var keys = new (string Text, string Value)[] { ("7", "7"), ("8", "8"), ("9", "9"), ("4", "4"), ("5", "5"), ("6", "6"), ("1", "1"), ("2", "2"), ("3", "3"), ("0", "0"), (".", "."), ("⌫", "<") };
+        for (int i = 0; i < keys.Length; i++)
+        {
+            var (text, value) = keys[i];
+            var col = i % 3;
+            var row = i / 3;
+            var button = new Button
+            {
+                Text = text,
+                Location = new Point(8 + col * 256, 8 + row * 56),
+                Size = new Size(252, 52),
+                BackColor = value == "<" ? darkKey2 : darkKey,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI Semibold", value == "<" ? 16F : 18F)
+            };
+            button.FlatAppearance.BorderSize = 0;
+            if (value == "<") button.Click += (_, _) => Backspace();
+            else button.Click += (_, _) => Insert(value[0]);
+            numPanel.Controls.Add(button);
+        }
+        var clear = new Button { Text = "Clear", Location = new Point(8, 232), Size = new Size(376, 52), BackColor = darkKey2, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
+        clear.FlatAppearance.BorderSize = 0;
+        clear.Click += (_, _) => { target.Clear(); UpdatePreview(); };
+        var done = new Button { Text = "✓ Done", Location = new Point(388, 232), Size = new Size(376, 52), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 14F) };
+        done.FlatAppearance.BorderSize = 0;
+        done.Click += (_, _) => DialogResult = DialogResult.OK;
+        numPanel.Controls.AddRange([clear, done]);
+    }
+
+    private void AddCharRow(Panel panel, string keys, int row)
+    {
+        for (int i = 0; i < keys.Length; i++)
+        {
+            var character = keys[i];
+            var button = MakeKey(panel, character.ToString(), i, row, 1, darkKey);
+            button.Click += (_, _) => Insert(character);
+        }
+    }
+
+    private void AddLetterRow(Panel panel, string keys, int row)
+    {
+        for (int i = 0; i < keys.Length; i++)
+        {
+            var character = keys[i];
+            if (char.IsLetter(character))
+            {
+                var button = MakeKey(panel, character.ToString(), i, row, 1, darkKey);
+                letterKeys.Add((button, character));
+                button.Click += (_, _) => InsertLetter(character);
+            }
+            else
+            {
+                var button = MakeKey(panel, character.ToString(), i, row, 1, darkKey);
+                button.Click += (_, _) => Insert(character);
+            }
+        }
+    }
+
+    private void ToggleShift()
+    {
+        shift = !shift;
+        RefreshLetters();
+    }
+
+    private void RefreshLetters()
+    {
+        shiftButton.BackColor = shift ? mint : darkKey2;
+        foreach (var (button, character) in letterKeys)
+            button.Text = shift ? char.ToUpperInvariant(character).ToString() : character.ToString();
+    }
+
+    private void InsertLetter(char character)
+    {
+        Insert(shift ? char.ToUpperInvariant(character) : character);
+        if (shift)
+        {
+            shift = false;
+            RefreshLetters();
+        }
+    }
+
+    private void BuildFooter(Panel panel, string switchText, int row, Action onSwitch)
+    {
+        var switchButton = MakeKey(panel, switchText, 0, row, 1, darkKey2, 11);
+        switchButton.Click += (_, _) => onSwitch();
+        var comma = MakeKey(panel, ",", 1, row, 1, darkKey);
+        comma.Click += (_, _) => Insert(',');
+        var dot = MakeKey(panel, ".", 2, row, 1, darkKey);
+        dot.Click += (_, _) => Insert('.');
+        var space = MakeKey(panel, "space", 3, row, 3, darkKey, 11);
+        space.Click += (_, _) => Insert(' ');
+        var clear = MakeKey(panel, "Clear", 6, row, 2, darkKey2, 11);
+        clear.Click += (_, _) => { target.Clear(); UpdatePreview(); };
+        var done = MakeKey(panel, "✓ Done", 8, row, 2, mint, 11);
+        done.ForeColor = background;
+        done.Click += (_, _) => DialogResult = DialogResult.OK;
+    }
+
+    private void Insert(char character)
+    {
+        if (target.IsDisposed || !target.IsHandleCreated) { Close(); return; }
+        target.SelectedText = character.ToString();
+        UpdatePreview();
+    }
+
+    private void Backspace()
+    {
+        if (target.IsDisposed || !target.IsHandleCreated) { Close(); return; }
+        if (target.SelectionLength > 0) target.SelectedText = "";
+        else if (target.SelectionStart > 0)
+        {
+            var position = target.SelectionStart;
+            target.Text = target.Text.Remove(position - 1, 1);
+            target.SelectionStart = position - 1;
+        }
+        UpdatePreview();
+    }
+
+    private void UpdatePreview() => preview.Text = target.Text;
+}
+
 internal sealed class OperatorPickerForm : Form
 {
     public event Action<OperatorAccount>? OperatorSelected;
@@ -2431,7 +3251,7 @@ internal sealed class OperatorManagerForm : Form
 
 internal sealed class SettingsForm : Form
 {
-    private readonly FeatureSettings features;
+    private FeatureSettings features;
     private readonly Action<FeatureSettings> saveFeatures;
     private readonly Dictionary<string, Button> toggleButtons = new();
     private readonly Panel contentPanel;
@@ -2523,7 +3343,7 @@ internal sealed class SettingsForm : Form
         AddBtn("Printer routing", _mPrint!);
         AddBtn("Currency and TVA", _mCur!);
         AddBtn("Sales details", _showSales!, _canSales);
-        AddBtn("End day", _endDay!);
+        AddBtn("End day (X / Z)", _endDay!);
         AddBtn("Network settings", _showNet!);
     }
 
@@ -2540,12 +3360,15 @@ internal sealed class SettingsForm : Form
             btn.Tag = newState;
             btn.BackColor = newState ? onColor : offColor;
             var f = new FeatureSettings();
+            foreach (var pi in typeof(FeatureSettings).GetProperties())
+                if (pi.CanWrite && pi.GetValue(features) is bool bv0) pi.SetValue(f, bv0);
             foreach (var kv in toggleButtons)
             {
                 var pi = typeof(FeatureSettings).GetProperty(kv.Key);
                 if (pi != null && kv.Value.Tag is bool bv) pi.SetValue(f, bv);
             }
             saveFeatures(f);
+            features = f;
         };
         return btn;
     }
@@ -2573,6 +3396,7 @@ internal sealed class SettingsForm : Form
         switch (key)
         {
             case "management":
+                AddToggle("OnScreenKeyboard", "On-screen touch keyboard (text fields)");
                 AddBtn("Manage operators", mOps, canOps);
                 AddBtn("Manage products", mProd, canProd);
                 AddBtn("Manage families", mFam, canProd);
@@ -2582,7 +3406,7 @@ internal sealed class SettingsForm : Form
                 break;
             case "reports":
                 AddBtn("Sales details", showSales, canSales);
-                AddBtn("End day", endDay);
+                AddBtn("End day (X / Z)", endDay);
                 break;
             case "network":
                 AddBtn("Network settings", showNet);
@@ -2659,7 +3483,7 @@ internal sealed class CurrencySettingsForm : Form
         saveButton.Click += (_, _) =>
         {
             var code = currency.SelectedIndex switch { 1 => "USD", 2 => "GBP", 3 => "DZD", _ => "EUR" };
-            save(new RegisterSettings(code, tva.Value, included.Checked));
+            save(current with { Currency = code, TvaRate = tva.Value, PricesIncludeTva = included.Checked });
         };
         Controls.AddRange([title, hint, currencyLabel, currency, tvaLabel, tva, included, saveButton]);
         AcceptButton = saveButton;
@@ -3487,7 +4311,10 @@ internal sealed class PrinterManagerForm : Form
             else if (existing.Name == "Payment")
                 destinations[selectedIndex] = new PrinterDestination("Payment", printer, ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
             else
-                destinations[selectedIndex] = new PrinterDestination(existing.Name, printer, ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
+            {
+                var newName = name.Enabled && !string.IsNullOrWhiteSpace(name.Text) ? name.Text.Trim() : existing.Name;
+                destinations[selectedIndex] = new PrinterDestination(newName, printer, ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
+            }
             list.Items[selectedIndex] = destinations[selectedIndex].Name;
         }
         if (list.SelectedIndex < 0 || list.SelectedIndex >= destinations.Count) return;
@@ -3503,9 +4330,9 @@ internal sealed class PrinterManagerForm : Form
         footerLabel.Visible = true;
         ticketFooter.Visible = true;
         cutAfterPrint.Visible = true;
-        if (!isSpecial && !string.IsNullOrWhiteSpace(destination.WindowsPrinter))
+        if (!isSpecial)
         {
-            var idx = windowsPrinter.Items.IndexOf(destination.WindowsPrinter);
+            var idx = string.IsNullOrWhiteSpace(destination.WindowsPrinter) ? -1 : windowsPrinter.Items.IndexOf(destination.WindowsPrinter);
             windowsPrinter.SelectedIndex = idx >= 0 ? idx : -1;
         }
         ticketHeader.Text = destination.Header;
@@ -3540,9 +4367,12 @@ internal sealed class PrinterManagerForm : Form
             if (existing.Name == "Cancel")
                 destinations[selectedIndex] = new PrinterDestination("Cancel", "", ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
             else if (existing.Name == "Payment")
-                destinations[selectedIndex] = new PrinterDestination("Payment", windowsPrinter.SelectedItem?.ToString() ?? "", ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
+                destinations[selectedIndex] = new PrinterDestination("Payment", windowsPrinter.SelectedItem?.ToString() ?? existing.WindowsPrinter, ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
             else
-                destinations[selectedIndex] = new PrinterDestination(existing.Name, windowsPrinter.SelectedItem?.ToString() ?? "", ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
+            {
+                var newName = name.Enabled && !string.IsNullOrWhiteSpace(name.Text) ? name.Text.Trim() : existing.Name;
+                destinations[selectedIndex] = new PrinterDestination(newName, windowsPrinter.SelectedItem?.ToString() ?? existing.WindowsPrinter, ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
+            }
             list.Items[selectedIndex] = destinations[selectedIndex].Name;
         }
         save(destinations);
@@ -3991,7 +4821,8 @@ internal sealed class FamilyManagerForm : Form
     {
         if (selectedFamily >= 0 && selectedFamily < families.Count && selectedFamily != familyList.SelectedIndex)
         {
-            var printerName = familyPrinter.SelectedItem?.ToString() == "No printer" ? "" : familyPrinter.SelectedItem?.ToString() ?? "";
+            var chosen = familyPrinter.SelectedItem?.ToString();
+            var printerName = chosen == "No printer" ? "" : !string.IsNullOrWhiteSpace(chosen) ? chosen : families[selectedFamily].PrinterDestination;
             families[selectedFamily] = new ProductFamily(familyName.Text.Trim(), familyImagePath.Text.Trim(), printerName);
             familyList.Items[selectedFamily] = families[selectedFamily].Name;
         }
@@ -4043,7 +4874,8 @@ internal sealed class FamilyManagerForm : Form
     {
         if (selectedFamily >= 0)
         {
-            var printerName = familyPrinter.SelectedItem?.ToString() == "No printer" ? "" : familyPrinter.SelectedItem?.ToString() ?? "";
+            var chosen = familyPrinter.SelectedItem?.ToString();
+            var printerName = chosen == "No printer" ? "" : !string.IsNullOrWhiteSpace(chosen) ? chosen : families[selectedFamily].PrinterDestination;
             families[selectedFamily] = new ProductFamily(familyName.Text.Trim(), familyImagePath.Text.Trim(), printerName);
             familyList.Items[selectedFamily] = families[selectedFamily].Name;
             RefreshFamilyChoices();
