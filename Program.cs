@@ -20,7 +20,7 @@ internal static class Program
 internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "");
 internal sealed record SoldLine(string Product, string Family, int Quantity, decimal UnitPrice, string Category = "General", string PrinterDestination = "", string Note = "", string Modifiers = "", decimal Discount = 0, string DiscountType = "", int Course = 0);
 internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0);
-internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0);
+internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false);
 internal sealed record Room(string Name, int TableCount);
     internal sealed record ProductFamily(string Name, string ImagePath = "", string PrinterDestination = "");
 internal sealed record OperatorAccount(string Name, List<string> Permissions, string Password = "");
@@ -206,6 +206,7 @@ internal sealed class FeatureSettings
     public bool MultiLanguage { get; set; } = false;
     public bool MultiBranch { get; set; } = false;
     public bool OnScreenKeyboard { get; set; } = true;
+    public bool KitchenDisplay { get; set; } = false;
 }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
 {
@@ -685,6 +686,7 @@ internal sealed class PosForm : Form
     private Button settingsNavButton = new();
     private Button clockInOutBtn = new();
     private Button stockBtn = new();
+    private Button kdsNavButton = new();
     private readonly Panel menuPanel = new();
     private readonly Panel workspacePanel = new();
     private readonly Panel roomsPanel = new();
@@ -815,6 +817,9 @@ internal sealed class PosForm : Form
         stockBtn = NavButton("Stock", 382, false, ShowStockManagement);
         stockBtn.Visible = store.Features.StockManagement;
         sidebar.Controls.Add(stockBtn);
+        kdsNavButton = NavButton("Kitchen", 436, false, ShowKitchenDisplay);
+        kdsNavButton.Visible = store.Features.KitchenDisplay;
+        sidebar.Controls.Add(kdsNavButton);
         var status = new Label { Text = isOrderPc ? $"●  ORDER PC\n\nConnected to main PC" : $"●  MAIN PC\n\nIP: {TcpPrintServer.LocalIp}\nPrint server: {(TcpPrintServer.IsRunning ? "Running on :9100" : "FAILED to start")}", AutoSize = true, ForeColor = Color.FromArgb(138, 151, 169), Dock = DockStyle.Bottom, Padding = new Padding(4, 0, 0, 10) };
         sidebar.Controls.Add(status);
         sidebar.Controls.SetChildIndex(status, 0);
@@ -1979,7 +1984,14 @@ internal sealed class PosForm : Form
         if (!HasPermission("Settings")) return;
         var settingsPanel = new Panel { Dock = DockStyle.Fill };
         var settingsForm = new SettingsForm(background, panelLight, mint, ShowOperatorManager, ShowProducts, ShowFamilies, ShowRoomManager, ShowSales, ShowCurrencySettings, ShowPrinterManager, EndDay, ShowNetworkSettings,
-            HasPermission("Manage operators"), HasPermission("Manage products"), HasPermission("Manage rooms"), HasPermission("View sales"), store.Features, features => store.SaveFeatures(features),
+            HasPermission("Manage operators"), HasPermission("Manage products"), HasPermission("Manage rooms"), HasPermission("View sales"), store.Features,
+            features =>
+            {
+                store.SaveFeatures(features);
+                clockInOutBtn.Visible = features.ClockInOut;
+                stockBtn.Visible = features.StockManagement;
+                kdsNavButton.Visible = features.KitchenDisplay;
+            },
             ShowModifierManager, ShowCustomerManager, ShowHappyHourManager, ShowAuditLogViewer, ShowShiftReport, ShowCashDrawer);
         settingsForm.TopLevel = false;
         settingsForm.FormBorderStyle = FormBorderStyle.None;
@@ -2322,6 +2334,7 @@ internal sealed class PosForm : Form
             ApplyPermissions();
             clockInOutBtn.Visible = store.Features.ClockInOut;
             stockBtn.Visible = store.Features.StockManagement;
+            kdsNavButton.Visible = store.Features.KitchenDisplay;
             ShowOrder();
         };
         picker.TopLevel = false;
@@ -2620,6 +2633,16 @@ internal sealed class PosForm : Form
         };
         panel.Controls.Add(lv); panel.Controls.Add(addBtn);
         ShowView(panel, "Stock Management", ShowSettings);
+    }
+
+    private void ShowKitchenDisplay()
+    {
+        if (!store.Features.KitchenDisplay) return;
+        var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12) };
+        var kds = new KitchenDisplayForm(background, panelLight, mint, store) { TopLevel = false, FormBorderStyle = FormBorderStyle.None, Dock = DockStyle.Fill };
+        panel.Controls.Add(kds);
+        kds.Show();
+        ShowView(panel, "Kitchen display");
     }
 
     private void ShowModifierManager()
@@ -3418,6 +3441,7 @@ internal sealed class SettingsForm : Form
                 AddBtn("Manage modifier groups", showMod!, features.Modifiers);
                 AddToggle("ItemNotes", "Special instructions per item");
                 AddToggle("CourseManagement", "Course-by-course sending to kitchen");
+                AddToggle("KitchenDisplay", "Kitchen display screen (KDS)");
                 break;
             case "payment":
                 AddToggle("Discounts", "Discounts (% or fixed amount)");
@@ -3455,6 +3479,138 @@ internal sealed class SettingsForm : Form
                 AddToggle("MultiLanguage", "Multi-language (FR / AR / EN)");
                 break;
         }
+    }
+}
+
+internal sealed class KitchenDisplayForm : Form
+{
+    private readonly PosStore store;
+    private readonly Color panelLight;
+    private readonly Color mint;
+    private readonly FlowLayoutPanel tickets = new() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(6) };
+    private readonly System.Windows.Forms.Timer tick = new() { Interval = 1000 };
+    private readonly List<(OpenOrder Order, Label Timer)> cards = [];
+    private bool stopped;
+    private bool wasAttached;
+
+    public KitchenDisplayForm(Color background, Color panelLight, Color mint, PosStore store)
+    {
+        this.store = store;
+        this.panelLight = panelLight;
+        this.mint = mint;
+        BackColor = background;
+        ForeColor = Color.White;
+        Controls.Add(tickets);
+        Render();
+        store.DataChanged += OnStoreChanged;
+        tick.Tick += (_, _) => OnTick();
+        tick.Start();
+        HandleDestroyed += (_, _) => Stop();
+    }
+
+    private void Stop()
+    {
+        if (stopped) return;
+        stopped = true;
+        tick.Stop();
+        tick.Dispose();
+        store.DataChanged -= OnStoreChanged;
+    }
+
+    private bool CheckAttached()
+    {
+        if (stopped || IsDisposed) return false;
+        if (Parent != null) { wasAttached = true; return true; }
+        if (wasAttached) { Stop(); return false; }
+        return false;
+    }
+
+    private void OnStoreChanged()
+    {
+        if (!CheckAttached()) return;
+        if (!IsHandleCreated) return;
+        if (InvokeRequired)
+        {
+            try { BeginInvoke(Render); }
+            catch (InvalidOperationException) { Stop(); }
+            return;
+        }
+        Render();
+    }
+
+    private void OnTick()
+    {
+        if (!CheckAttached()) return;
+        foreach (var (order, timer) in cards) UpdateTimer(order, timer);
+    }
+
+    private void UpdateTimer(OpenOrder order, Label timer)
+    {
+        var elapsed = DateTime.Now - order.Created;
+        timer.Text = $"{(int)elapsed.TotalMinutes:00}:{elapsed.Seconds:00}";
+        timer.ForeColor = order.Ready ? Color.FromArgb(130, 140, 155)
+            : elapsed.TotalMinutes < 10 ? Color.FromArgb(110, 210, 145)
+            : elapsed.TotalMinutes < 20 ? Color.FromArgb(245, 180, 80)
+            : Color.FromArgb(235, 90, 90);
+    }
+
+    private void Render()
+    {
+        cards.Clear();
+        tickets.SuspendLayout();
+        tickets.Controls.Clear();
+        var orders = store.OpenOrders.OrderBy(o => o.Ready ? 1 : 0).ThenBy(o => o.Created).ToList();
+        if (orders.Count == 0)
+            tickets.Controls.Add(new Label { Text = "No active orders", Font = new Font("Segoe UI Semibold", 16F), ForeColor = Color.FromArgb(143, 154, 171), AutoSize = true, Margin = new Padding(14, 24, 0, 0) });
+        foreach (var order in orders) tickets.Controls.Add(BuildCard(order));
+        tickets.ResumeLayout();
+    }
+
+    private static IEnumerable<(string Text, bool IsSub)> ItemLines(OpenOrder order)
+    {
+        foreach (var g in order.Items.GroupBy(i => (i.Product, i.Note, i.Modifiers)))
+        {
+            yield return ($"{g.Sum(x => x.Quantity)}×  {g.Key.Product}", false);
+            if (!string.IsNullOrWhiteSpace(g.Key.Modifiers)) yield return ($"+ {g.Key.Modifiers}", true);
+            if (!string.IsNullOrWhiteSpace(g.Key.Note)) yield return ($"• {g.Key.Note}", true);
+        }
+    }
+
+    private Panel BuildCard(OpenOrder order)
+    {
+        var back = order.Ready ? Color.FromArgb(36, 72, 55) : Color.FromArgb(37, 47, 62);
+        var head = order.Ready ? Color.FromArgb(46, 100, 74) : panelLight;
+        var card = new Panel { Size = new Size(280, 340), Margin = new Padding(8), BackColor = back };
+
+        var title = new Label { Text = order.OrderNumber > 0 ? $"#{order.OrderNumber}  {order.Table}" : order.Table, Font = new Font("Segoe UI Semibold", 13F), ForeColor = Color.White, AutoSize = true, Location = new Point(10, 8) };
+        var sub = new Label { Text = $"{order.Room}  ·  {order.OrderType}  ·  {order.Items.Sum(i => i.Quantity)} items", Font = new Font("Segoe UI", 9F), ForeColor = Color.FromArgb(170, 180, 195), AutoSize = true, Location = new Point(11, 34) };
+        var timer = new Label { Font = new Font("Segoe UI Semibold", 15F), TextAlign = ContentAlignment.MiddleRight, Location = new Point(174, 10), Size = new Size(96, 44) };
+        var header = new Panel { Location = new Point(0, 0), Size = new Size(280, 64), BackColor = head };
+        header.Controls.AddRange([title, sub, timer]);
+
+        var body = new FlowLayoutPanel { Location = new Point(0, 64), Size = new Size(280, 234), AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = back, Padding = new Padding(10, 6, 10, 6) };
+        foreach (var (text, isSub) in ItemLines(order))
+        {
+            body.Controls.Add(new Label { Text = text, AutoSize = true, Font = isSub ? new Font("Segoe UI", 9F) : new Font("Segoe UI", 10.5F), ForeColor = isSub ? Color.FromArgb(165, 175, 190) : Color.White, Margin = new Padding(isSub ? 16 : 0, 1, 0, isSub ? 5 : 2) });
+        }
+
+        var action = new Button { Text = order.Ready ? "↩  Put back" : "✓  READY", Location = new Point(0, 298), Size = new Size(280, 42), FlatStyle = FlatStyle.Flat, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11F), BackColor = order.Ready ? Color.FromArgb(80, 90, 110) : mint, Cursor = Cursors.Hand };
+        action.FlatAppearance.BorderSize = 0;
+        action.Click += (_, _) => ToggleReady(order);
+
+        card.Controls.AddRange([body, header, action]);
+        UpdateTimer(order, timer);
+        cards.Add((order, timer));
+        return card;
+    }
+
+    private void ToggleReady(OpenOrder order)
+    {
+        var current = store.GetOpenOrder(order.Room, order.Table);
+        if (current == null) { Render(); return; }
+        store.RemoveOpenOrder(order.Room, order.Table);
+        store.AddOpenOrder(current with { Ready = !current.Ready });
+        Render();
     }
 }
 
