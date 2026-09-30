@@ -18,7 +18,7 @@ internal static class Program
 }
 
 internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "");
-internal sealed record SoldLine(string Product, string Family, int Quantity, decimal UnitPrice, string Category = "General", string PrinterDestination = "", string Note = "", string Modifiers = "", decimal Discount = 0, string DiscountType = "", int Course = 0);
+internal sealed record SoldLine(string Product, string Family, int Quantity, decimal UnitPrice, string Category = "General", string PrinterDestination = "", string Note = "", string Modifiers = "", decimal Discount = 0, string DiscountType = "", int Course = 0, int Seat = 0);
 internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0);
 internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false);
 internal sealed record Room(string Name, int TableCount);
@@ -207,6 +207,8 @@ internal sealed class FeatureSettings
     public bool MultiBranch { get; set; } = false;
     public bool OnScreenKeyboard { get; set; } = true;
     public bool KitchenDisplay { get; set; } = false;
+    public bool EightySixBoard { get; set; } = false;
+    public bool SeatOrdering { get; set; } = false;
 }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
 {
@@ -277,6 +279,7 @@ internal sealed class PosStore
     private string auditFile => Path.Combine(dataFolder, "audit-log.json");
     private string happyHourFile => Path.Combine(dataFolder, "happy-hour.json");
     private string zReportsFile => Path.Combine(dataFolder, "z-reports.json");
+    private string eightySixFile => Path.Combine(dataFolder, "86-board.json");
     private FileSystemWatcher? watcher;
     public event Action? DataChanged;
     private volatile bool suppressWatcher;
@@ -315,6 +318,7 @@ internal sealed class PosStore
     public List<AuditEntry> AuditLog { get; private set; } = [];
     public List<HappyHourRule> HappyHourRules { get; private set; } = [];
     public List<ZReportRecord> ZReports { get; private set; } = [];
+    public List<string> EightySix { get; private set; } = [];
     public int OrderCounter { get; private set; }
     public int BillCounter { get; private set; }
     public int PaymentCounter { get; private set; }
@@ -405,6 +409,8 @@ internal sealed class PosStore
             HappyHourRules = JsonSerializer.Deserialize<List<HappyHourRule>>(File.ReadAllText(happyHourFile), JsonOptions) ?? HappyHourRules;
         if (File.Exists(zReportsFile))
             ZReports = JsonSerializer.Deserialize<List<ZReportRecord>>(File.ReadAllText(zReportsFile), JsonOptions) ?? ZReports;
+        if (File.Exists(eightySixFile))
+            EightySix = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(eightySixFile), JsonOptions) ?? EightySix;
         if (File.Exists(countersFile))
         {
             var counters = JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(countersFile), JsonOptions);
@@ -516,6 +522,7 @@ internal sealed class PosStore
     public void SaveHappyHours(List<HappyHourRule> rules) { HappyHourRules = rules; suppressWatcher = true; File.WriteAllText(happyHourFile, JsonSerializer.Serialize(rules, JsonOptions)); suppressWatcher = false; }
     public void SaveZReports(List<ZReportRecord> recs) { ZReports = recs; suppressWatcher = true; File.WriteAllText(zReportsFile, JsonSerializer.Serialize(recs, JsonOptions)); suppressWatcher = false; }
     public void RecordZReport(int transactions, decimal gross, string op) { ZReports.Add(new(DateTime.Now, transactions, gross, op)); SaveZReports(ZReports); }
+    public void SaveEightySix(List<string> items) { EightySix = items; suppressWatcher = true; File.WriteAllText(eightySixFile, JsonSerializer.Serialize(items, JsonOptions)); suppressWatcher = false; }
     public bool ZReportPrintedToday() => ZReports.Any(z => z.Time.Date == DateTime.Today);
     public void LogAudit(string op, string action, string detail = "") { AuditLog.Add(new(DateTime.Now, op, action, detail)); SaveAuditLog(AuditLog); }
 
@@ -666,7 +673,7 @@ internal sealed class PosForm : Form
     private readonly Color mint = Color.FromArgb(71, 214, 174);
     private readonly PosStore store = new();
     private List<Product> products;
-    private readonly List<(Product Product, int Count, int Course, string Note)> basket = [];
+    private readonly List<(Product Product, int Count, int Course, string Note, int Seat)> basket = [];
     private bool hasOpenOrder;
     private bool isOrderPc;
     private readonly FlowLayoutPanel productGrid = new();
@@ -687,11 +694,15 @@ internal sealed class PosForm : Form
     private Button clockInOutBtn = new();
     private Button stockBtn = new();
     private Button kdsNavButton = new();
+    private Button eightySixNavButton = new();
     private readonly Panel menuPanel = new();
     private readonly Panel workspacePanel = new();
     private readonly Panel roomsPanel = new();
     private readonly Panel viewPanel = new();
     private Panel mainHeader = new();
+    private Panel orderHeader = new();
+    private readonly Panel seatBar = new() { Location = new Point(0, 80), Size = new Size(290, 28), Visible = false };
+    private int activeSeat = 1;
     private readonly FlowLayoutPanel roomButtons = new();
     private readonly Panel tableMap = new();
     private string category = "Popular";
@@ -768,9 +779,9 @@ internal sealed class PosForm : Form
                     var product = products.FirstOrDefault(p => p.Name == item.Product);
                     if (product != null)
                     {
-                        var idx = basket.FindIndex(b => b.Product == product && b.Note == item.Note);
-                        if (idx >= 0) basket[idx] = (product, basket[idx].Count + item.Quantity, basket[idx].Course, basket[idx].Note);
-                        else basket.Add((product, item.Quantity, 0, item.Note));
+                        var idx = basket.FindIndex(b => b.Product == product && b.Note == item.Note && (!store.Features.SeatOrdering || b.Seat == item.Seat));
+                        if (idx >= 0) basket[idx] = (product, basket[idx].Count + item.Quantity, basket[idx].Course, basket[idx].Note, item.Seat);
+                        else basket.Add((product, item.Quantity, 0, item.Note, item.Seat));
                     }
                 }
                 UpdateOrderButtons();
@@ -820,6 +831,9 @@ internal sealed class PosForm : Form
         kdsNavButton = NavButton("Kitchen", 436, false, ShowKitchenDisplay);
         kdsNavButton.Visible = store.Features.KitchenDisplay;
         sidebar.Controls.Add(kdsNavButton);
+        eightySixNavButton = NavButton("86 board", 490, false, ShowEightySixBoard);
+        eightySixNavButton.Visible = store.Features.EightySixBoard;
+        sidebar.Controls.Add(eightySixNavButton);
         var status = new Label { Text = isOrderPc ? $"●  ORDER PC\n\nConnected to main PC" : $"●  MAIN PC\n\nIP: {TcpPrintServer.LocalIp}\nPrint server: {(TcpPrintServer.IsRunning ? "Running on :9100" : "FAILED to start")}", AutoSize = true, ForeColor = Color.FromArgb(138, 151, 169), Dock = DockStyle.Bottom, Padding = new Padding(4, 0, 0, 10) };
         sidebar.Controls.Add(status);
         sidebar.Controls.SetChildIndex(status, 0);
@@ -856,12 +870,14 @@ internal sealed class PosForm : Form
         orderLabel.ForeColor = Color.FromArgb(143, 154, 171);
         orderLabel.Location = new Point(0, 42);
         orderLabel.MaximumSize = new Size(290, 0);
-        var orderHeader = new Panel { Dock = DockStyle.Top, Height = 102 };
+        orderHeader.Dock = DockStyle.Top;
+        orderHeader.Height = store.Features.SeatOrdering ? 116 : 102;
         orderTitle.Location = new Point(0, 0);
         orderLabel.Text = OrderContextText();
         orderLabel.Location = new Point(0, 24);
         orderLabel.MaximumSize = new Size(290, 0);
-        orderHeader.Controls.AddRange([orderTitle, orderLabel]);
+        seatBar.Visible = store.Features.SeatOrdering;
+        orderHeader.Controls.AddRange([orderTitle, orderLabel, seatBar]);
         basketList.Dock = DockStyle.Fill;
         basketList.FlowDirection = FlowDirection.TopDown;
         basketList.WrapContents = false;
@@ -1014,6 +1030,7 @@ internal sealed class PosForm : Form
         foreach (var product in products.Where(item => item.Category == category))
         {
             var tile = new ProductTile(product, tileWidth, tileHeight) { Margin = new Padding(0, 0, 14, 14) };
+            tile.OutOfStock = store.EightySix.Contains(product.Name);
             tile.Click += (_, _) => AddProduct(product);
             productGrid.Controls.Add(tile);
         }
@@ -1061,6 +1078,7 @@ internal sealed class PosForm : Form
                 selectedRoom = room.Name;
                 selectedTable = tableName;
                 basket.Clear();
+                activeSeat = 1;
                 hasOpenOrder = false;
                 if (store.GetOpenOrder(room.Name, tableName) is { } existing)
                 {
@@ -1070,9 +1088,9 @@ internal sealed class PosForm : Form
                         var product = products.FirstOrDefault(p => p.Name == item.Product);
                         if (product != null)
                         {
-                            var idx = basket.FindIndex(b => b.Product == product && b.Note == item.Note);
-                            if (idx >= 0) basket[idx] = (product, basket[idx].Count + item.Quantity, basket[idx].Course, basket[idx].Note);
-                            else basket.Add((product, item.Quantity, 0, item.Note));
+                            var idx = basket.FindIndex(b => b.Product == product && b.Note == item.Note && (!store.Features.SeatOrdering || b.Seat == item.Seat));
+                            if (idx >= 0) basket[idx] = (product, basket[idx].Count + item.Quantity, basket[idx].Course, basket[idx].Note, item.Seat);
+                            else basket.Add((product, item.Quantity, 0, item.Note, item.Seat));
                         }
                     }
                 }
@@ -1167,7 +1185,8 @@ internal sealed class PosForm : Form
             var rowWidth = Math.Max(220, basketList.ClientSize.Width - 8);
             var hasNote = !string.IsNullOrWhiteSpace(item.Note);
             var row = new Panel { Width = rowWidth, Height = hasNote ? 78 : 58, BackColor = panelLight, Margin = new Padding(0, 0, 0, 8), Padding = new Padding(12, 8, 8, 6) };
-            var name = new Label { Text = $"{item.Count} \u00d7 {item.Product.Name}", AutoSize = true, Location = new Point(10, 8) };
+            var seatTag = store.Features.SeatOrdering && item.Seat > 0 ? $"[S{item.Seat}] " : "";
+            var name = new Label { Text = $"{seatTag}{item.Count} \u00d7 {item.Product.Name}", AutoSize = true, Location = new Point(10, 8) };
             var price = new Label { Text = $"{item.Product.Price:C} each  \u2022  {(item.Product.Price * item.Count):C}", AutoSize = true, ForeColor = mint, Location = new Point(10, 30) };
             if (hasNote)
             {
@@ -1192,6 +1211,7 @@ internal sealed class PosForm : Form
             basketList.Controls.Add(row);
         }
         if (basket.Count == 0) basketDiscountPercent = 0;
+        RenderSeatBar();
         totalLabel.Text = NetTotal().ToString("C");
         discountButton.Text = basketDiscountPercent > 0 ? $"Discount {basketDiscountPercent:0.#}%" : "Discount";
         discountButton.Visible = store.Features.Discounts && (currentOperator == null || HasPermission("Discounts"));
@@ -1200,8 +1220,44 @@ internal sealed class PosForm : Form
 
     private string OrderContextText() => $"Operator: {currentOperator.Name}\nRoom: {selectedRoom}  •  {selectedTable}\nDine in";
 
+    private void RenderSeatBar()
+    {
+        seatBar.Controls.Clear();
+        if (!store.Features.SeatOrdering)
+        {
+            seatBar.Visible = false;
+            return;
+        }
+        seatBar.Visible = true;
+        var maxSeat = Math.Min(12, Math.Max(4, Math.Max(activeSeat, basket.Count > 0 ? basket.Max(i => i.Seat) : 0)));
+        var cap = new Label { Text = "SEAT", AutoSize = true, ForeColor = Color.FromArgb(143, 154, 171), Location = new Point(0, 6), Font = new Font("Segoe UI", 8.5F) };
+        seatBar.Controls.Add(cap);
+        var x = 36;
+        for (var s = 1; s <= maxSeat; s++)
+        {
+            var seatNo = s;
+            var chip = new Button { Text = s.ToString(), Size = new Size(30, 24), Location = new Point(x, 2), FlatStyle = FlatStyle.Flat, BackColor = s == activeSeat ? mint : panelLight, ForeColor = s == activeSeat ? background : Color.White, Font = new Font("Segoe UI Semibold", 9F), Cursor = Cursors.Hand };
+            chip.FlatAppearance.BorderSize = 0;
+            chip.Click += (_, _) => { activeSeat = seatNo; RenderSeatBar(); };
+            seatBar.Controls.Add(chip);
+            x += 34;
+        }
+        if (maxSeat < 12)
+        {
+            var add = new Button { Text = "+", Size = new Size(26, 24), Location = new Point(x, 2), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(80, 90, 110), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 9F), Cursor = Cursors.Hand };
+            add.FlatAppearance.BorderSize = 0;
+            add.Click += (_, _) => { activeSeat = Math.Min(12, maxSeat + 1); RenderSeatBar(); };
+            seatBar.Controls.Add(add);
+        }
+    }
+
     private void AddProduct(Product product)
     {
+        if (store.EightySix.Contains(product.Name))
+        {
+            MessageBox.Show($"{product.Name} is out of stock (86'd).", "86 board", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         var finalPrice = product.Price;
         if (store.Features.HappyHour && store.HappyHourRules.Count > 0)
         {
@@ -1262,9 +1318,9 @@ internal sealed class PosForm : Form
             noteForm.Controls.AddRange([noteInput, noteOk, noteSkip]);
             noteForm.ShowDialog();
         }
-        var index = basket.FindIndex(item => item.Product.Name == product.Name && item.Product.PrinterDestination == product.PrinterDestination);
-        if (index >= 0) basket[index] = (new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode), basket[index].Count + 1, basket[index].Course, string.IsNullOrEmpty(basket[index].Note) ? note : basket[index].Note + ", " + note);
-        else basket.Add((new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode), 1, 0, note));
+        var index = basket.FindIndex(item => item.Product.Name == product.Name && item.Product.PrinterDestination == product.PrinterDestination && (!store.Features.SeatOrdering || item.Seat == activeSeat));
+        if (index >= 0) basket[index] = (new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode), basket[index].Count + 1, basket[index].Course, string.IsNullOrEmpty(basket[index].Note) ? note : basket[index].Note + ", " + note, basket[index].Seat);
+        else basket.Add((new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode), 1, 0, note, store.Features.SeatOrdering ? activeSeat : 0));
         if (!string.IsNullOrWhiteSpace(modifiers) || !string.IsNullOrWhiteSpace(note))
         {
             var soldIndex = basket.Count - 1;
@@ -1298,7 +1354,7 @@ internal sealed class PosForm : Form
         var updatedItems = existing.Items.Where(i => i.Product != product.Name).ToList();
         store.RemoveOpenOrder(selectedRoom, selectedTable);
         if (updatedItems.Count > 0)
-            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, existing.Operator, existing.Created, updatedItems, existing.Note));
+            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, existing.Operator, existing.Created, updatedItems, existing.Note, existing.OrderNumber, existing.BillNumber, existing.OrderType, existing.CustomerName, existing.SeatCount));
 
         basket.RemoveAll(item => item.Product == product);
         hasOpenOrder = updatedItems.Count > 0;
@@ -1329,22 +1385,23 @@ internal sealed class PosForm : Form
         typeForm.Controls.AddRange([typeLabel, dineBtn, takeBtn]);
         if (typeForm.ShowDialog() != DialogResult.OK) return;
 
-        var lines = basket.Select(item => new SoldLine(item.Product.Name, item.Product.Family, item.Count, item.Product.Price, item.Product.Category, ResolvePrinter(item.Product), item.Note)).ToList();
+        var lines = basket.Select(item => new SoldLine(item.Product.Name, item.Product.Family, item.Count, item.Product.Price, item.Product.Category, ResolvePrinter(item.Product), item.Note, Seat: item.Seat)).ToList();
         var existing = store.GetOpenOrder(selectedRoom, selectedTable);
         if (existing != null)
         {
             var merged = existing.Items.Concat(lines).ToList();
             store.RemoveOpenOrder(selectedRoom, selectedTable);
-            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, currentOperator.Name, existing.Created, merged, existing.Note, existing.OrderNumber, existing.BillNumber, OrderType: orderType));
+            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, currentOperator.Name, existing.Created, merged, existing.Note, existing.OrderNumber, existing.BillNumber, OrderType: orderType, SeatCount: Math.Max(existing.SeatCount, merged.Max(l => l.Seat))));
         }
         else
         {
             var orderNum = store.NextOrderNumber();
-            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, currentOperator.Name, DateTime.Now, lines, "", orderNum, orderNum, OrderType: orderType));
+            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, currentOperator.Name, DateTime.Now, lines, "", orderNum, orderNum, OrderType: orderType, SeatCount: lines.Count > 0 ? lines.Max(l => l.Seat) : 0));
         }
         PrintTickets(lines, orderType: orderType);
         MessageBox.Show($"Order placed for {selectedTable}\n{NetTotal():C}\n{orderType}", "Order saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
         basket.Clear();
+        activeSeat = 1;
         hasOpenOrder = true;
         UpdateOrderButtons();
         RenderBasket();
@@ -1553,7 +1610,7 @@ internal sealed class PosForm : Form
             }
         }
 
-        var lines = basket.Select(item => new SoldLine(item.Product.Name, item.Product.Family, item.Count, item.Product.Price, item.Product.Category, ResolvePrinter(item.Product), item.Note)).ToList();
+        var lines = basket.Select(item => new SoldLine(item.Product.Name, item.Product.Family, item.Count, item.Product.Price, item.Product.Category, ResolvePrinter(item.Product), item.Note, Seat: item.Seat)).ToList();
         var existing = store.GetOpenOrder(selectedRoom, selectedTable);
         var billNum = existing?.BillNumber ?? 0;
         var orderNum = existing?.OrderNumber ?? 0;
@@ -1628,6 +1685,7 @@ internal sealed class PosForm : Form
 
         MessageBox.Show($"Payment accepted\n{finalTotal:C}  •  {selectedTable}", "Sale complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         basket.Clear();
+        activeSeat = 1;
         hasOpenOrder = false;
         UpdateOrderButtons();
         salesLabel.Text = TodaySales();
@@ -1991,6 +2049,10 @@ internal sealed class PosForm : Form
                 clockInOutBtn.Visible = features.ClockInOut;
                 stockBtn.Visible = features.StockManagement;
                 kdsNavButton.Visible = features.KitchenDisplay;
+                eightySixNavButton.Visible = features.EightySixBoard;
+                seatBar.Visible = features.SeatOrdering;
+                orderHeader.Height = features.SeatOrdering ? 116 : 102;
+                RenderSeatBar();
             },
             ShowModifierManager, ShowCustomerManager, ShowHappyHourManager, ShowAuditLogViewer, ShowShiftReport, ShowCashDrawer);
         settingsForm.TopLevel = false;
@@ -2335,6 +2397,7 @@ internal sealed class PosForm : Form
             clockInOutBtn.Visible = store.Features.ClockInOut;
             stockBtn.Visible = store.Features.StockManagement;
             kdsNavButton.Visible = store.Features.KitchenDisplay;
+            eightySixNavButton.Visible = store.Features.EightySixBoard;
             ShowOrder();
         };
         picker.TopLevel = false;
@@ -2391,9 +2454,32 @@ internal sealed class PosForm : Form
         var topLabel = new Label { Text = "Select the items this person pays for:", AutoSize = true, Location = new Point(15, 10), ForeColor = mint };
         var itemChecks = new List<(CheckBox cb, SoldLine line)>();
         int y = 40;
+        if (store.Features.SeatOrdering && existing.Items.Any(i => i.Seat > 0))
+        {
+            var seats = existing.Items.Where(i => i.Seat > 0).Select(i => i.Seat).Distinct().OrderBy(s => s).ToList();
+            if (seats.Count > 1)
+            {
+                var seatCap = new Label { Text = "Select by seat:", AutoSize = true, Location = new Point(20, y + 4), ForeColor = Color.FromArgb(143, 154, 171) };
+                form.Controls.Add(seatCap);
+                var sx = 130;
+                var extraRows = 0;
+                foreach (var s in seats)
+                {
+                    if (sx > 430) { sx = 130; extraRows++; }
+                    var seatNo = s;
+                    var chip = new Button { Text = "S" + s, Size = new Size(44, 26), Location = new Point(sx, y + extraRows * 30), FlatStyle = FlatStyle.Flat, BackColor = panelLight, ForeColor = Color.White };
+                    chip.FlatAppearance.BorderSize = 0;
+                    chip.Click += (_, _) => { foreach (var check in itemChecks) check.cb.Checked = check.line.Seat == seatNo; };
+                    form.Controls.Add(chip);
+                    sx += 50;
+                }
+                y += 34 + extraRows * 30;
+            }
+        }
         foreach (var item in existing.Items)
         {
-            var cb = new CheckBox { Text = $"{item.Quantity}x {item.Product} ({item.UnitPrice * item.Quantity:C})", AutoSize = true, Location = new Point(20, y), ForeColor = Color.White };
+            var seatPrefix = store.Features.SeatOrdering && item.Seat > 0 ? $"[S{item.Seat}] " : "";
+            var cb = new CheckBox { Text = $"{seatPrefix}{item.Quantity}x {item.Product} ({item.UnitPrice * item.Quantity:C})", AutoSize = true, Location = new Point(20, y), ForeColor = Color.White };
             itemChecks.Add((cb, item));
             y += 28;
         }
@@ -2401,6 +2487,7 @@ internal sealed class PosForm : Form
         var okBtn = new Button { Text = "Pay selected items", Location = new Point(15, y), Size = new Size(170, 38), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
         okBtn.FlatAppearance.BorderSize = 0;
         okBtn.Click += (_, _) => form.DialogResult = DialogResult.OK;
+        form.ClientSize = new Size(500, Math.Max(340, y + 66));
         form.Controls.AddRange([topLabel, okBtn]);
         foreach (var (cb, _) in itemChecks) form.Controls.Add(cb);
         form.AcceptButton = okBtn;
@@ -2464,7 +2551,7 @@ internal sealed class PosForm : Form
         var remaining = existing.Items.Except(selectedLines).ToList();
         store.RemoveOpenOrder(selectedRoom, selectedTable);
         if (remaining.Count > 0)
-            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, currentOperator.Name, existing.Created, remaining, existing.Note, existing.OrderNumber, existing.BillNumber, existing.OrderType, existing.CustomerName, existing.SeatCount));
+            store.AddOpenOrder(new OpenOrder(selectedRoom, selectedTable, currentOperator.Name, existing.Created, remaining, existing.Note, existing.OrderNumber, existing.BillNumber, existing.OrderType, existing.CustomerName, existing.SeatCount, existing.Ready));
 
         var payDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Payment");
         if (payDest != null && !string.IsNullOrWhiteSpace(payDest.WindowsPrinter))
@@ -2491,12 +2578,13 @@ internal sealed class PosForm : Form
 
         MessageBox.Show($"Payment accepted\n{selectedTotal:C}  •  {selectedTable}", "Split bill", MessageBoxButtons.OK, MessageBoxIcon.Information);
         basket.Clear();
+        activeSeat = 1;
         hasOpenOrder = remaining.Count > 0;
         if (hasOpenOrder)
             foreach (var item in remaining)
             {
                 var p = products.FirstOrDefault(pr => pr.Name == item.Product);
-                if (p != null) basket.Add((p, item.Quantity, 0, item.Note));
+                if (p != null) basket.Add((p, item.Quantity, 0, item.Note, item.Seat));
             }
         UpdateOrderButtons();
         salesLabel.Text = TodaySales();
@@ -2535,6 +2623,7 @@ internal sealed class PosForm : Form
         if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Transfer", $"{selectedRoom}/{selectedTable} → {destRoom}/{destTable}");
         MessageBox.Show($"Order transferred to {destTable} ({destRoom})", "Transfer", MessageBoxButtons.OK, MessageBoxIcon.Information);
         basket.Clear();
+        activeSeat = 1;
         hasOpenOrder = false;
         UpdateOrderButtons();
         RenderBasket();
@@ -2643,6 +2732,45 @@ internal sealed class PosForm : Form
         panel.Controls.Add(kds);
         kds.Show();
         ShowView(panel, "Kitchen display");
+    }
+
+    private void ShowEightySixBoard()
+    {
+        if (!store.Features.EightySixBoard) return;
+        var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
+        var scroll = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = background };
+        void Rebuild()
+        {
+            scroll.Controls.Clear();
+            foreach (var group in store.Products.GroupBy(p => p.Category))
+            {
+                scroll.Controls.Add(new Label { Text = group.Key.ToUpperInvariant(), Font = new Font("Segoe UI Semibold", 12F), ForeColor = mint, AutoSize = true, Margin = new Padding(0, 14, 0, 4) });
+                foreach (var product in group)
+                {
+                    var out86 = store.EightySix.Contains(product.Name);
+                    var row = new Panel { Width = 560, Height = 46, BackColor = panelLight, Margin = new Padding(0, 2, 0, 2) };
+                    var name = new Label { Text = product.Name, AutoSize = true, Font = out86 ? new Font("Segoe UI", 11F, FontStyle.Strikeout) : new Font("Segoe UI", 11F), ForeColor = out86 ? Color.FromArgb(150, 160, 175) : Color.White, Location = new Point(12, 13) };
+                    var price = new Label { Text = product.Price.ToString("C"), AutoSize = true, ForeColor = mint, Location = new Point(260, 14) };
+                    var toggle = new Button { Text = out86 ? "Restore" : "86 it", Size = new Size(110, 32), Location = new Point(440, 7), FlatStyle = FlatStyle.Flat, BackColor = out86 ? Color.FromArgb(60, 130, 90) : Color.FromArgb(180, 70, 60), ForeColor = Color.White, Cursor = Cursors.Hand };
+                    toggle.FlatAppearance.BorderSize = 0;
+                    toggle.Click += (_, _) =>
+                    {
+                        var list = store.EightySix.ToList();
+                        if (!list.Remove(product.Name)) list.Add(product.Name);
+                        store.SaveEightySix(list);
+                        RenderProducts();
+                        Rebuild();
+                    };
+                    row.Controls.AddRange([name, price, toggle]);
+                    scroll.Controls.Add(row);
+                }
+            }
+        }
+        Rebuild();
+        var hint = new Label { Text = "86 = out of stock. Struck-through items can't be ordered.", Dock = DockStyle.Top, Height = 32, ForeColor = Color.FromArgb(143, 154, 171), Padding = new Padding(2, 8, 0, 0) };
+        panel.Controls.Add(scroll);
+        panel.Controls.Add(hint);
+        ShowView(panel, "86 board");
     }
 
     private void ShowModifierManager()
@@ -3442,6 +3570,8 @@ internal sealed class SettingsForm : Form
                 AddToggle("ItemNotes", "Special instructions per item");
                 AddToggle("CourseManagement", "Course-by-course sending to kitchen");
                 AddToggle("KitchenDisplay", "Kitchen display screen (KDS)");
+                AddToggle("EightySixBoard", "86 board (mark products out of stock)");
+                AddToggle("SeatOrdering", "Seat-level ordering (items assigned to seats)");
                 break;
             case "payment":
                 AddToggle("Discounts", "Discounts (% or fixed amount)");
@@ -5044,6 +5174,7 @@ internal sealed class ProductTile : Panel
 {
     private readonly Product product;
     private Image? image;
+    public bool OutOfStock;
     public ProductTile(Product product, int width = 220, int height = 175)
     {
         this.product = product;
@@ -5073,14 +5204,28 @@ internal sealed class ProductTile : Panel
             using var brush = new SolidBrush(ColorTranslator.FromHtml(product.Color));
             e.Graphics.FillEllipse(brush, imageBounds);
         }
-        using var nameBrush = new SolidBrush(Color.White);
-        using var priceBrush = new SolidBrush(Color.FromArgb(71, 214, 174));
+        using var nameBrush = new SolidBrush(OutOfStock ? Color.FromArgb(150, 160, 175) : Color.White);
+        using var priceBrush = new SolidBrush(OutOfStock ? Color.FromArgb(120, 130, 145) : Color.FromArgb(71, 214, 174));
         var fontSize = Math.Max(8F, Width / 20F);
         using var nameFont = new Font("Segoe UI Semibold", fontSize);
         using var priceFont = new Font("Segoe UI", Math.Max(7F, fontSize - 1F));
         var textY = Padding.Top + imgSize + 6;
         e.Graphics.DrawString(product.Name, nameFont, nameBrush, Padding.Left, textY);
         e.Graphics.DrawString(product.Price.ToString("C"), priceFont, priceBrush, Padding.Left, textY + fontSize + 4);
+        if (OutOfStock)
+        {
+            var nameSize = e.Graphics.MeasureString(product.Name, nameFont);
+            using var strikePen = new Pen(Color.FromArgb(230, 90, 80), 2f);
+            e.Graphics.DrawLine(strikePen, Padding.Left, textY + nameSize.Height / 2f, Padding.Left + nameSize.Width, textY + nameSize.Height / 2f);
+            using var badgeFont = new Font("Segoe UI Semibold", Math.Max(9F, fontSize));
+            var badge = "86";
+            var badgeSize = e.Graphics.MeasureString(badge, badgeFont);
+            using var badgeBrush = new SolidBrush(Color.FromArgb(180, 60, 50));
+            var badgeRect = new RectangleF(Width - badgeSize.Width - 10, Padding.Top - 2, badgeSize.Width + 8, badgeSize.Height + 2);
+            e.Graphics.FillRectangle(badgeBrush, badgeRect);
+            e.Graphics.DrawString(badge, badgeFont, Brushes.White, badgeRect.X + 4, badgeRect.Y + 1);
+            return;
+        }
         using var plusFont = new Font("Segoe UI", Math.Max(12F, fontSize + 5F));
         e.Graphics.DrawString("+", plusFont, nameBrush, Width - Padding.Right - plusFont.Size - 2, textY);
     }
