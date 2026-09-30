@@ -5,7 +5,7 @@ namespace VectronPOS;
 
 internal static class TicketLayout
 {
-    public static readonly string[] Available = ["Header", "Logo", "OrderNumber", "BillNumber", "PaymentNumber", "Operator", "Room", "Table", "Date", "Time", "Products", "Prices", "Items", "OrderType", "Total", "Footer", "Separator", "Blank line", "Cutter"];
+    public static readonly string[] Available = ["Header", "Logo", "OrderNumber", "BillNumber", "PaymentNumber", "Operator", "Room", "Table", "Date", "Time", "Products", "Prices", "Items", "OrderType", "Total", "DiscountPercent", "PriceAfterDiscount", "Footer", "Separator", "Blank line", "Cutter"];
     public static List<TicketComponentStyle> Components(PrinterDestination destination) => 
         destination.Layout is { Count: > 0 } ? destination.Layout : 
         [
@@ -28,7 +28,7 @@ internal static class TicketLayout
             new("Cutter")
         ];
 
-    public static string Text(string component, PrinterDestination destination, string room, string table, string operatorName, List<SoldLine> lines, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "") => component switch
+    public static string Text(string component, PrinterDestination destination, string room, string table, string operatorName, List<SoldLine> lines, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "", decimal discountPercent = 0, decimal discountAmount = 0) => component switch
     {
         "Header" => destination.Header,
         "Operator" => "Operator: " + operatorName,
@@ -49,6 +49,8 @@ internal static class TicketLayout
         "Items" => string.Join(Environment.NewLine, lines.Select(line => $"{(line.Seat > 0 ? $"[S{line.Seat}] " : "")}{line.Quantity} x {line.Product}  {line.UnitPrice * line.Quantity:C}")),
         "OrderType" => $"Order type: {orderType}",
         "Total" => "TOTAL  " + lines.Sum(line => line.UnitPrice * line.Quantity).ToString("C"),
+        "DiscountPercent" => discountPercent > 0 ? $"DISCOUNT  -{discountPercent:0.#}%" : discountAmount > 0 ? $"DISCOUNT  -{discountAmount:C}" : "",
+        "PriceAfterDiscount" => "AFTER DISCOUNT  " + (lines.Sum(line => line.UnitPrice * line.Quantity) - discountAmount).ToString("C"),
         "Footer" => destination.Footer,
         "Separator" => "------------------------------",
         "Logo" => "",
@@ -240,7 +242,7 @@ internal sealed class TicketDesignerForm : Form
                 var logoText = !string.IsNullOrEmpty(logoPath) ? $"[ LOGO: {Path.GetFileName(logoPath)} ]" : "[ LOGO - not set ]";
                 sb.AppendLine($"[{style.Alignment.ToUpper()[0]}] {logoText}");
             }
-            else sb.AppendLine($"[{style.Alignment.ToUpper()[0]}] {TicketLayout.Text(style.Component, destination, "Room 1", "Table 5", "Manager", sample, 1, 1, 1, "Dine-in")}");
+            else sb.AppendLine($"[{style.Alignment.ToUpper()[0]}] {TicketLayout.Text(style.Component, destination, "Room 1", "Table 5", "Manager", sample, 1, 1, 1, "Dine-in", 10, 1.25m)}");
         }
         preview.Text = sb.ToString();
     }

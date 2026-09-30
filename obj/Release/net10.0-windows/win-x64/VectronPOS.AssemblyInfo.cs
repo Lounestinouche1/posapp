@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Vectron POS")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+23b8404a1934a8fba3e5e988cb9a23770aab8681")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f169c1bf0552f6b0accdb88254e7b6902773ff76")]
 [assembly: System.Reflection.AssemblyProductAttribute("Vectron POS")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Vectron POS")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

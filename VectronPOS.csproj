@@ -13,4 +13,13 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="publish/**" />
+    <Compile Remove="publish_self_contained/**" />
+    <EmbeddedResource Remove="publish/**" />
+    <EmbeddedResource Remove="publish_self_contained/**" />
+    <None Remove="publish/**" />
+    <None Remove="publish_self_contained/**" />
+  </ItemGroup>
+
 </Project>

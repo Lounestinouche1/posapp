@@ -1416,6 +1416,7 @@ internal sealed class PosForm : Form
         var currency = store.RegisterSettings.Currency;
         var billLines = existing.Items.Select(i => new SoldLine(i.Product, i.Family, i.Quantity, i.UnitPrice, i.Category, i.PrinterDestination, Seat: i.Seat)).ToList();
         var total = billLines.Sum(l => l.UnitPrice * l.Quantity);
+        var billDiscountAmount = DiscountAmount();
 
         var billDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Bill");
         if (billDest == null || string.IsNullOrWhiteSpace(billDest.WindowsPrinter))
@@ -1428,7 +1429,7 @@ internal sealed class PosForm : Form
         {
             if (isOrderPc)
             {
-                var escPosBytes = BuildEscPosBytes(billDest, billLines, selectedRoom, selectedTable, existing.Operator, existing.OrderNumber, existing.BillNumber);
+                var escPosBytes = BuildEscPosBytes(billDest, billLines, selectedRoom, selectedTable, existing.Operator, existing.OrderNumber, existing.BillNumber, discountPercent: basketDiscountPercent, discountAmount: billDiscountAmount);
                 TcpPrintClient.SendPrintJob(GetMainPcHost(), billDest.WindowsPrinter, escPosBytes);
                 return;
             }
@@ -1436,12 +1437,12 @@ internal sealed class PosForm : Form
             {
                 try
                 {
-                    RawPrinter.PrintTicket(billDest, selectedRoom, selectedTable, existing.Operator, billLines, ResolvePrinterName(billDest), existing.OrderNumber, existing.BillNumber);
+                    RawPrinter.PrintTicket(billDest, selectedRoom, selectedTable, existing.Operator, billLines, ResolvePrinterName(billDest), existing.OrderNumber, existing.BillNumber, discountPercent: basketDiscountPercent, discountAmount: billDiscountAmount);
                     return;
                 }
                 catch (InvalidOperationException) { }
             }
-            PrintWindowsTicket(billDest, billLines, existing.OrderNumber, existing.BillNumber);
+            PrintWindowsTicket(billDest, billLines, existing.OrderNumber, existing.BillNumber, discountPercent: basketDiscountPercent, discountAmount: billDiscountAmount);
         }
         catch (Exception error)
         {
@@ -1667,15 +1668,15 @@ internal sealed class PosForm : Form
             {
                 if (isOrderPc)
                 {
-                    var escPosBytes = BuildEscPosBytes(payDest, lines, selectedRoom, selectedTable, currentOperator.Name, billNumber: billNum, paymentNumber: paymentNum);
+                    var escPosBytes = BuildEscPosBytes(payDest, lines, selectedRoom, selectedTable, currentOperator.Name, billNumber: billNum, paymentNumber: paymentNum, discountPercent: basketDiscountPercent, discountAmount: discount);
                     TcpPrintClient.SendPrintJob(GetMainPcHost(), payDest.WindowsPrinter, escPosBytes);
                 }
                 else if (payDest.CutAfterPrint)
                 {
-                    try { RawPrinter.PrintTicket(payDest, selectedRoom, selectedTable, currentOperator.Name, lines, ResolvePrinterName(payDest), billNumber: billNum, paymentNumber: paymentNum); }
-                    catch (InvalidOperationException) { PrintWindowsTicket(payDest, lines, billNumber: billNum, paymentNumber: paymentNum); }
+                    try { RawPrinter.PrintTicket(payDest, selectedRoom, selectedTable, currentOperator.Name, lines, ResolvePrinterName(payDest), billNumber: billNum, paymentNumber: paymentNum, discountPercent: basketDiscountPercent, discountAmount: discount); }
+                    catch (InvalidOperationException) { PrintWindowsTicket(payDest, lines, billNumber: billNum, paymentNumber: paymentNum, discountPercent: basketDiscountPercent, discountAmount: discount); }
                 }
-                else PrintWindowsTicket(payDest, lines, billNumber: billNum, paymentNumber: paymentNum);
+                else PrintWindowsTicket(payDest, lines, billNumber: billNum, paymentNumber: paymentNum, discountPercent: basketDiscountPercent, discountAmount: discount);
             }
             catch (Exception error)
             {
@@ -1861,7 +1862,7 @@ internal sealed class PosForm : Form
         return store.RegisterSettings.NetworkPath.TrimEnd('\\').Split('\\')[0];
     }
 
-    private static byte[] BuildEscPosBytes(PrinterDestination destination, List<SoldLine> ticketLines, string room, string table, string operatorName, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "")
+    private static byte[] BuildEscPosBytes(PrinterDestination destination, List<SoldLine> ticketLines, string room, string table, string operatorName, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "", decimal discountPercent = 0, decimal discountAmount = 0)
     {
         using var stream = new MemoryStream();
         void Write(string s) => stream.Write(Encoding.ASCII.GetBytes(s), 0, Encoding.ASCII.GetByteCount(s));
@@ -1872,6 +1873,13 @@ internal sealed class PosForm : Form
             if (style.Component == "Cutter") { Write("\x1B\x64\x05\x1D\x56\x00"); continue; }
             if (style.Component == "Blank line") { stream.WriteByte(0x0A); continue; }
             if (style.Component == "Logo" && (string.IsNullOrWhiteSpace(destination.LogoPath) || !File.Exists(destination.LogoPath))) continue;
+
+            string? value = null;
+            if (style.Component != "Logo")
+            {
+                value = TicketLayout.Text(style.Component, destination, room, table, operatorName, ticketLines, orderNumber, billNumber, paymentNumber, orderType, discountPercent, discountAmount);
+                if (string.IsNullOrWhiteSpace(value)) continue;
+            }
 
             Write(style.Alignment switch { "Center" => "\x1B\x61\x01", "Right" => "\x1B\x61\x02", _ => "\x1B\x61\x00" });
             var (w, h) = style.FontSize switch
@@ -1902,8 +1910,7 @@ internal sealed class PosForm : Form
             }
             else
             {
-                var value = TicketLayout.Text(style.Component, destination, room, table, operatorName, ticketLines, orderNumber, billNumber, paymentNumber, orderType);
-                Write(value);
+                Write(value!);
             }
 
             stream.WriteByte(0x0A);
@@ -1918,7 +1925,7 @@ internal sealed class PosForm : Form
     }
 
 
-        private void PrintWindowsTicket(PrinterDestination destination, List<SoldLine> ticketLines, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "")
+        private void PrintWindowsTicket(PrinterDestination destination, List<SoldLine> ticketLines, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "", decimal discountPercent = 0, decimal discountAmount = 0)
     {
         var printerName = ResolvePrinterName(destination);
         using var document = new PrintDocument { PrinterSettings = { PrinterName = printerName } };
@@ -1961,7 +1968,7 @@ internal sealed class PosForm : Form
                 }
                 else
                 {
-                    var text = TicketLayout.Text(style.Component, destination, selectedRoom, selectedTable, currentOperator.Name, ticketLines, orderNumber, billNumber, paymentNumber, orderType);
+                    var text = TicketLayout.Text(style.Component, destination, selectedRoom, selectedTable, currentOperator.Name, ticketLines, orderNumber, billNumber, paymentNumber, orderType, discountPercent, discountAmount);
                     if (string.IsNullOrEmpty(text)) continue;
                     var textSize = graphics.MeasureString(text, font, width);
                     var x = style.Alignment switch
@@ -4278,7 +4285,7 @@ internal static class RawPrinter
     [System.Runtime.InteropServices.DllImport("winspool.drv", SetLastError = true)]
     internal static extern bool WritePrinter(nint printer, byte[] data, int count, out int written);
 
-    public static void PrintTicket(PrinterDestination destination, string room, string table, string operatorName, List<SoldLine> lines, string? printerName = null, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "")
+    public static void PrintTicket(PrinterDestination destination, string room, string table, string operatorName, List<SoldLine> lines, string? printerName = null, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "", decimal discountPercent = 0, decimal discountAmount = 0)
     {
         var name = printerName ?? destination.WindowsPrinter;
         if (!OpenPrinterLocal(name, out var printer, 0))
@@ -4300,6 +4307,13 @@ internal static class RawPrinter
                 if (style.Component == "Cutter") { Write("\x1B\x64\x05\x1D\x56\x00"); continue; }
                 if (style.Component == "Blank line") { stream.WriteByte(0x0A); continue; }
                 if (style.Component == "Logo" && (string.IsNullOrWhiteSpace(destination.LogoPath) || !File.Exists(destination.LogoPath))) continue;
+
+                string? value = null;
+                if (style.Component != "Logo")
+                {
+                    value = TicketLayout.Text(style.Component, destination, room, table, operatorName, lines, orderNumber, billNumber, paymentNumber, orderType, discountPercent, discountAmount);
+                    if (string.IsNullOrWhiteSpace(value)) continue;
+                }
 
                 Write(style.Alignment switch { "Center" => "\x1B\x61\x01", "Right" => "\x1B\x61\x02", _ => "\x1B\x61\x00" });
                 var (w, h) = style.FontSize switch
@@ -4330,8 +4344,7 @@ internal static class RawPrinter
                 }
                 else
                 {
-                    var value = TicketLayout.Text(style.Component, destination, room, table, operatorName, lines, orderNumber, billNumber, paymentNumber, orderType);
-                    Write(value);
+                    Write(value!);
                 }
 
                 stream.WriteByte(0x0A);
@@ -4885,7 +4898,7 @@ internal sealed class TicketStyleEditorForm : Form
         if (selectedComponentIndex >= components.Count) return;
         var style = components[selectedComponentIndex];
         var sample = new List<SoldLine> { new("Margherita", "Food", 2, 12.50m, "Mains") };
-        var text = TicketLayout.Text(style.Component, dest, "Room 1", "Table 5", "Manager", sample);
+        var text = TicketLayout.Text(style.Component, dest, "Room 1", "Table 5", "Manager", sample, discountPercent: 10, discountAmount: 2.50m);
         if (string.IsNullOrEmpty(text)) { g.DrawString("(empty)", new Font("Consolas", 9F), Brushes.Gray, 10, 10); return; }
 
         var fontStyle = FontStyle.Regular;
