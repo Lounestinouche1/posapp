@@ -1414,7 +1414,7 @@ internal sealed class PosForm : Form
         var existing = store.GetOpenOrder(selectedRoom, selectedTable);
         if (existing == null) return;
         var currency = store.RegisterSettings.Currency;
-        var billLines = existing.Items.Select(i => new SoldLine(i.Product, i.Family, i.Quantity, i.UnitPrice, i.Category, i.PrinterDestination)).ToList();
+        var billLines = existing.Items.Select(i => new SoldLine(i.Product, i.Family, i.Quantity, i.UnitPrice, i.Category, i.PrinterDestination, Seat: i.Seat)).ToList();
         var total = billLines.Sum(l => l.UnitPrice * l.Quantity);
 
         var billDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Bill");
@@ -3698,9 +3698,10 @@ internal sealed class KitchenDisplayForm : Form
 
     private static IEnumerable<(string Text, bool IsSub)> ItemLines(OpenOrder order)
     {
-        foreach (var g in order.Items.GroupBy(i => (i.Product, i.Note, i.Modifiers)))
+        foreach (var g in order.Items.GroupBy(i => (i.Product, i.Note, i.Modifiers, i.Seat)))
         {
-            yield return ($"{g.Sum(x => x.Quantity)}×  {g.Key.Product}", false);
+            var seat = g.Key.Seat > 0 ? $"[S{g.Key.Seat}] " : "";
+            yield return ($"{seat}{g.Sum(x => x.Quantity)}×  {g.Key.Product}", false);
             if (!string.IsNullOrWhiteSpace(g.Key.Modifiers)) yield return ($"+ {g.Key.Modifiers}", true);
             if (!string.IsNullOrWhiteSpace(g.Key.Note)) yield return ($"• {g.Key.Note}", true);
         }
