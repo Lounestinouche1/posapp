@@ -1728,10 +1728,18 @@ internal sealed class PosForm : Form
         var existing = store.GetOpenOrder(selectedRoom, selectedTable);
         var orderNum = orderNumber > 0 ? orderNumber : existing?.OrderNumber ?? 0;
         var billNum = billNumber > 0 ? billNumber : existing?.BillNumber ?? 0;
+        var missedDestinations = new List<string>();
+        var routedAny = false;
         foreach (var group in lines.Where(line => !string.IsNullOrWhiteSpace(line.PrinterDestination)).GroupBy(line => line.PrinterDestination))
         {
-            var destination = store.PrinterDestinations.FirstOrDefault(item => item.Name == group.Key);
-            if (destination == null) continue;
+            var destination = store.PrinterDestinations.FirstOrDefault(item => string.Equals(item.Name, group.Key, StringComparison.OrdinalIgnoreCase))
+                ?? store.PrinterDestinations.FirstOrDefault(item => string.Equals(item.WindowsPrinter, group.Key, StringComparison.OrdinalIgnoreCase));
+            if (destination == null)
+            {
+                if (!missedDestinations.Contains(group.Key)) missedDestinations.Add(group.Key);
+                continue;
+            }
+            routedAny = true;
             try
             {
                 var ticketLines = group.ToList();
@@ -1805,6 +1813,10 @@ internal sealed class PosForm : Form
                 MessageBox.Show($"Could not print to {destination.WindowsPrinter}: {error.Message}", "Printing", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
+        if (missedDestinations.Count > 0)
+            MessageBox.Show($"Printer destination not found: {string.Join(", ", missedDestinations)}\nThese items were NOT printed on the order ticket.\n\nFix it in Settings > Printer routing,\nor re-select the destination in Settings > Manage families.", "Printing", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        else if (!routedAny && lines.Count > 0)
+            MessageBox.Show("No printer destination is set for these items - order ticket not printed.\n\nSet one in Settings > Manage families (printer routing).", "Printing", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
     private void PrintCancelTicket(PrinterDestination destination, List<SoldLine> lines)

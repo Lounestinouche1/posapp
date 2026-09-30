@@ -7,7 +7,7 @@
   {
     "Name": "Food",
     "ImagePath": "",
-    "PrinterDestination": "VLPT2"
+    "PrinterDestination": "kitchen"
   },
   {
     "Name": "Drinks",
@@ -17,6 +17,6 @@
   {
     "Name": "Desserts",
     "ImagePath": "",
-    "PrinterDestination": "VLPT2"
+    "PrinterDestination": "kitchen"
   }
 ]
