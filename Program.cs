@@ -2524,15 +2524,17 @@ internal sealed class PosForm : Form
             return;
         }
         var selectedTotal = selectedLines.Sum(l => l.UnitPrice * l.Quantity);
+        var splitDiscount = basketDiscountPercent > 0 ? Math.Round(selectedTotal * basketDiscountPercent / 100m, 2) : 0m;
+        var payDue = selectedTotal - splitDiscount;
 
         using var payForm = new Form { Text = "Split payment", Size = new Size(400, 268), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
         var payTotal = new Label { Text = $"Total: {selectedTotal:C}", AutoSize = true, Font = new Font("Segoe UI Semibold", 16F), ForeColor = mint, Location = new Point(20, 20) };
-        var payInfo = new Label { Text = $"{selectedLines.Sum(l => l.Quantity)} item(s) on this payment", AutoSize = true, ForeColor = Color.FromArgb(143, 154, 171), Location = new Point(22, 56) };
+        var payInfo = new Label { Text = splitDiscount > 0 ? $"{selectedLines.Sum(l => l.Quantity)} item(s) • Discount (-{basketDiscountPercent:0.#}%): -{splitDiscount:C}" : $"{selectedLines.Sum(l => l.Quantity)} item(s) on this payment", AutoSize = true, ForeColor = Color.FromArgb(143, 154, 171), Location = new Point(22, 56) };
         var payTypeLabel = new Label { Text = "Payment type:", AutoSize = true, Location = new Point(20, 100) };
         var paymentCombo = new ComboBox { Size = new Size(210, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 96) };
         paymentCombo.Items.AddRange(["Cash", "Card", "Transfer", "Mobile"]);
         paymentCombo.SelectedIndex = 0;
-        var payOk = new Button { Text = $"Accept payment  {selectedTotal:C}", Location = new Point(20, 142), Size = new Size(345, 46), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
+        var payOk = new Button { Text = $"Accept payment  {payDue:C}", Location = new Point(20, 142), Size = new Size(345, 46), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
         payOk.FlatAppearance.BorderSize = 0;
         payOk.Click += (_, _) => payForm.DialogResult = DialogResult.OK;
         var payCancel = new Button { Text = "Cancel", Location = new Point(20, 198), Size = new Size(345, 34), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -2545,8 +2547,8 @@ internal sealed class PosForm : Form
         var paymentType = paymentCombo.Text;
 
         var payNum = store.NextPaymentNumber();
-        store.AddSale(new Sale(DateTime.Now, selectedTotal, selectedTable, currentOperator.Name, selectedLines, payNum, existing.BillNumber, PaymentType: paymentType, OrderType: existing.OrderType, CustomerName: existing.CustomerName));
-        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Payment", $"Split {selectedTotal:C} ({paymentType}) {selectedTable}");
+        store.AddSale(new Sale(DateTime.Now, payDue, selectedTable, currentOperator.Name, selectedLines, payNum, existing.BillNumber, PaymentType: paymentType, OrderType: existing.OrderType, CustomerName: existing.CustomerName, Discount: splitDiscount));
+        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Payment", $"Split {payDue:C} ({paymentType}) {selectedTable}");
         if (store.Features.StockManagement && store.Recipes.Count > 0)
         {
             var alerts = new List<StockAlert>();
@@ -2585,15 +2587,15 @@ internal sealed class PosForm : Form
             {
                 if (isOrderPc)
                 {
-                    var escPosBytes = BuildEscPosBytes(payDest, selectedLines, selectedRoom, selectedTable, currentOperator.Name, billNumber: existing.BillNumber, paymentNumber: payNum);
+                    var escPosBytes = BuildEscPosBytes(payDest, selectedLines, selectedRoom, selectedTable, currentOperator.Name, billNumber: existing.BillNumber, paymentNumber: payNum, discountPercent: basketDiscountPercent, discountAmount: splitDiscount);
                     TcpPrintClient.SendPrintJob(GetMainPcHost(), payDest.WindowsPrinter, escPosBytes);
                 }
                 else if (payDest.CutAfterPrint)
                 {
-                    try { RawPrinter.PrintTicket(payDest, selectedRoom, selectedTable, currentOperator.Name, selectedLines, ResolvePrinterName(payDest), billNumber: existing.BillNumber, paymentNumber: payNum); }
-                    catch (InvalidOperationException) { PrintWindowsTicket(payDest, selectedLines, billNumber: existing.BillNumber, paymentNumber: payNum); }
+                    try { RawPrinter.PrintTicket(payDest, selectedRoom, selectedTable, currentOperator.Name, selectedLines, ResolvePrinterName(payDest), billNumber: existing.BillNumber, paymentNumber: payNum, discountPercent: basketDiscountPercent, discountAmount: splitDiscount); }
+                    catch (InvalidOperationException) { PrintWindowsTicket(payDest, selectedLines, billNumber: existing.BillNumber, paymentNumber: payNum, discountPercent: basketDiscountPercent, discountAmount: splitDiscount); }
                 }
-                else PrintWindowsTicket(payDest, selectedLines, billNumber: existing.BillNumber, paymentNumber: payNum);
+                else PrintWindowsTicket(payDest, selectedLines, billNumber: existing.BillNumber, paymentNumber: payNum, discountPercent: basketDiscountPercent, discountAmount: splitDiscount);
             }
             catch (Exception error)
             {
@@ -2601,7 +2603,7 @@ internal sealed class PosForm : Form
             }
         }
 
-        MessageBox.Show($"Payment accepted\n{selectedTotal:C}  •  {selectedTable}", "Split bill", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show($"Payment accepted\n{payDue:C}  •  {selectedTable}", "Split bill", MessageBoxButtons.OK, MessageBoxIcon.Information);
         basket.Clear();
         activeSeat = 1;
         hasOpenOrder = remaining.Count > 0;
