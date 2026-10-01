@@ -1091,13 +1091,14 @@ internal sealed class PosForm : Form
         tableMap.Controls.Add(title);
         for (var index = 1; index <= room.TableCount; index++)
         {
-            var tableName = TableName(room.Name, index);
+            var tableIndex = index;
+            var tableName = TableName(room.Name, tableIndex);
             var openOrder = store.GetOpenOrder(room.Name, tableName);
             var isTaken = openOrder != null;
             var status = isTaken ? "Taken" : "Available";
             var color = isTaken ? Color.FromArgb(180, 90, 60) : panelLight;
             var table = ActionButton(floorPlanEdit ? tableName : $"{tableName}\n{status}", 0, 0, 128, 72, color);
-            table.Location = TableLocation(room.Name, index);
+            table.Location = TableLocation(room.Name, tableIndex);
             table.ForeColor = Color.White;
             if (floorPlanEdit)
             {
@@ -1105,6 +1106,11 @@ internal sealed class PosForm : Form
                 var dragMoved = false;
                 table.MouseDown += (_, e) =>
                 {
+                    if (e.Button == MouseButtons.Right)
+                    {
+                        RenameTable(room, tableIndex, tableName, () => RenderTableMap(room));
+                        return;
+                    }
                     if (e.Button != MouseButtons.Left) return;
                     dragStart = e.Location;
                     dragMoved = false;
@@ -1124,9 +1130,9 @@ internal sealed class PosForm : Form
                 {
                     table.Capture = false;
                     if (!dragMoved) return;
-                    SaveTableSpot(room.Name, index, table.Location);
+                    SaveTableSpot(room.Name, tableIndex, table.Location);
                 };
-                table.DoubleClick += (_, _) => RenameTable(room, index, tableName, () => RenderTableMap(room));
+                table.DoubleClick += (_, _) => RenameTable(room, tableIndex, tableName, () => RenderTableMap(room));
             }
             else table.Click += (_, _) =>
             {
