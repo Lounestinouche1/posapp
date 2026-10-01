@@ -1,0 +1,4 @@
+bin/
+obj/
+publish_self_contained/client database/**
+!publish_self_contained/client database/*.json
