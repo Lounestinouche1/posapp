@@ -209,7 +209,9 @@ internal sealed class FeatureSettings
     public bool KitchenDisplay { get; set; } = false;
     public bool EightySixBoard { get; set; } = false;
     public bool SeatOrdering { get; set; } = false;
+    public bool FloorPlanEditor { get; set; } = false;
 }
+internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
 {
     public override string ToString() => Component;
@@ -309,6 +311,7 @@ internal sealed class PosStore
     public RegisterSettings RegisterSettings { get; private set; } = new("EUR", 20m, false);
     public FeatureSettings Features { get; private set; } = new();
     private string countersFile => Path.Combine(dataFolder, "daily-counters.json");
+    private string floorPlanFile => Path.Combine(dataFolder, "floor-plan.json");
     public List<PrinterDestination> PrinterDestinations { get; private set; } = [];
     public List<ModifierGroup> ModifierGroups { get; private set; } = [];
     public List<Customer> Customers { get; private set; } = [];
@@ -319,6 +322,7 @@ internal sealed class PosStore
     public List<HappyHourRule> HappyHourRules { get; private set; } = [];
     public List<ZReportRecord> ZReports { get; private set; } = [];
     public List<string> EightySix { get; private set; } = [];
+    public Dictionary<string, Dictionary<string, FloorTable>> FloorPlan { get; private set; } = [];
     public int OrderCounter { get; private set; }
     public int BillCounter { get; private set; }
     public int PaymentCounter { get; private set; }
@@ -411,6 +415,8 @@ internal sealed class PosStore
             ZReports = JsonSerializer.Deserialize<List<ZReportRecord>>(File.ReadAllText(zReportsFile), JsonOptions) ?? ZReports;
         if (File.Exists(eightySixFile))
             EightySix = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(eightySixFile), JsonOptions) ?? EightySix;
+        if (File.Exists(floorPlanFile))
+            FloorPlan = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, FloorTable>>>(File.ReadAllText(floorPlanFile), JsonOptions) ?? FloorPlan;
         if (File.Exists(countersFile))
         {
             var counters = JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(countersFile), JsonOptions);
@@ -523,6 +529,7 @@ internal sealed class PosStore
     public void SaveZReports(List<ZReportRecord> recs) { ZReports = recs; suppressWatcher = true; File.WriteAllText(zReportsFile, JsonSerializer.Serialize(recs, JsonOptions)); suppressWatcher = false; }
     public void RecordZReport(int transactions, decimal gross, string op) { ZReports.Add(new(DateTime.Now, transactions, gross, op)); SaveZReports(ZReports); }
     public void SaveEightySix(List<string> items) { EightySix = items; suppressWatcher = true; File.WriteAllText(eightySixFile, JsonSerializer.Serialize(items, JsonOptions)); suppressWatcher = false; }
+    public void SaveFloorPlan() { suppressWatcher = true; File.WriteAllText(floorPlanFile, JsonSerializer.Serialize(FloorPlan, JsonOptions)); suppressWatcher = false; }
     public bool ZReportPrintedToday() => ZReports.Any(z => z.Time.Date == DateTime.Today);
     public void LogAudit(string op, string action, string detail = "") { AuditLog.Add(new(DateTime.Now, op, action, detail)); SaveAuditLog(AuditLog); }
 
@@ -702,6 +709,7 @@ internal sealed class PosForm : Form
     private readonly Panel viewPanel = new();
     private Panel mainHeader = new();
     private Panel orderHeader = new();
+    private bool floorPlanEdit;
     private readonly Panel seatBar = new() { Location = new Point(0, 80), Size = new Size(290, 28), Visible = false };
     private int activeSeat = 1;
     private readonly FlowLayoutPanel roomButtons = new();
@@ -1059,6 +1067,18 @@ internal sealed class PosForm : Form
             };
             roomButtons.Controls.Add(button);
         }
+        if (store.Features.FloorPlanEditor)
+        {
+            var editButton = ActionButton(floorPlanEdit ? "Done" : "Edit layout", 0, 0, 145, 40, floorPlanEdit ? Color.FromArgb(60, 120, 90) : Color.FromArgb(200, 140, 60));
+            editButton.Click += (_, _) =>
+            {
+                floorPlanEdit = !floorPlanEdit;
+                RenderRooms();
+                var current = store.Rooms.FirstOrDefault(r => r.Name == selectedRoom);
+                if (current != null) RenderTableMap(current);
+            };
+            roomButtons.Controls.Add(editButton);
+        }
         roomButtons.BringToFront();
         if (store.Rooms.Count > 0)
             RenderTableMap(store.Rooms[0]);
@@ -1067,19 +1087,48 @@ internal sealed class PosForm : Form
     private void RenderTableMap(Room room)
     {
         tableMap.Controls.Clear();
-        var title = new Label { Text = room.Name + "  •  " + room.TableCount + " tables", AutoSize = true, Font = new Font("Segoe UI Semibold", 15F), Location = new Point(4, 5) };
+        var title = new Label { Text = room.Name + "  •  " + room.TableCount + " tables" + (floorPlanEdit ? "  •  EDITING: drag to move, double-click to rename" : ""), AutoSize = true, Font = new Font("Segoe UI Semibold", 15F), Location = new Point(4, 5), ForeColor = floorPlanEdit ? Color.Orange : SystemColors.ControlText };
         tableMap.Controls.Add(title);
         for (var index = 1; index <= room.TableCount; index++)
         {
-            var tableName = "Table " + index;
+            var tableName = TableName(room.Name, index);
             var openOrder = store.GetOpenOrder(room.Name, tableName);
             var isTaken = openOrder != null;
             var status = isTaken ? "Taken" : "Available";
             var color = isTaken ? Color.FromArgb(180, 90, 60) : panelLight;
-            var table = ActionButton($"Table {index}\n{status}", 0, 0, 128, 72, color);
-            table.Location = new Point(10 + ((index - 1) % 4) * 150, 48 + ((index - 1) / 4) * 98);
+            var table = ActionButton(floorPlanEdit ? tableName : $"{tableName}\n{status}", 0, 0, 128, 72, color);
+            table.Location = TableLocation(room.Name, index);
             table.ForeColor = Color.White;
-            table.Click += (_, _) =>
+            if (floorPlanEdit)
+            {
+                Point dragStart = default;
+                var dragMoved = false;
+                table.MouseDown += (_, e) =>
+                {
+                    if (e.Button != MouseButtons.Left) return;
+                    dragStart = e.Location;
+                    dragMoved = false;
+                    table.BringToFront();
+                    table.Capture = true;
+                };
+                table.MouseMove += (_, _) =>
+                {
+                    if (!table.Capture) return;
+                    var loc = tableMap.PointToClient(Cursor.Position) - new Size(dragStart);
+                    loc.X = Math.Clamp(loc.X, 0, Math.Max(0, tableMap.ClientSize.Width - table.Width));
+                    loc.Y = Math.Clamp(loc.Y, 0, Math.Max(0, tableMap.ClientSize.Height - table.Height));
+                    table.Location = loc;
+                    dragMoved = true;
+                };
+                table.MouseUp += (_, _) =>
+                {
+                    table.Capture = false;
+                    if (!dragMoved) return;
+                    SaveTableSpot(room.Name, index, table.Location);
+                };
+                table.DoubleClick += (_, _) => RenameTable(room, index, tableName, () => RenderTableMap(room));
+            }
+            else table.Click += (_, _) =>
             {
                 selectedRoom = room.Name;
                 selectedTable = tableName;
@@ -1107,6 +1156,74 @@ internal sealed class PosForm : Form
             };
             tableMap.Controls.Add(table);
         }
+    }
+
+    private string TableName(string roomName, int index) =>
+        store.FloorPlan.TryGetValue(roomName, out var plan) && plan.TryGetValue(index.ToString(), out var entry) && !string.IsNullOrWhiteSpace(entry.Name)
+            ? entry.Name! : "Table " + index;
+
+    private Point TableLocation(string roomName, int index)
+    {
+        if (store.FloorPlan.TryGetValue(roomName, out var plan) && plan.TryGetValue(index.ToString(), out var entry) && entry.X is int x && entry.Y is int y)
+            return new Point(x, y);
+        var i = index - 1;
+        return new Point(10 + (i % 4) * 150, 48 + (i / 4) * 98);
+    }
+
+    private FloorTable FloorEntry(string roomName, int index)
+    {
+        if (!store.FloorPlan.TryGetValue(roomName, out var plan)) store.FloorPlan[roomName] = plan = [];
+        if (!plan.TryGetValue(index.ToString(), out var entry)) plan[index.ToString()] = entry = new FloorTable();
+        return entry;
+    }
+
+    private void SaveTableSpot(string roomName, int index, Point location)
+    {
+        var entry = FloorEntry(roomName, index);
+        entry.X = location.X;
+        entry.Y = location.Y;
+        store.SaveFloorPlan();
+        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Floor plan", $"{roomName}/{TableName(roomName, index)} → ({location.X},{location.Y})");
+    }
+
+    private void RenameTable(Room room, int index, string currentName, Action refresh)
+    {
+        if (store.GetOpenOrder(room.Name, currentName) != null)
+        {
+            MessageBox.Show("This table has an open order - pay or transfer it before renaming.", "Rename table", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        using var form = new Form { Text = "Rename table", Size = new Size(320, 170), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var box = new TextBox { Location = new Point(15, 15), Size = new Size(285, 30), BackColor = panelLight, ForeColor = Color.White, Text = currentName };
+        var ok = new Button { Text = "Rename", Location = new Point(15, 60), Size = new Size(135, 34), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+        ok.FlatAppearance.BorderSize = 0;
+        ok.Click += (_, _) => form.DialogResult = DialogResult.OK;
+        var cancel = new Button { Text = "Cancel", Location = new Point(165, 60), Size = new Size(135, 34), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        cancel.FlatAppearance.BorderSize = 0;
+        cancel.Click += (_, _) => form.DialogResult = DialogResult.Cancel;
+        form.Controls.AddRange([box, ok, cancel]);
+        form.AcceptButton = ok;
+        form.CancelButton = cancel;
+        if (form.ShowDialog() != DialogResult.OK) return;
+        var newName = box.Text.Trim();
+        if (string.IsNullOrWhiteSpace(newName) || newName == currentName) return;
+        if (store.GetOpenOrder(room.Name, newName) != null)
+        {
+            MessageBox.Show($"{newName} already has an open order.", "Rename table", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        for (var i = 1; i <= room.TableCount; i++)
+        {
+            if (i != index && TableName(room.Name, i) == newName)
+            {
+                MessageBox.Show($"Another table is already named {newName}.", "Rename table", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+        }
+        FloorEntry(room.Name, index).Name = newName;
+        store.SaveFloorPlan();
+        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Rename", $"{room.Name}: {currentName} → {newName}");
+        refresh();
     }
 
     private void ShowOrder()
@@ -2629,7 +2746,7 @@ internal sealed class PosForm : Form
         foreach (var room in store.Rooms)
             for (int i = 1; i <= room.TableCount; i++)
             {
-                var tn = "Table " + i;
+                var tn = TableName(room.Name, i);
                 if (store.GetOpenOrder(room.Name, tn) == null)
                     allTables.Add((room.Name, tn));
             }
@@ -2665,7 +2782,7 @@ internal sealed class PosForm : Form
         foreach (var room in store.Rooms)
             for (int i = 1; i <= room.TableCount; i++)
             {
-                var tn = "Table " + i;
+                var tn = TableName(room.Name, i);
                 if (room.Name == selectedRoom && tn == selectedTable) continue;
                 var order = store.GetOpenOrder(room.Name, tn);
                 if (order != null) candidates.Add((room.Name, tn, order.Items.Count));
@@ -3665,6 +3782,7 @@ internal sealed class SettingsForm : Form
                 AddToggle("KitchenDisplay", "Kitchen display screen (KDS)");
                 AddToggle("EightySixBoard", "86 board (mark products out of stock)");
                 AddToggle("SeatOrdering", "Seat-level ordering (items assigned to seats)");
+                AddToggle("FloorPlanEditor", "Floor plan editor (drag & drop, rename tables)");
                 break;
             case "payment":
                 AddToggle("Discounts", "Discounts (% or fixed amount)");
