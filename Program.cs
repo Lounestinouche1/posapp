@@ -1103,7 +1103,9 @@ internal sealed class PosForm : Form
             if (floorPlanEdit)
             {
                 Point dragStart = default;
+                Point origLoc = default;
                 var dragMoved = false;
+                var lastLeftUp = DateTime.MinValue;
                 table.MouseDown += (_, e) =>
                 {
                     if (e.Button == MouseButtons.Right)
@@ -1113,6 +1115,7 @@ internal sealed class PosForm : Form
                     }
                     if (e.Button != MouseButtons.Left) return;
                     dragStart = e.Location;
+                    origLoc = table.Location;
                     dragMoved = false;
                     table.BringToFront();
                     table.Capture = true;
@@ -1124,15 +1127,26 @@ internal sealed class PosForm : Form
                     loc.X = Math.Clamp(loc.X, 0, Math.Max(0, tableMap.ClientSize.Width - table.Width));
                     loc.Y = Math.Clamp(loc.Y, 0, Math.Max(0, tableMap.ClientSize.Height - table.Height));
                     table.Location = loc;
-                    dragMoved = true;
+                    if (Math.Abs(loc.X - origLoc.X) > 4 || Math.Abs(loc.Y - origLoc.Y) > 4) dragMoved = true;
                 };
-                table.MouseUp += (_, _) =>
+                table.MouseUp += (_, e) =>
                 {
+                    if (e.Button != MouseButtons.Left) return;
                     table.Capture = false;
-                    if (!dragMoved) return;
-                    SaveTableSpot(room.Name, tableIndex, table.Location);
+                    if (dragMoved)
+                    {
+                        SaveTableSpot(room.Name, tableIndex, table.Location);
+                        lastLeftUp = DateTime.MinValue;
+                        return;
+                    }
+                    var now = DateTime.Now;
+                    if (lastLeftUp != DateTime.MinValue && (now - lastLeftUp).TotalMilliseconds <= 450)
+                    {
+                        lastLeftUp = DateTime.MinValue;
+                        RenameTable(room, tableIndex, tableName, () => RenderTableMap(room));
+                    }
+                    else lastLeftUp = now;
                 };
-                table.DoubleClick += (_, _) => RenameTable(room, tableIndex, tableName, () => RenderTableMap(room));
             }
             else table.Click += (_, _) =>
             {
