@@ -686,6 +686,7 @@ internal sealed class PosForm : Form
     private Button payButton = new();
     private Button splitBillButton = new();
     private Button transferButton = new();
+    private Button mergeButton = new();
     private Button discountButton = new();
     private decimal basketDiscountPercent;
     private readonly Label greetingLabel = new();
@@ -810,6 +811,7 @@ internal sealed class PosForm : Form
         noteButton.Visible = !isOrderPc && hasOpenOrder;
         splitBillButton.Visible = !isOrderPc && hasOpenOrder && store.Features.SplitBill;
         transferButton.Visible = hasOpenOrder && store.Features.TableTransfer;
+        mergeButton.Visible = hasOpenOrder && store.Features.TableTransfer;
     }
 
     private void BuildUi()
@@ -910,11 +912,15 @@ internal sealed class PosForm : Form
         transferButton.Font = new Font("Segoe UI", 8F);
         transferButton.Visible = false;
         transferButton.Click += (_, _) => TransferTable();
+        mergeButton = ActionButton("Merge", 0, 166, 74, 34, Color.FromArgb(60, 120, 90));
+        mergeButton.Font = new Font("Segoe UI", 8F);
+        mergeButton.Visible = false;
+        mergeButton.Click += (_, _) => MergeTables();
         discountButton = ActionButton("Discount", 158, 126, 152, 34, Color.FromArgb(200, 140, 60));
         discountButton.Font = new Font("Segoe UI", 9F);
         discountButton.Visible = store.Features.Discounts;
         discountButton.Click += (_, _) => ShowDiscountDialog();
-        summary.Controls.AddRange([totalCaption, totalLabel, orderButton, noteButton, payButton, splitBillButton, transferButton, discountButton]);
+        summary.Controls.AddRange([totalCaption, totalLabel, orderButton, noteButton, payButton, splitBillButton, transferButton, mergeButton, discountButton]);
         orderPanel.Controls.Add(basketList);
         orderPanel.Controls.Add(summary);
         orderPanel.Controls.Add(orderHeader);
@@ -2647,6 +2653,72 @@ internal sealed class PosForm : Form
         UpdateOrderButtons();
         RenderBasket();
         ShowRooms();
+    }
+
+    private void MergeTables()
+    {
+        var target = store.GetOpenOrder(selectedRoom, selectedTable);
+        if (target == null) return;
+        var candidates = new List<(string Room, string Table, int Items)>();
+        foreach (var room in store.Rooms)
+            for (int i = 1; i <= room.TableCount; i++)
+            {
+                var tn = "Table " + i;
+                if (room.Name == selectedRoom && tn == selectedTable) continue;
+                var order = store.GetOpenOrder(room.Name, tn);
+                if (order != null) candidates.Add((room.Name, tn, order.Items.Count));
+            }
+        if (candidates.Count == 0)
+        {
+            MessageBox.Show("No other occupied tables to merge with.", "Merge tables", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        using var form = new Form { Text = "Merge into " + selectedTable, Size = new Size(350, 300), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var tableList = new ListBox { Location = new Point(15, 10), Size = new Size(305, 200), BackColor = panelLight, ForeColor = Color.White };
+        foreach (var t in candidates) tableList.Items.Add($"{t.Room} → {t.Table} ({t.Items} items)");
+        var okBtn = new Button { Text = "Merge", Location = new Point(15, 218), Size = new Size(140, 34), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+        okBtn.FlatAppearance.BorderSize = 0;
+        okBtn.Enabled = false;
+        tableList.SelectedIndexChanged += (_, _) => okBtn.Enabled = tableList.SelectedIndex >= 0;
+        okBtn.Click += (_, _) => form.DialogResult = DialogResult.OK;
+        form.Controls.AddRange([tableList, okBtn]);
+        if (form.ShowDialog() != DialogResult.OK || tableList.SelectedIndex < 0) return;
+        var (srcRoom, srcTable, _) = candidates[tableList.SelectedIndex];
+        var source = store.GetOpenOrder(srcRoom, srcTable);
+        if (source == null) return;
+
+        var seatOffset = 0;
+        if (store.Features.SeatOrdering && source.Items.Any(i => i.Seat > 0))
+            seatOffset = Math.Max(target.SeatCount, target.Items.Count > 0 ? target.Items.Max(i => i.Seat) : 0);
+        var moved = source.Items.Select(i => i with { Seat = i.Seat > 0 ? i.Seat + seatOffset : i.Seat }).ToList();
+        var mergedItems = target.Items.Concat(moved).ToList();
+        var merged = target with
+        {
+            Items = mergedItems,
+            SeatCount = Math.Max(target.SeatCount, mergedItems.Count > 0 ? mergedItems.Max(i => i.Seat) : 0),
+            Ready = false
+        };
+        store.RemoveOpenOrder(srcRoom, srcTable);
+        store.RemoveOpenOrder(selectedRoom, selectedTable);
+        store.AddOpenOrder(merged);
+
+        foreach (var item in moved)
+        {
+            var product = products.FirstOrDefault(p => p.Name == item.Product);
+            if (product == null) continue;
+            var idx = basket.FindIndex(b => b.Product == product && b.Note == item.Note && (!store.Features.SeatOrdering || b.Seat == item.Seat));
+            if (idx >= 0) basket[idx] = (product, basket[idx].Count + item.Quantity, basket[idx].Course, basket[idx].Note, basket[idx].Seat);
+            else basket.Add((product, item.Quantity, 0, item.Note, item.Seat));
+        }
+        hasOpenOrder = true;
+        activeSeat = 1;
+        UpdateOrderButtons();
+        RenderBasket();
+        orderLabel.Text = OrderContextText();
+        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Merge", $"{srcRoom}/{srcTable} → {selectedRoom}/{selectedTable}");
+        MessageBox.Show($"Merged {source.Items.Count} items from {srcTable} ({srcRoom}) into {selectedTable}.\n{srcTable} is now free.", "Merge tables", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        var currentRoom = store.Rooms.FirstOrDefault(r => r.Name == selectedRoom);
+        if (currentRoom != null) RenderTableMap(currentRoom);
     }
 
     private void ClockInOut()
