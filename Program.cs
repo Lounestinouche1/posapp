@@ -710,6 +710,7 @@ internal sealed class PosForm : Form
     private Panel mainHeader = new();
     private Panel orderHeader = new();
     private bool floorPlanEdit;
+    private Room? floorMapRoom;
     private readonly Panel seatBar = new() { Location = new Point(0, 80), Size = new Size(290, 28), Visible = false };
     private int activeSeat = 1;
     private readonly FlowLayoutPanel roomButtons = new();
@@ -1078,6 +1079,24 @@ internal sealed class PosForm : Form
                 if (current != null) RenderTableMap(current);
             };
             roomButtons.Controls.Add(editButton);
+            if (floorPlanEdit)
+            {
+                var resetButton = ActionButton("Reset layout", 0, 0, 145, 40, Color.FromArgb(180, 90, 60));
+                resetButton.Click += (_, _) =>
+                {
+                    var current = floorMapRoom ?? (store.Rooms.Count > 0 ? store.Rooms[0] : null);
+                    if (current == null) return;
+                    if (MessageBox.Show($"Reset table positions in {current.Name} to the default layout?\n(Table names are kept)", "Reset layout", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                    if (store.FloorPlan.TryGetValue(current.Name, out var plan))
+                    {
+                        foreach (var entry in plan.Values) { entry.X = null; entry.Y = null; }
+                        store.SaveFloorPlan();
+                        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Floor plan", $"{current.Name}: reset to default");
+                    }
+                    RenderTableMap(current);
+                };
+                roomButtons.Controls.Add(resetButton);
+            }
         }
         roomButtons.BringToFront();
         if (store.Rooms.Count > 0)
@@ -1086,6 +1105,7 @@ internal sealed class PosForm : Form
 
     private void RenderTableMap(Room room)
     {
+        floorMapRoom = room;
         tableMap.Controls.Clear();
         var title = new Label { Text = room.Name + "  •  " + room.TableCount + " tables" + (floorPlanEdit ? "  •  EDITING: drag to move, double-click to rename" : ""), AutoSize = true, Font = new Font("Segoe UI Semibold", 15F), Location = new Point(4, 5), ForeColor = floorPlanEdit ? Color.Orange : SystemColors.ControlText };
         tableMap.Controls.Add(title);
