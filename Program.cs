@@ -1068,35 +1068,33 @@ internal sealed class PosForm : Form
             };
             roomButtons.Controls.Add(button);
         }
-        if (store.Features.FloorPlanEditor)
+        if (floorPlanEdit && !HasPermission("Manage rooms")) floorPlanEdit = false;
+        if (floorPlanEdit)
         {
-            var editButton = ActionButton(floorPlanEdit ? "Done" : "Edit layout", 0, 0, 145, 40, floorPlanEdit ? Color.FromArgb(60, 120, 90) : Color.FromArgb(200, 140, 60));
-            editButton.Click += (_, _) =>
+            var doneButton = ActionButton("Done", 0, 0, 145, 40, Color.FromArgb(60, 120, 90));
+            doneButton.Click += (_, _) =>
             {
-                floorPlanEdit = !floorPlanEdit;
+                floorPlanEdit = false;
                 RenderRooms();
                 var current = store.Rooms.FirstOrDefault(r => r.Name == selectedRoom);
                 if (current != null) RenderTableMap(current);
             };
-            roomButtons.Controls.Add(editButton);
-            if (floorPlanEdit)
+            roomButtons.Controls.Add(doneButton);
+            var resetButton = ActionButton("Reset layout", 0, 0, 145, 40, Color.FromArgb(180, 90, 60));
+            resetButton.Click += (_, _) =>
             {
-                var resetButton = ActionButton("Reset layout", 0, 0, 145, 40, Color.FromArgb(180, 90, 60));
-                resetButton.Click += (_, _) =>
+                var current = floorMapRoom ?? (store.Rooms.Count > 0 ? store.Rooms[0] : null);
+                if (current == null) return;
+                if (MessageBox.Show($"Reset table positions in {current.Name} to the default layout?\n(Table names are kept)", "Reset layout", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                if (store.FloorPlan.TryGetValue(current.Name, out var plan))
                 {
-                    var current = floorMapRoom ?? (store.Rooms.Count > 0 ? store.Rooms[0] : null);
-                    if (current == null) return;
-                    if (MessageBox.Show($"Reset table positions in {current.Name} to the default layout?\n(Table names are kept)", "Reset layout", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-                    if (store.FloorPlan.TryGetValue(current.Name, out var plan))
-                    {
-                        foreach (var entry in plan.Values) { entry.X = null; entry.Y = null; }
-                        store.SaveFloorPlan();
-                        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Floor plan", $"{current.Name}: reset to default");
-                    }
-                    RenderTableMap(current);
-                };
-                roomButtons.Controls.Add(resetButton);
-            }
+                    foreach (var entry in plan.Values) { entry.X = null; entry.Y = null; }
+                    store.SaveFloorPlan();
+                    if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Floor plan", $"{current.Name}: reset to default");
+                }
+                RenderTableMap(current);
+            };
+            roomButtons.Controls.Add(resetButton);
         }
         roomButtons.BringToFront();
         if (store.Rooms.Count > 0)
@@ -2236,7 +2234,8 @@ internal sealed class PosForm : Form
                 orderHeader.Height = features.SeatOrdering ? 116 : 102;
                 RenderSeatBar();
             },
-            ShowModifierManager, ShowCustomerManager, ShowHappyHourManager, ShowAuditLogViewer, ShowShiftReport, ShowCashDrawer);
+            ShowModifierManager, ShowCustomerManager, ShowHappyHourManager, ShowAuditLogViewer, ShowShiftReport, ShowCashDrawer,
+            () => { floorPlanEdit = true; ShowRooms(); });
         settingsForm.TopLevel = false;
         settingsForm.FormBorderStyle = FormBorderStyle.None;
         settingsForm.Dock = DockStyle.Fill;
@@ -3661,7 +3660,7 @@ internal sealed class SettingsForm : Form
     private Action? _mOps, _mProd, _mFam, _mRooms, _showSales, _mCur, _mPrint, _endDay, _showNet, _showMod, _showCust, _showHappy, _showAudit, _showShift, _showCash;
     private bool _canOps, _canProd, _canRooms, _canSales;
 
-    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null)
+    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null, Action? editFloorPlan = null)
     {
         this.features = features;
         this.saveFeatures = saveFeatures;
@@ -3703,7 +3702,7 @@ internal sealed class SettingsForm : Form
             var btn = new Button { Text = kv.Value.label, Size = new Size(176, 36), Location = new Point(12, catY), BackColor = Color.FromArgb(30, 38, 52), ForeColor = Color.FromArgb(160, 170, 185), FlatStyle = FlatStyle.Flat, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0) };
             btn.FlatAppearance.BorderSize = 0;
             btn.Tag = kv.Key;
-            btn.Click += (_, _) => ShowCategory(kv.Key, background, panelLight, mint, manageOperators, manageProducts, manageFamilies, manageRooms, showSales, manageCurrency, managePrinters, endDay, showNetwork, canManageOperators, canManageProducts, canManageRooms, canViewSales, showModifierManager, showCustomerManager, showHappyHourManager, showAuditLog, showShiftReport, showCashDrawer);
+            btn.Click += (_, _) => ShowCategory(kv.Key, background, panelLight, mint, manageOperators, manageProducts, manageFamilies, manageRooms, showSales, manageCurrency, managePrinters, endDay, showNetwork, canManageOperators, canManageProducts, canManageRooms, canViewSales, showModifierManager, showCustomerManager, showHappyHourManager, showAuditLog, showShiftReport, showCashDrawer, editFloorPlan);
             catPanel.Controls.Add(btn);
             catY += 42;
         }
@@ -3774,7 +3773,7 @@ internal sealed class SettingsForm : Form
         return btn;
     }
 
-    private void ShowCategory(string key, Color bg, Color pl, Color mint, Action mOps, Action mProd, Action mFam, Action mRooms, Action showSales, Action mCur, Action mPrint, Action endDay, Action showNet, bool canOps, bool canProd, bool canRooms, bool canSales, Action? showMod, Action? showCust, Action? showHappy, Action? showAudit, Action? showShift, Action? showCash)
+    private void ShowCategory(string key, Color bg, Color pl, Color mint, Action mOps, Action mProd, Action mFam, Action mRooms, Action showSales, Action mCur, Action mPrint, Action endDay, Action showNet, bool canOps, bool canProd, bool canRooms, bool canSales, Action? showMod, Action? showCust, Action? showHappy, Action? showAudit, Action? showShift, Action? showCash, Action? editFloorPlan = null)
     {
         contentPanel.Controls.Clear();
         foreach (Control c in catPanel.Controls) { if (c is Button b && b.Tag is string s) b.BackColor = s == key ? Color.FromArgb(50, 60, 80) : Color.FromArgb(30, 38, 52); }
@@ -3823,6 +3822,7 @@ internal sealed class SettingsForm : Form
                 AddToggle("EightySixBoard", "86 board (mark products out of stock)");
                 AddToggle("SeatOrdering", "Seat-level ordering (items assigned to seats)");
                 AddToggle("FloorPlanEditor", "Floor plan editor (drag & drop, rename tables)");
+                AddBtn("Edit floor plan (opens Rooms view)", () => editFloorPlan?.Invoke(), features.FloorPlanEditor && canRooms);
                 break;
             case "payment":
                 AddToggle("Discounts", "Discounts (% or fixed amount)");
