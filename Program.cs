@@ -396,6 +396,11 @@ internal sealed class PosStore
             Products = JsonSerializer.Deserialize<List<Product>>(File.ReadAllText(productsFile), JsonOptions) ?? Products;
         if (File.Exists(printersFile))
             PrinterDestinations = JsonSerializer.Deserialize<List<PrinterDestination>>(File.ReadAllText(printersFile), JsonOptions) ?? [];
+        if (!PrinterDestinations.Any(d => d.Name == "Refund"))
+        {
+            var refundSource = PrinterDestinations.FirstOrDefault(d => d.Name == "Payment");
+            PrinterDestinations.Add(new PrinterDestination("Refund", refundSource?.WindowsPrinter ?? "", refundSource?.Header ?? "REFUND", refundSource?.Footer ?? "Thank you", refundSource?.CutAfterPrint ?? true, refundSource?.Layout == null ? null : [.. refundSource.Layout], refundSource?.LogoPath ?? ""));
+        }
         if (File.Exists(featureSettingsFile))
             Features = JsonSerializer.Deserialize<FeatureSettings>(File.ReadAllText(featureSettingsFile), JsonOptions) ?? Features;
         if (File.Exists(modifiersFile))
@@ -2241,7 +2246,10 @@ internal sealed class PosForm : Form
         }
         if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Refund", $"sale #{sale.PaymentNumber} {sale.Table} → -{amount:C} ({selected.Count} items)");
 
-        var payDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Payment");
+        var paymentPrinter = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Payment");
+        var payDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Refund") ?? paymentPrinter;
+        if (paymentPrinter != null && payDest != null)
+            payDest = payDest with { WindowsPrinter = paymentPrinter.WindowsPrinter };
         if (payDest != null && !string.IsNullOrWhiteSpace(payDest.WindowsPrinter))
         {
             try
@@ -4912,6 +4920,12 @@ internal sealed class PrinterManagerForm : Form
             destinations.Add(new PrinterDestination("Payment", "", "PAYMENT", "Thank you", true));
             list.Items.Add("Payment");
         }
+        if (!destinations.Any(d => d.Name == "Refund"))
+        {
+            var payment = destinations.FirstOrDefault(d => d.Name == "Payment");
+            destinations.Add(new PrinterDestination("Refund", payment?.WindowsPrinter ?? "", payment?.Header ?? "REFUND", payment?.Footer ?? "Thank you", payment?.CutAfterPrint ?? true, payment?.Layout == null ? null : [.. payment.Layout], payment?.LogoPath ?? ""));
+            list.Items.Add("Refund");
+        }
         var nameLabel = new Label { Text = "Destination name", AutoSize = true, Location = new Point(290, 95) };
         name.Location = new Point(290, 120);
         name.Size = new Size(350, 30);
@@ -4980,19 +4994,24 @@ internal sealed class PrinterManagerForm : Form
                 destinations[selectedIndex] = new PrinterDestination("Cancel", "", ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
             else if (existing.Name == "Payment")
                 destinations[selectedIndex] = new PrinterDestination("Payment", printer, ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
+            else if (existing.Name == "Refund")
+                destinations[selectedIndex] = existing with { Header = ticketHeader.Text.Trim(), Footer = ticketFooter.Text.Trim(), CutAfterPrint = cutAfterPrint.Checked };
             else
             {
                 var newName = name.Enabled && !string.IsNullOrWhiteSpace(name.Text) ? name.Text.Trim() : existing.Name;
                 destinations[selectedIndex] = new PrinterDestination(newName, printer, ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
             }
             list.Items[selectedIndex] = destinations[selectedIndex].Name;
+            if (existing.Name == "Payment") MirrorRefundFromPayment();
         }
         if (list.SelectedIndex < 0 || list.SelectedIndex >= destinations.Count) return;
         selectedIndex = list.SelectedIndex;
+        if (destinations[selectedIndex].Name == "Refund") MirrorRefundFromPayment();
         var destination = destinations[selectedIndex];
         var isSpecial = destination.Name == "Cancel";
         name.Text = destination.Name;
-        name.Enabled = destination.Name is not ("Cancel" or "Bill" or "Payment");
+        name.Enabled = destination.Name is not ("Cancel" or "Bill" or "Payment" or "Refund");
+        windowsPrinter.Enabled = destination.Name != "Refund";
         printerLabel.Visible = !isSpecial;
         windowsPrinter.Visible = !isSpecial;
         headerLabel.Visible = true;
@@ -5022,7 +5041,7 @@ internal sealed class PrinterManagerForm : Form
     private void DeleteDestination()
     {
         if (selectedIndex < 0) return;
-        if (destinations[selectedIndex].Name is "Cancel" or "Bill" or "Payment") return;
+        if (destinations[selectedIndex].Name is "Cancel" or "Bill" or "Payment" or "Refund") return;
         destinations.RemoveAt(selectedIndex);
         list.Items.RemoveAt(selectedIndex);
         selectedIndex = -1;
@@ -5038,6 +5057,8 @@ internal sealed class PrinterManagerForm : Form
                 destinations[selectedIndex] = new PrinterDestination("Cancel", "", ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
             else if (existing.Name == "Payment")
                 destinations[selectedIndex] = new PrinterDestination("Payment", windowsPrinter.SelectedItem?.ToString() ?? existing.WindowsPrinter, ticketHeader.Text.Trim(), ticketFooter.Text.Trim(), cutAfterPrint.Checked, existing.Layout, existing.LogoPath);
+            else if (existing.Name == "Refund")
+                destinations[selectedIndex] = existing with { Header = ticketHeader.Text.Trim(), Footer = ticketFooter.Text.Trim(), CutAfterPrint = cutAfterPrint.Checked };
             else
             {
                 var newName = name.Enabled && !string.IsNullOrWhiteSpace(name.Text) ? name.Text.Trim() : existing.Name;
@@ -5045,7 +5066,17 @@ internal sealed class PrinterManagerForm : Form
             }
             list.Items[selectedIndex] = destinations[selectedIndex].Name;
         }
+        MirrorRefundFromPayment();
         save(destinations);
+    }
+
+    private void MirrorRefundFromPayment()
+    {
+        var payment = destinations.FirstOrDefault(d => d.Name == "Payment");
+        if (payment == null) return;
+        var idx = destinations.FindIndex(d => d.Name == "Refund");
+        if (idx < 0) return;
+        destinations[idx] = destinations[idx] with { WindowsPrinter = payment.WindowsPrinter };
     }
 
         private void EditLayout()
