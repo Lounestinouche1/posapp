@@ -19,7 +19,7 @@ internal static class Program
 
 internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "");
 internal sealed record SoldLine(string Product, string Family, int Quantity, decimal UnitPrice, string Category = "General", string PrinterDestination = "", string Note = "", string Modifiers = "", decimal Discount = 0, string DiscountType = "", int Course = 0, int Seat = 0);
-internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0);
+internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0);
 internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false);
 internal sealed record Room(string Name, int TableCount);
     internal sealed record ProductFamily(string Name, string ImagePath = "", string PrinterDestination = "");
@@ -210,6 +210,7 @@ internal sealed class FeatureSettings
     public bool EightySixBoard { get; set; } = false;
     public bool SeatOrdering { get; set; } = false;
     public bool FloorPlanEditor { get; set; } = false;
+    public bool Refunds { get; set; } = false;
 }
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -2086,7 +2087,7 @@ internal sealed class PosForm : Form
     }
 
 
-        private void PrintWindowsTicket(PrinterDestination destination, List<SoldLine> ticketLines, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "", decimal discountPercent = 0, decimal discountAmount = 0)
+        private void PrintWindowsTicket(PrinterDestination destination, List<SoldLine> ticketLines, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "", decimal discountPercent = 0, decimal discountAmount = 0, string? room = null, string? table = null)
     {
         var printerName = ResolvePrinterName(destination);
         using var document = new PrintDocument { PrinterSettings = { PrinterName = printerName } };
@@ -2129,7 +2130,7 @@ internal sealed class PosForm : Form
                 }
                 else
                 {
-                    var text = TicketLayout.Text(style.Component, destination, selectedRoom, selectedTable, currentOperator.Name, ticketLines, orderNumber, billNumber, paymentNumber, orderType, discountPercent, discountAmount);
+                    var text = TicketLayout.Text(style.Component, destination, room ?? selectedRoom, table ?? selectedTable, currentOperator.Name, ticketLines, orderNumber, billNumber, paymentNumber, orderType, discountPercent, discountAmount);
                     if (string.IsNullOrEmpty(text)) continue;
                     var textSize = graphics.MeasureString(text, font, width);
                     var x = style.Alignment switch
@@ -2168,13 +2169,104 @@ internal sealed class PosForm : Form
     {
         if (!HasPermission("View sales")) return;
         var panel = new Panel { Dock = DockStyle.Fill };
-        var form = new SalesReportForm(background, panelLight, mint, store.Sales, store.RegisterSettings.Currency);
+        var canRefund = store.Features.Refunds && HasPermission("Settings");
+        var form = new SalesReportForm(background, panelLight, mint, store.Sales, store.RegisterSettings.Currency, canRefund, RefundSale);
         form.TopLevel = false;
         form.FormBorderStyle = FormBorderStyle.None;
         form.Dock = DockStyle.Fill;
         panel.Controls.Add(form);
         form.Show();
         ShowView(panel, "Sales report", ShowSettings);
+    }
+
+    private void RefundSale(Sale sale)
+    {
+        if (sale.IsRefund || sale.Items == null || sale.Items.Count == 0) return;
+        if (sale.PaymentNumber > 0 && store.Sales.Any(s => s.RefundOf == sale.PaymentNumber))
+        {
+            MessageBox.Show("This sale already has a refund.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        using var form = new Form { Text = "Refund sale", Size = new Size(460, 400), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var topLabel = new Label { Text = $"Refund items from sale {sale.Time:dd/MM HH:mm} • {sale.Table}", AutoSize = true, Location = new Point(15, 10), ForeColor = mint, MaximumSize = new Size(430, 0) };
+        int y = 46;
+        var checks = new List<(CheckBox cb, SoldLine line)>();
+        foreach (var item in sale.Items)
+        {
+            var cb = new CheckBox { Text = $"{item.Quantity}x {item.Product} ({item.UnitPrice * item.Quantity:C})", AutoSize = true, Location = new Point(20, y), ForeColor = Color.White, Checked = true };
+            checks.Add((cb, item));
+            y += 28;
+        }
+        y += 10;
+        var okBtn = new Button { Text = "Refund selected", Location = new Point(15, y), Size = new Size(190, 38), BackColor = Color.FromArgb(180, 90, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        okBtn.FlatAppearance.BorderSize = 0;
+        okBtn.Click += (_, _) => form.DialogResult = DialogResult.OK;
+        var cancelBtn = new Button { Text = "Cancel", Location = new Point(220, y), Size = new Size(160, 38), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        cancelBtn.FlatAppearance.BorderSize = 0;
+        cancelBtn.Click += (_, _) => form.DialogResult = DialogResult.Cancel;
+        form.ClientSize = new Size(460, y + 60);
+        form.Controls.AddRange([topLabel, okBtn, cancelBtn]);
+        foreach (var (cb, _) in checks) form.Controls.Add(cb);
+        form.AcceptButton = okBtn;
+        form.CancelButton = cancelBtn;
+        if (form.ShowDialog() != DialogResult.OK) return;
+        var selected = checks.Where(x => x.cb.Checked).Select(x => x.line).ToList();
+        if (selected.Count == 0)
+        {
+            MessageBox.Show("Select at least one item to refund.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var amount = selected.Sum(l => l.UnitPrice * l.Quantity);
+        if (MessageBox.Show($"Refund {amount:C} for {selected.Count} item(s) from sale #{sale.PaymentNumber} ({sale.Table})?", "Confirm refund", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+
+        var refundLines = selected.Select(l => l with { Quantity = -l.Quantity }).ToList();
+        var refundSale = sale with { Time = DateTime.Now, Total = -amount, Items = refundLines, PaymentNumber = store.NextPaymentNumber(), Tip = 0, Discount = 0, IsRefund = true, RefundOf = sale.PaymentNumber };
+        store.AddSale(refundSale);
+
+        if (store.Features.StockManagement && store.Recipes.Count > 0)
+        {
+            foreach (var line in selected)
+            {
+                if (!store.Recipes.TryGetValue(line.Product, out var recipeItems)) continue;
+                foreach (var ri in recipeItems)
+                {
+                    var idx = store.Ingredients.FindIndex(i => i.Name == ri.Ingredient);
+                    if (idx < 0) continue;
+                    var ingr = store.Ingredients[idx];
+                    store.Ingredients[idx] = ingr with { Stock = ingr.Stock + ri.Quantity * line.Quantity };
+                }
+            }
+            store.SaveIngredients(store.Ingredients);
+        }
+        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Refund", $"sale #{sale.PaymentNumber} {sale.Table} → -{amount:C} ({selected.Count} items)");
+
+        var payDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Payment");
+        if (payDest != null && !string.IsNullOrWhiteSpace(payDest.WindowsPrinter))
+        {
+            try
+            {
+                if (isOrderPc)
+                {
+                    var escPosBytes = BuildEscPosBytes(payDest, refundLines, "", sale.Table, currentOperator.Name, billNumber: sale.BillNumber, paymentNumber: refundSale.PaymentNumber, orderType: "Refund");
+                    TcpPrintClient.SendPrintJob(GetMainPcHost(), payDest.WindowsPrinter, escPosBytes);
+                }
+                else if (payDest.CutAfterPrint)
+                {
+                    try { RawPrinter.PrintTicket(payDest, "", sale.Table, currentOperator.Name, refundLines, ResolvePrinterName(payDest), billNumber: sale.BillNumber, paymentNumber: refundSale.PaymentNumber, orderType: "Refund"); }
+                    catch (InvalidOperationException) { PrintWindowsTicket(payDest, refundLines, billNumber: sale.BillNumber, paymentNumber: refundSale.PaymentNumber, orderType: "Refund", room: "", table: sale.Table); }
+                }
+                else PrintWindowsTicket(payDest, refundLines, billNumber: sale.BillNumber, paymentNumber: refundSale.PaymentNumber, orderType: "Refund", room: "", table: sale.Table);
+            }
+            catch (Exception error)
+            {
+                MessageBox.Show($"Could not print refund: {error.Message}", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        salesLabel.Text = TodaySales();
+        MessageBox.Show($"Refunded {amount:C}\n{selected.Count} item(s) from {sale.Table}", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        ShowSales();
     }
 
     private void ShowSettings()
@@ -3854,6 +3946,7 @@ internal sealed class SettingsForm : Form
             case "operations":
                 AddToggle("DeliveryOrders", "Delivery orders");
                 AddToggle("MultiBranch", "Multi-branch support");
+                AddToggle("Refunds", "Refunds (refund ticket, restock, negative sale)");
                 break;
             case "receipts":
                 AddToggle("EmailReceipts", "Email / SMS receipts");
@@ -4038,20 +4131,26 @@ internal sealed class SalesReportForm : Form
     private readonly FlowLayoutPanel dateButtons = new();
     private readonly Button backButton = new();
     private readonly Button printButton = new();
+    private readonly Button refundButton = new();
     private readonly Label selectionLabel = new();
     private readonly Label summaryLabel = new();
     private readonly TabControl tabs = new();
+    private readonly bool refundsEnabled;
+    private readonly Action<Sale>? onRefund;
     private List<Sale> currentFilteredSales = [];
+    private Sale? selectedTransaction;
     private int selectedYear;
     private int selectedMonth;
 
-    public SalesReportForm(Color background, Color panelLight, Color mint, List<Sale> sales, string currency)
+    public SalesReportForm(Color background, Color panelLight, Color mint, List<Sale> sales, string currency, bool refundsEnabled = false, Action<Sale>? onRefund = null)
     {
         this.background = background;
         this.panelLight = panelLight;
         this.mint = mint;
         this.sales = sales;
         this.currency = currency;
+        this.refundsEnabled = refundsEnabled;
+        this.onRefund = onRefund;
         Text = "Sales details";
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(780, 560);
@@ -4088,6 +4187,21 @@ internal sealed class SalesReportForm : Form
         printButton.FlatAppearance.BorderSize = 0;
         printButton.Font = new Font("Segoe UI Semibold", 10F);
         printButton.Click += (_, _) => PrintReport();
+        refundButton.Text = "Refund";
+        refundButton.Size = new Size(100, 36);
+        refundButton.Location = new Point(655, 18);
+        refundButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        refundButton.BackColor = Color.FromArgb(180, 90, 60);
+        refundButton.ForeColor = Color.White;
+        refundButton.FlatStyle = FlatStyle.Flat;
+        refundButton.FlatAppearance.BorderSize = 0;
+        refundButton.Font = new Font("Segoe UI Semibold", 10F);
+        refundButton.Visible = refundsEnabled && onRefund != null;
+        refundButton.Enabled = false;
+        refundButton.Click += (_, _) =>
+        {
+            if (selectedTransaction != null && onRefund != null) onRefund(selectedTransaction);
+        };
         dateButtons.Location = new Point(24, 112);
         dateButtons.Padding = new Padding(130, 0, 0, 0);
         dateButtons.Size = new Size(720, 55);
@@ -4096,9 +4210,11 @@ internal sealed class SalesReportForm : Form
         tabs.Location = new Point(24, 180);
         tabs.Size = new Size(720, 305);
         tabs.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
-        Controls.AddRange([title, selectionLabel, summaryLabel, backButton, printButton, dateButtons, tabs]);
+        Controls.AddRange([title, selectionLabel, summaryLabel, backButton, printButton, refundButton, dateButtons, tabs]);
         ShowYears();
     }
+
+    private void UpdateRefundButton() => refundButton.Enabled = selectedTransaction is { IsRefund: false, Items.Count: > 0 } && onRefund != null;
 
     private void ShowYears()
     {
@@ -4287,6 +4403,8 @@ internal sealed class SalesReportForm : Form
     private void ShowDetails(string period, List<Sale> selectedSales)
     {
         currentFilteredSales = selectedSales;
+        selectedTransaction = null;
+        UpdateRefundButton();
         var totalRevenue = selectedSales.Sum(sale => sale.Total);
         var totalItems = selectedSales.SelectMany(sale => sale.Items ?? []).Sum(item => item.Quantity);
         var avgSale = selectedSales.Count > 0 ? totalRevenue / selectedSales.Count : 0;
@@ -4342,10 +4460,18 @@ internal sealed class SalesReportForm : Form
         list.Columns.Add("Operator", 100);
         list.Columns.Add("Items", 60);
         list.Columns.Add("Total", 100);
+        list.SelectedIndexChanged += (_, _) =>
+        {
+            selectedTransaction = list.SelectedIndices.Count > 0 && list.Items[list.SelectedIndices[0]].Tag is Sale sale ? sale : null;
+            UpdateRefundButton();
+        };
         foreach (var sale in selectedSales.OrderByDescending(sale => sale.Time))
         {
             var itemCount = sale.Items?.Sum(item => item.Quantity) ?? 0;
-            list.Items.Add(new ListViewItem([sale.Time.ToString("dd/MM HH:mm"), sale.Table, sale.Operator, itemCount.ToString(), sale.Total.ToString("C")]));
+            var row = new ListViewItem([sale.Time.ToString("dd/MM HH:mm"), sale.IsRefund ? $"REFUND {sale.Table}" : sale.Table, sale.Operator, itemCount.ToString(), sale.Total.ToString("C")]);
+            row.Tag = sale;
+            if (sale.IsRefund) row.ForeColor = Color.OrangeRed;
+            list.Items.Add(row);
         }
         page.Controls.Add(list);
         return page;
