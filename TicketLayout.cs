@@ -5,6 +5,8 @@ namespace VectronPOS;
 
 internal static class TicketLayout
 {
+    public static string[] CourseNames = [];
+    public static string CourseTag(int c) => c <= 0 ? "" : (CourseNames.Length >= c && !string.IsNullOrWhiteSpace(CourseNames[c - 1]) ? $"[{CourseNames[c - 1]}] " : $"[C{c}] ");
     public static readonly string[] Available = ["Header", "Logo", "OrderNumber", "BillNumber", "PaymentNumber", "Operator", "Room", "Table", "Date", "Time", "Products", "Prices", "Items", "OrderType", "Total", "DiscountPercent", "PriceAfterDiscount", "Footer", "Separator", "Blank line", "Cutter"];
     public static List<TicketComponentStyle> Components(PrinterDestination destination) => 
         destination.Layout is { Count: > 0 } ? destination.Layout : 
@@ -41,12 +43,13 @@ internal static class TicketLayout
         "PaymentNumber" => paymentNumber > 0 ? $"Payment #: {paymentNumber}" : "",
         "Products" => string.Join(Environment.NewLine, lines.Select(line =>
         {
-            var text = (line.Seat > 0 ? $"[S{line.Seat}] " : "") + (line.Course > 0 ? $"[C{line.Course}] " : "") + $"{line.Quantity} x {line.Product}";
-            if (!string.IsNullOrWhiteSpace(line.Note)) text += $" ({line.Note})";
+            var text = (line.Seat > 0 ? $"[S{line.Seat}] " : "") + CourseTag(line.Course) + $"{line.Quantity} x {line.Product}";
+            var extras = string.Join(", ", new[] { !string.IsNullOrWhiteSpace(line.Modifiers) ? "+ " + line.Modifiers : "", !string.IsNullOrWhiteSpace(line.Note) ? line.Note : "" }.Where(s => s.Length > 0));
+            if (extras.Length > 0) text += $" ({extras})";
             return text;
         })),
         "Prices" => string.Join(Environment.NewLine, lines.Select(line => (line.UnitPrice * line.Quantity).ToString("C"))),
-        "Items" => string.Join(Environment.NewLine, lines.Select(line => $"{(line.Seat > 0 ? $"[S{line.Seat}] " : "")}{(line.Course > 0 ? $"[C{line.Course}] " : "")}{line.Quantity} x {line.Product}  {line.UnitPrice * line.Quantity:C}")),
+        "Items" => string.Join(Environment.NewLine, lines.Select(line => $"{(line.Seat > 0 ? $"[S{line.Seat}] " : "")}{CourseTag(line.Course)}{line.Quantity} x {line.Product}  {line.UnitPrice * line.Quantity:C}{(string.IsNullOrWhiteSpace(line.Modifiers) ? "" : $"  (+ {line.Modifiers})")}{(string.IsNullOrWhiteSpace(line.Note) ? "" : $"  ({line.Note})")}")),
         "OrderType" => $"Order type: {orderType}",
         "Total" => "TOTAL  " + lines.Sum(line => line.UnitPrice * line.Quantity).ToString("C"),
         "DiscountPercent" => discountPercent > 0 ? $"DISCOUNT  -{discountPercent:0.#}%" : discountAmount > 0 ? $"DISCOUNT  -{discountAmount:C}" : "",
