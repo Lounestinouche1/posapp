@@ -41,12 +41,12 @@ internal static class TicketLayout
         "PaymentNumber" => paymentNumber > 0 ? $"Payment #: {paymentNumber}" : "",
         "Products" => string.Join(Environment.NewLine, lines.Select(line =>
         {
-            var text = (line.Seat > 0 ? $"[S{line.Seat}] " : "") + $"{line.Quantity} x {line.Product}";
+            var text = (line.Seat > 0 ? $"[S{line.Seat}] " : "") + (line.Course > 0 ? $"[C{line.Course}] " : "") + $"{line.Quantity} x {line.Product}";
             if (!string.IsNullOrWhiteSpace(line.Note)) text += $" ({line.Note})";
             return text;
         })),
         "Prices" => string.Join(Environment.NewLine, lines.Select(line => (line.UnitPrice * line.Quantity).ToString("C"))),
-        "Items" => string.Join(Environment.NewLine, lines.Select(line => $"{(line.Seat > 0 ? $"[S{line.Seat}] " : "")}{line.Quantity} x {line.Product}  {line.UnitPrice * line.Quantity:C}")),
+        "Items" => string.Join(Environment.NewLine, lines.Select(line => $"{(line.Seat > 0 ? $"[S{line.Seat}] " : "")}{(line.Course > 0 ? $"[C{line.Course}] " : "")}{line.Quantity} x {line.Product}  {line.UnitPrice * line.Quantity:C}")),
         "OrderType" => $"Order type: {orderType}",
         "Total" => "TOTAL  " + lines.Sum(line => line.UnitPrice * line.Quantity).ToString("C"),
         "DiscountPercent" => discountPercent > 0 ? $"DISCOUNT  -{discountPercent:0.#}%" : discountAmount > 0 ? $"DISCOUNT  -{discountAmount:C}" : "",
