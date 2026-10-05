@@ -49,6 +49,7 @@ internal sealed record EmailSettings(string Host, int Port, string User, string 
 internal sealed record ParkedOrder(string Id, string Room, string Table, string Operator, DateTime Time, List<SoldLine> Items, string Note = "");
 internal sealed record ComboComponent(string Product, int Qty);
 internal sealed record ComboDeal(string Name, decimal Price, List<ComboComponent> Items);
+internal sealed record GuestAlertItem(string Id, string Room, string Table, string Kind, DateTime Time);
 
 internal sealed record ReportLine(string Text, int Style);
 
@@ -233,6 +234,8 @@ internal sealed class FeatureSettings
     public bool RepeatOrders { get; set; } = false;
     public bool ComboDeals { get; set; } = false;
     public bool QuickSaleMode { get; set; } = false;
+    public bool KioskMode { get; set; } = false;
+    public bool CustomerDisplay { get; set; } = false;
 }
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -349,6 +352,8 @@ internal sealed class PosStore
     public List<ParkedOrder> ParkedOrders { get; private set; } = [];
     public List<ComboDeal> ComboDeals { get; private set; } = [];
     public List<string> CourseNames { get; private set; } = [];
+    public List<GuestAlertItem> GuestAlerts { get; private set; } = [];
+    public event Action? GuestAlertRaised;
     public List<GiftCard> GiftCards { get; private set; } = [];
     public List<CashMovement> CashMovements { get; private set; } = [];
     public List<Reservation> Reservations { get; private set; } = [];
@@ -610,6 +615,26 @@ internal sealed class PosStore
     public void SaveFloorPlan() { suppressWatcher = true; File.WriteAllText(floorPlanFile, JsonSerializer.Serialize(FloorPlan, JsonOptions)); suppressWatcher = false; }
     public bool ZReportPrintedToday() => ZReports.Any(z => z.Time.Date == DateTime.Today);
     public void LogAudit(string op, string action, string detail = "") { AuditLog.Add(new(DateTime.Now, op, action, detail)); SaveAuditLog(AuditLog); }
+    public void RaiseGuestAlert(string room, string table, string kind)
+    {
+        GuestAlerts.Add(new($"G{DateTime.Now:yyyyMMddHHmmssfff}", room, table, kind, DateTime.Now));
+        GuestAlertRaised?.Invoke();
+    }
+    public void DismissGuestAlert(string id)
+    {
+        GuestAlerts.RemoveAll(a => a.Id == id);
+        GuestAlertRaised?.Invoke();
+    }
+    public void ClearGuestAlerts()
+    {
+        GuestAlerts.Clear();
+        GuestAlertRaised?.Invoke();
+    }
+    public void DismissGuestAlerts(string room, string table, string kind)
+    {
+        GuestAlerts.RemoveAll(a => a.Room == room && a.Table == table && a.Kind == kind);
+        GuestAlertRaised?.Invoke();
+    }
 
     public void AddOpenOrder(OpenOrder order)
     {
@@ -795,6 +820,11 @@ internal sealed class PosForm : Form
     private readonly Panel qrPanel = new() { Dock = DockStyle.Top, Height = 34, Visible = false, BackColor = Color.FromArgb(44, 92, 70) };
     private readonly Label qrLabel = new();
     private QrOrderServer? qrServer;
+    private readonly Panel guestBar = new() { Dock = DockStyle.Top, Height = 40, Visible = false, BackColor = Color.FromArgb(190, 130, 40) };
+    private readonly Label guestLabel = new() { Dock = DockStyle.Fill, ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI Semibold", 10F) };
+    private readonly Button guestDismissBtn = new() { Text = "Dismiss all", Dock = DockStyle.Right, Width = 110, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(140, 60, 40), Font = new Font("Segoe UI", 9F) };
+    private CustomerDisplayForm? custDisplay;
+    private KioskForm? kioskForm;
     private readonly Panel menuPanel = new();
     private readonly Panel workspacePanel = new();
     private readonly Panel roomsPanel = new();
@@ -856,6 +886,32 @@ internal sealed class PosForm : Form
         if (store.Features.QROrdering && !isOrderPc) StartQrServer();
 
         store.DataChanged += OnDataChanged;
+        store.GuestAlertRaised += OnGuestAlertRaised;
+    }
+
+    private void OnGuestAlertRaised()
+    {
+        if (IsDisposed || !IsHandleCreated) return;
+        if (InvokeRequired) { try { BeginInvoke(UpdateGuestAlertBar); } catch { } return; }
+        UpdateGuestAlertBar();
+    }
+
+    private void UpdateGuestAlertBar()
+    {
+        var alerts = store.GuestAlerts;
+        guestBar.Visible = alerts.Count > 0;
+        if (alerts.Count == 0) return;
+        var a = alerts[^1];
+        if (a.Kind == "ready")
+        {
+            guestBar.BackColor = Color.FromArgb(40, 140, 90);
+            guestLabel.Text = $"  \U0001f389 {a.Room} / {a.Table} — ORDER READY ({a.Time:HH:mm}){(alerts.Count > 1 ? $"   +{alerts.Count - 1} more" : "")}";
+        }
+        else
+        {
+            guestBar.BackColor = Color.FromArgb(190, 130, 40);
+            guestLabel.Text = $"  \U0001f514 {a.Room} / {a.Table} — WAITER CALLED ({a.Time:HH:mm}){(alerts.Count > 1 ? $"   +{alerts.Count - 1} more" : "")}";
+        }
     }
 
     private void OnDataChanged()
@@ -1137,6 +1193,11 @@ internal sealed class PosForm : Form
         qrLabel.Click += (_, _) => ShowQROrders();
         qrPanel.Controls.Add(qrLabel);
         menuPanel.Controls.Add(qrPanel);
+        guestDismissBtn.FlatAppearance.BorderSize = 0;
+        guestDismissBtn.Click += (_, _) => { store.ClearGuestAlerts(); };
+        guestBar.Controls.Add(guestLabel);
+        guestBar.Controls.Add(guestDismissBtn);
+        menuPanel.Controls.Add(guestBar);
         workspacePanel.Controls.Add(menuPanel);
         workspacePanel.Controls.Add(orderPanel);
         workspacePanel.Resize += (_, _) => LayoutWorkspace(workspacePanel, menuPanel, orderPanel);
@@ -1795,6 +1856,31 @@ internal sealed class PosForm : Form
         barcodeBox?.Focus();
     }
 
+    private void LaunchKiosk()
+    {
+        if (kioskForm != null && !kioskForm.IsDisposed) { kioskForm.Activate(); return; }
+        kioskForm = new KioskForm(background, panelLight, mint, products.ToList(), ResolvePrinter, lines =>
+        {
+            var room = "Kiosk";
+            var table = "Kiosk " + DateTime.Now.ToString("HHmmss");
+            var orderNum = store.NextOrderNumber();
+            store.AddOpenOrder(new OpenOrder(room, table, "Kiosk", DateTime.Now, lines, "", orderNum, orderNum, OrderType: "Takeaway", SeatCount: 0, FiredCourse: 0, Source: "Kiosk", DeliveryAddress: ""));
+            PrintTickets(lines, orderNumber: orderNum, orderType: "Takeaway", room: room, table: table);
+            if (store.Features.AuditLog) store.LogAudit("Kiosk", "Order sent", $"{table}: {lines.Sum(l => l.Quantity)} items, order #{orderNum}");
+        });
+        kioskForm.FormClosed += (_, _) => kioskForm = null;
+        kioskForm.Show();
+    }
+
+    private void ShowCustomerDisplay()
+    {
+        if (custDisplay != null && !custDisplay.IsDisposed) { custDisplay.Activate(); return; }
+        custDisplay = new CustomerDisplayForm(background, mint);
+        custDisplay.FormClosed += (_, _) => custDisplay = null;
+        custDisplay.Show();
+        custDisplay.SetOrder($"{selectedRoom} / {selectedTable}", basket.Select(i => ($"{i.Count} \u00d7 {i.Product.Name}", i.Product.Price * i.Count)).ToList(), NetTotal());
+    }
+
     private void ManageCourseNames()
     {
         using var dlg = new Form { Text = "Course names", Size = new Size(430, 360), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
@@ -1995,12 +2081,19 @@ internal sealed class PosForm : Form
         UpdateOrderButtons();
         RenderSeatBar();
         totalLabel.Text = NetTotal().ToString("C");
+        custDisplay?.SetOrder($"{selectedRoom} / {selectedTable}", basket.Select(i => ($"{i.Count} \u00d7 {i.Product.Name}", i.Product.Price * i.Count)).ToList(), NetTotal());
         discountButton.Text = basketDiscountPercent > 0 ? $"Discount {basketDiscountPercent:0.#}%" : "Discount";
         discountButton.Visible = store.Features.Discounts && (currentOperator == null || HasPermission("Discounts"));
         basketList.ResumeLayout();
     }
 
-    private string OrderContextText() => $"Operator: {currentOperator.Name}\nRoom: {selectedRoom}  •  {selectedTable}\nDine in";
+    private string OrderContextText()
+    {
+        var src = "";
+        if (hasOpenOrder && store.GetOpenOrder(selectedRoom, selectedTable) is { } o && o.Source.Length > 0)
+            src = $"\nSource: {o.Source}";
+        return $"Operator: {currentOperator.Name}\nRoom: {selectedRoom}  •  {selectedTable}\nDine in{src}";
+    }
 
     private void RenderSeatBar()
     {
@@ -2642,6 +2735,7 @@ internal sealed class PosForm : Form
         }
 
         MessageBox.Show($"Payment accepted\n{finalTotal:C}  •  {selectedTable}", "Sale complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        custDisplay?.ShowThankYou(finalTotal);
         basket.Clear();
         activeSeat = 1;
         hasOpenOrder = false;
@@ -3146,7 +3240,7 @@ internal sealed class PosForm : Form
                 UpdateOrderButtons();
             },
             ShowModifierManager, ShowCustomerManager, ShowHappyHourManager, ShowAuditLogViewer, ShowShiftReport, ShowCashDrawer,
-            () => { floorPlanEdit = true; ShowRooms(); }, ShowEmailSettings, ManageCourseNames, ManageComboDeals);
+            () => { floorPlanEdit = true; ShowRooms(); }, ShowEmailSettings, ManageCourseNames, ManageComboDeals, LaunchKiosk, ShowCustomerDisplay);
         settingsForm.TopLevel = false;
         settingsForm.FormBorderStyle = FormBorderStyle.None;
         settingsForm.Dock = DockStyle.Fill;
@@ -3541,11 +3635,11 @@ internal sealed class PosForm : Form
 
     private void UpdateQrBanner()
     {
-        var enabled = store.Features.QROrdering && !isOrderPc;
+        var enabled = (store.Features.QROrdering || store.Features.KioskMode) && !isOrderPc;
         qrPanel.Visible = enabled;
         if (!enabled) return;
-        var pending = store.OpenOrders.Count(o => o.Source == "QR");
-        qrLabel.Text = $"  QR ordering live — http://{TcpPrintServer.LocalIp}:8080 — {pending} open order(s), tap to manage";
+        var pending = store.OpenOrders.Count(o => o.Source is "QR" or "Kiosk");
+        qrLabel.Text = $"  Guest orders live — http://{TcpPrintServer.LocalIp}:8080 — {pending} open order(s), tap to manage";
     }
 
     private void UpdateNavVisibility() => ApplyPermissions();
@@ -4745,7 +4839,124 @@ internal sealed class PosForm : Form
                 .ToList());
         if (method == "POST" && path == "/api/order")
             return HandleQrOrder(body);
+        if (method == "GET" && path == "/api/call")
+        {
+            string QV(string k)
+            {
+                foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var kv = pair.Split('=', 2);
+                    if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
+                }
+                return "";
+            }
+            var r = QV("room"); var t = QV("table");
+            if (r.Length == 0 || t.Length == 0) return JsonResponse(new { ok = false, error = "Missing table." });
+            store.RaiseGuestAlert(r, t, "waiter");
+            if (store.Features.AuditLog) store.LogAudit("Guest", "Call waiter", $"{r}/{t}");
+            return JsonResponse(new { ok = true });
+        }
+        if (method == "GET" && path == "/api/status")
+        {
+            string QV2(string k)
+            {
+                foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var kv = pair.Split('=', 2);
+                    if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
+                }
+                return "";
+            }
+            var r2 = QV2("room"); var t2 = QV2("table");
+            var order = store.GetOpenOrder(r2, t2);
+            var state = order == null ? "none" : order.Ready ? "ready" : "preparing";
+            return JsonResponse(new { ok = true, state, order = order?.OrderNumber ?? 0, total = order?.Items.Sum(i => i.UnitPrice * i.Quantity) ?? 0, items = order?.Items.Sum(i => i.Quantity) ?? 0 });
+        }
+        if (method == "GET" && path == "/status")
+            return HtmlResponse(BuildStatusPage(query));
         return "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+    }
+
+    private static string BuildStatusPage(string query)
+    {
+        string Q(string k)
+        {
+            foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var kv = pair.Split('=', 2);
+                if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
+            }
+            return "";
+        }
+        var roomJson = JsonSerializer.Serialize(Q("room"));
+        var tableJson = JsonSerializer.Serialize(Q("table"));
+        return $$"""
+            <!doctype html>
+            <html lang="en">
+            <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Order status</title>
+            <style>
+              body{margin:0;font-family:system-ui,sans-serif;background:#141a24;color:#eef2f8;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
+              #box{padding:28px;border-radius:16px;background:#1c2536;max-width:420px;width:92%}
+              h1{color:#47d6ae;font-size:20px;margin:0 0 6px}
+              #table{color:#8fa3c0;font-size:14px;margin-bottom:18px}
+              #state{font-size:22px;font-weight:700;padding:18px;border-radius:12px;background:#222c40}
+              .preparing{color:#f5b445;background:#3a2e18}
+              .ready{color:#7ef0c7;background:#17352b}
+              .none{color:#8fa3c0}
+              #meta{color:#8fa3c0;font-size:14px;margin-top:14px}
+              #call{margin-top:20px;padding:12px 18px;border:none;border-radius:10px;background:#f5b445;color:#2a1e08;font-size:15px;font-weight:700}
+              #called{display:none;color:#47d6ae;margin-top:12px}
+            </style>
+            </head>
+            <body>
+            <div id="box">
+              <h1>Your order</h1>
+              <div id="table"></div>
+              <div id="state" class="none">Loading…</div>
+              <div id="meta"></div>
+              <button id="call">🛎 Call waiter</button>
+              <div id="called">The waiter has been notified.</div>
+            </div>
+            <script>
+            const ROOM = {{roomJson}};
+            const TABLE = {{tableJson}};
+            document.getElementById('table').textContent = (ROOM && TABLE) ? `${ROOM} — ${TABLE}` : 'Order tracking';
+            let wasReady = false;
+            async function poll(){
+              try{
+                const res = await fetch(`/api/status?room=${encodeURIComponent(ROOM)}&table=${encodeURIComponent(TABLE)}`);
+                const d = await res.json();
+                const box = document.getElementById('state');
+                const meta = document.getElementById('meta');
+                if (d.state === 'ready'){
+                  box.textContent = '🎉 Ready! Enjoy your meal';
+                  box.className = 'ready';
+                  meta.textContent = d.order ? `Order #${d.order} — ${d.items} item(s)` : '';
+                  if (!wasReady){ wasReady = true; if (navigator.vibrate) navigator.vibrate([300,150,300]); }
+                } else if (d.state === 'preparing'){
+                  box.textContent = '⏳ Being prepared…';
+                  box.className = 'preparing';
+                  meta.textContent = d.order ? `Order #${d.order} — ${d.items} item(s)` : '';
+                } else {
+                  box.textContent = 'No active order for this table';
+                  box.className = 'none';
+                  meta.textContent = '';
+                }
+              }catch(e){}
+            }
+            document.getElementById('call').onclick = async () => {
+              await fetch(`/api/call?room=${encodeURIComponent(ROOM)}&table=${encodeURIComponent(TABLE)}`);
+              document.getElementById('called').style.display = 'block';
+              document.getElementById('call').disabled = true;
+            };
+            poll(); setInterval(poll, 3000);
+            </script>
+            </body>
+            </html>
+            """;
     }
 
     private string HandleQrOrder(string body)
@@ -4846,6 +5057,10 @@ internal sealed class PosForm : Form
               header{padding:16px;background:#1c2536;position:sticky;top:0;z-index:5}
               h1{margin:0 0 10px;font-size:20px;color:#47d6ae}
               select{padding:9px;border-radius:8px;border:1px solid #33405a;background:#222c40;color:#eef2f8;font-size:15px;width:48%;box-sizing:border-box}
+              .hbtns{display:flex;gap:8px;margin-top:10px}
+              .hbtns button,.hbtns a{padding:9px 12px;border:none;border-radius:8px;background:#2f3d57;color:#eef2f8;font-size:14px;text-decoration:none;text-align:center;cursor:pointer}
+              .hbtns a{background:#3a4a68}
+              #callok{display:none;color:#47d6ae;font-size:13px;margin-top:8px}
               section{padding:10px 14px}
               h2{font-size:14px;color:#8fa3c0;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px}
               .row{display:flex;align-items:center;justify-content:space-between;background:#1c2536;border-radius:10px;padding:10px 12px;margin:7px 0}
@@ -4865,6 +5080,11 @@ internal sealed class PosForm : Form
               <h1>{{storeName}}</h1>
               <select id="room"></select>
               <select id="table"></select>
+              <div class="hbtns">
+                <button id="callWaiter">🛎 Call waiter</button>
+                <a id="trackLink" href="#" target="_blank">Track my order</a>
+              </div>
+              <div id="callok">The waiter is on the way.</div>
             </header>
             <div id="done"></div>
             <div id="menu"></div>
@@ -4888,8 +5108,19 @@ internal sealed class PosForm : Form
               const tables = room ? room.tables : [];
               tableSel.innerHTML = tables.map(t => `<option value="${t}">${t}</option>`).join('');
               if (DEF_TABLE && tables.includes(DEF_TABLE)) tableSel.value = DEF_TABLE;
+              updateTrack();
             }
-            roomSel.onchange = fillTables;
+            roomSel.onchange = () => { fillTables(); updateTrack(); };
+            tableSel.onchange = updateTrack;
+            function updateTrack(){
+              const link = document.getElementById('trackLink');
+              link.href = `/status?room=${encodeURIComponent(roomSel.value)}&table=${encodeURIComponent(tableSel.value)}`;
+            }
+            document.getElementById('callWaiter').onclick = async () => {
+              await fetch(`/api/call?room=${encodeURIComponent(roomSel.value)}&table=${encodeURIComponent(tableSel.value)}`);
+              document.getElementById('callok').style.display = 'block';
+              document.getElementById('callWaiter').disabled = true;
+            };
             function render(){
               const host = document.getElementById('menu');
               host.innerHTML = MENU.map(cat => `<section><h2>${cat.category}</h2>` +
@@ -4927,7 +5158,7 @@ internal sealed class PosForm : Form
                 window.scrollTo(0, 0);
               } else alert(data.error || 'Order failed.');
             };
-            fillRooms(); render();
+            fillRooms(); render(); updateTrack();
             </script>
             </body>
             </html>
@@ -4936,17 +5167,17 @@ internal sealed class PosForm : Form
 
     private void ShowQROrders()
     {
-        if (!store.Features.QROrdering || isOrderPc) return;
+        if ((!store.Features.QROrdering && !store.Features.KioskMode) || isOrderPc) return;
         var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
-        var info = new Label { Dock = DockStyle.Top, Height = 56, ForeColor = Color.FromArgb(170, 180, 195), Text = $"Customers scan the QR code or open  http://{TcpPrintServer.LocalIp}:8080  on their phone to order.\nOrders arrive here and print straight to the kitchen. Click a row, then Open table." };
+        var info = new Label { Dock = DockStyle.Top, Height = 56, ForeColor = Color.FromArgb(170, 180, 195), Text = $"Customers scan the QR code or open  http://{TcpPrintServer.LocalIp}:8080  on their phone (or use the kiosk) to order.\nOrders arrive here and print straight to the kitchen. Click a row, then Open table." };
         var lv = new ListView { Dock = DockStyle.Fill, BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false };
-        lv.Columns.Add("Order #", 70); lv.Columns.Add("Room", 130); lv.Columns.Add("Table", 120); lv.Columns.Add("Received", 90); lv.Columns.Add("Items", 60); lv.Columns.Add("Total", 90);
+        lv.Columns.Add("Order #", 70); lv.Columns.Add("Room", 130); lv.Columns.Add("Table", 120); lv.Columns.Add("Source", 70); lv.Columns.Add("Received", 90); lv.Columns.Add("Items", 60); lv.Columns.Add("Total", 90);
         void Rebuild()
         {
             lv.Items.Clear();
-            foreach (var o in store.OpenOrders.Where(o => o.Source == "QR").OrderByDescending(o => o.Created))
+            foreach (var o in store.OpenOrders.Where(o => o.Source is "QR" or "Kiosk").OrderByDescending(o => o.Created))
             {
-                var item = new ListViewItem([o.OrderNumber > 0 ? o.OrderNumber.ToString() : "-", o.Room, o.Table, o.Created.ToString("HH:mm"), o.Items.Sum(i => i.Quantity).ToString(), o.Items.Sum(i => i.UnitPrice * i.Quantity).ToString("C")]);
+                var item = new ListViewItem([o.OrderNumber > 0 ? o.OrderNumber.ToString() : "-", o.Room, o.Table, o.Source, o.Created.ToString("HH:mm"), o.Items.Sum(i => i.Quantity).ToString(), o.Items.Sum(i => i.UnitPrice * i.Quantity).ToString("C")]);
                 lv.Items.Add(item);
             }
             UpdateQrBanner();
@@ -4979,11 +5210,108 @@ internal sealed class PosForm : Form
             ShowOrder();
         };
         refreshBtn.Click += (_, _) => Rebuild();
-        buttons.Controls.AddRange([openBtn, refreshBtn]);
+        var labelsBtn = B("Table QR labels", Color.FromArgb(70, 90, 130));
+        labelsBtn.Click += (_, _) => ShowQrLabels();
+        var copyBtn = B("Copy link", panelLight);
+        copyBtn.Click += (_, _) =>
+        {
+            try { Clipboard.SetText($"http://{TcpPrintServer.LocalIp}:8080/"); MessageBox.Show("Link copied to clipboard.", "QR orders", MessageBoxButtons.OK, MessageBoxIcon.Information); } catch { }
+        };
+        buttons.Controls.AddRange([openBtn, refreshBtn, labelsBtn, copyBtn]);
         panel.Controls.Add(lv);
         panel.Controls.Add(info);
         panel.Controls.Add(buttons);
         ShowView(panel, "QR orders", ShowOrder);
+    }
+
+    private void ShowQrLabels()
+    {
+        var tables = new List<(string Room, string Table, string Url)>();
+        foreach (var room in store.Rooms)
+            for (var i = 1; i <= room.TableCount; i++)
+            {
+                var t = TableName(room.Name, i);
+                tables.Add((room.Name, t, $"http://{TcpPrintServer.LocalIp}:8080/?room={Uri.EscapeDataString(room.Name)}&table={Uri.EscapeDataString(t)}"));
+            }
+        if (tables.Count == 0)
+        {
+            MessageBox.Show("No rooms/tables defined yet.", "QR labels", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        using var dlg = new Form { Text = "Table QR labels", Size = new Size(960, 620), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.Sizable, MaximizeBox = true, MinimizeBox = false };
+        var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(12), BackColor = background };
+        var cardW = 300;
+        var cardH = 300;
+        var x = 12;
+        var y = 12;
+        foreach (var (r, t, url) in tables)
+        {
+            var card = new Panel { Location = new Point(x, y), Size = new Size(cardW, cardH), BackColor = Color.White, Margin = new Padding(8) };
+            var qrFailed = !QrCode.TryEncode(url, out _, out _);
+            var pic = new PictureBox { Location = new Point(55, 10), Size = new Size(190, 190), SizeMode = PictureBoxSizeMode.Zoom };
+            try { pic.Image = QrCode.ToBitmap(url, 5); } catch { qrFailed = true; }
+            var lblT = new Label { Text = t, Font = new Font("Segoe UI Semibold", 14F), ForeColor = Color.Black, AutoSize = true, Location = new Point(10, 205) };
+            var lblR = new Label { Text = r, Font = new Font("Segoe UI", 10F), ForeColor = Color.FromArgb(90, 100, 120), AutoSize = true, Location = new Point(10, 232) };
+            var lblU = new Label { Text = qrFailed ? "URL too long for QR — print this URL as text instead:\n" + url : url, Font = new Font("Segoe UI", 7.5F), ForeColor = Color.FromArgb(120, 130, 150), Location = new Point(10, 255), Size = new Size(280, 42), AutoEllipsis = true };
+            card.Controls.AddRange([pic, lblT, lblR, lblU]);
+            scroll.Controls.Add(card);
+            x += cardW + 12;
+            if (x + cardW > 930) { x = 12; y += cardH + 12; }
+        }
+        var printBtn = new Button { Text = "Print labels…", Dock = DockStyle.Bottom, Height = 40, BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+        printBtn.FlatAppearance.BorderSize = 0;
+        printBtn.Click += (_, _) => PrintQrLabels(tables);
+        dlg.Controls.Add(scroll);
+        dlg.Controls.Add(printBtn);
+        dlg.ShowDialog();
+        foreach (Control c in scroll.Controls)
+            foreach (Control inner in c.Controls)
+                if (inner is PictureBox pb) pb.Image?.Dispose();
+    }
+
+    private void PrintQrLabels(List<(string Room, string Table, string Url)> tables)
+    {
+        var perPage = 4;
+        var pages = (int)Math.Ceiling(tables.Count / (double)perPage);
+        using var doc = new PrintDocument();
+        var page = 0;
+        doc.DocumentName = "Table QR labels";
+        doc.PrintPage += (_, e) =>
+        {
+            if (e.Graphics == null) { e.HasMorePages = false; return; }
+            var area = e.MarginBounds;
+            var cw = area.Width / 2;
+            var ch = area.Height / 2;
+            for (var slot = 0; slot < perPage; slot++)
+            {
+                var i = page * perPage + slot;
+                if (i >= tables.Count) break;
+                var (r, t, url) = tables[i];
+                var col = slot % 2;
+                var row = slot / 2;
+                var rect = new Rectangle(area.X + col * cw, area.Y + row * ch, cw, ch);
+                e.Graphics.DrawRectangle(Pens.Gray, rect);
+                try
+                {
+                    using var qr = QrCode.ToBitmap(url, 6);
+                    var side = Math.Min(cw - 24, ch - 90);
+                    e.Graphics.DrawImage(qr, rect.X + (cw - side) / 2, rect.Y + 10, side, side);
+                }
+                catch { }
+                using (var titleFont = new Font("Segoe UI Semibold", 16F))
+                using (var subFont = new Font("Segoe UI", 10F))
+                using (var urlFont = new Font("Segoe UI", 7.5F))
+                {
+                    e.Graphics.DrawString(t, titleFont, Brushes.Black, rect.X, rect.Y + ch - 72);
+                    e.Graphics.DrawString(r, subFont, Brushes.Gray, rect.X, rect.Y + ch - 46);
+                    e.Graphics.DrawString(url, urlFont, Brushes.DarkGray, new RectangleF(rect.X + 2, rect.Y + ch - 28, cw - 8, 26));
+                }
+            }
+            page++;
+            e.HasMorePages = page < pages;
+        };
+        using var preview = new PrintPreviewDialog { Document = doc, Width = 900, Height = 700 };
+        preview.ShowDialog();
     }
 
     private void ShowStockManagement()
@@ -5704,10 +6032,10 @@ internal sealed class SettingsForm : Form
     private readonly Panel contentPanel;
     private readonly Panel catPanel;
     private Color _bg, _pl, _mint;
-    private Action? _mOps, _mProd, _mFam, _mRooms, _showSales, _mCur, _mPrint, _endDay, _showNet, _showMod, _showCust, _showHappy, _showAudit, _showShift, _showCash, _showEmail, _showCourseNames, _showComboDeals;
+    private Action? _mOps, _mProd, _mFam, _mRooms, _showSales, _mCur, _mPrint, _endDay, _showNet, _showMod, _showCust, _showHappy, _showAudit, _showShift, _showCash, _showEmail, _showCourseNames, _showComboDeals, _showKiosk, _showCustDisp;
     private bool _canOps, _canProd, _canRooms, _canSales;
 
-    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null, Action? editFloorPlan = null, Action? showEmailSettings = null, Action? showCourseNames = null, Action? showComboDeals = null)
+    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null, Action? editFloorPlan = null, Action? showEmailSettings = null, Action? showCourseNames = null, Action? showComboDeals = null, Action? showKiosk = null, Action? showCustDisplay = null)
     {
         this.features = features;
         this.saveFeatures = saveFeatures;
@@ -5720,6 +6048,8 @@ internal sealed class SettingsForm : Form
         _showEmail = showEmailSettings;
         _showCourseNames = showCourseNames;
         _showComboDeals = showComboDeals;
+        _showKiosk = showKiosk;
+        _showCustDisp = showCustDisplay;
         Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(700, 600);
@@ -5916,6 +6246,10 @@ internal sealed class SettingsForm : Form
                 AddToggle("MultiBranch", "Multi-branch support");
                 AddToggle("Refunds", "Refunds (refund ticket, restock, negative sale)");
                 AddToggle("QROrdering", "QR code self-ordering (customer phone scan)");
+                AddToggle("KioskMode", "Kiosk self-order mode (fullscreen, pay at counter)");
+                AddBtn("Launch kiosk", _showKiosk!, features.KioskMode);
+                AddToggle("CustomerDisplay", "Customer-facing display (2nd screen)");
+                AddBtn("Customer display", _showCustDisp!, features.CustomerDisplay);
                 break;
             case "receipts":
                 AddToggle("EmailReceipts", "Email / SMS receipts");
@@ -6035,7 +6369,7 @@ internal sealed class KitchenDisplayForm : Form
 
         var title = new Label { Text = order.OrderNumber > 0 ? $"#{order.OrderNumber}  {order.Table}" : order.Table, Font = new Font("Segoe UI Semibold", 13F), ForeColor = Color.White, AutoSize = true, Location = new Point(10, 8) };
         var unfired = UnfiredCount(order);
-        var sub = new Label { Text = $"{order.Room}  ·  {order.OrderType}  ·  {order.Items.Sum(i => i.Quantity)} items{(unfired > 0 ? $"  ·  {unfired} waiting fire" : "")}", Font = new Font("Segoe UI", 9F), ForeColor = unfired > 0 ? Color.FromArgb(245, 180, 80) : Color.FromArgb(170, 180, 195), AutoSize = true, Location = new Point(11, 34) };
+        var sub = new Label { Text = $"{order.Room}  ·  {order.OrderType}{(order.Source.Length > 0 ? $"  ·  {order.Source}" : "")}  ·  {order.Items.Sum(i => i.Quantity)} items{(unfired > 0 ? $"  ·  {unfired} waiting fire" : "")}", Font = new Font("Segoe UI", 9F), ForeColor = unfired > 0 ? Color.FromArgb(245, 180, 80) : Color.FromArgb(170, 180, 195), AutoSize = true, Location = new Point(11, 34) };
         var timer = new Label { Font = new Font("Segoe UI Semibold", 15F), TextAlign = ContentAlignment.MiddleRight, Location = new Point(174, 10), Size = new Size(96, 44) };
         var header = new Panel { Location = new Point(0, 0), Size = new Size(280, 64), BackColor = head };
         header.Controls.AddRange([title, sub, timer]);
@@ -6062,7 +6396,235 @@ internal sealed class KitchenDisplayForm : Form
         if (current == null) { Render(); return; }
         store.RemoveOpenOrder(order.Room, order.Table);
         store.AddOpenOrder(current with { Ready = !current.Ready });
+        if (!current.Ready) store.RaiseGuestAlert(order.Room, order.Table, "ready");
+        else store.DismissGuestAlerts(order.Room, order.Table, "ready");
         Render();
+    }
+}
+
+internal sealed class KioskForm : Form
+{
+    private readonly List<(Product P, int Qty)> cart = [];
+    private readonly List<Product> products;
+    private readonly Color background;
+    private readonly Color panelLight;
+    private readonly Color mint;
+    private readonly Func<Product, string> resolvePrinter;
+    private readonly Action<List<SoldLine>> onSend;
+    private readonly FlowLayoutPanel tiles = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(14) };
+    private readonly FlowLayoutPanel tabsFlow = new() { Dock = DockStyle.Top, Height = 54, AutoScroll = false, WrapContents = false, Padding = new Padding(10, 8, 10, 8) };
+    private readonly FlowLayoutPanel cartList = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false, FlowDirection = FlowDirection.TopDown, Padding = new Padding(8) };
+    private readonly Label totalLabel = new() { Dock = DockStyle.Bottom, Height = 64, Font = new Font("Segoe UI Semibold", 22F), TextAlign = ContentAlignment.MiddleRight, Padding = new Padding(0, 0, 16, 0) };
+    private readonly Label overlay = new() { Dock = DockStyle.Fill, Font = new Font("Segoe UI Semibold", 24F), ForeColor = Color.FromArgb(126, 240, 199), TextAlign = ContentAlignment.MiddleCenter, Visible = false, BackColor = Color.FromArgb(20, 26, 36) };
+    private string currentCategory = "";
+    private readonly System.Windows.Forms.Timer hideOverlay = new() { Interval = 5000 };
+
+    public KioskForm(Color background, Color panelLight, Color mint, List<Product> products, Func<Product, string> resolvePrinter, Action<List<SoldLine>> onSend)
+    {
+        this.background = background;
+        this.panelLight = panelLight;
+        this.mint = mint;
+        this.products = products;
+        this.resolvePrinter = resolvePrinter;
+        this.onSend = onSend;
+        totalLabel.ForeColor = mint;
+        Text = "Self ordering";
+        FormBorderStyle = FormBorderStyle.None;
+        WindowState = FormWindowState.Maximized;
+        StartPosition = FormStartPosition.CenterScreen;
+        BackColor = background;
+        ForeColor = Color.White;
+        Font = new Font("Segoe UI", 11F);
+
+        hideOverlay.Tick += (_, _) => { overlay.Visible = false; hideOverlay.Stop(); };
+
+        var header = new Panel { Dock = DockStyle.Top, Height = 74, BackColor = Color.FromArgb(28, 36, 52) };
+        var title = new Label { Text = "TAP TO ORDER  •  Pay at the counter", AutoSize = true, Font = new Font("Segoe UI Semibold", 18F), ForeColor = mint, Location = new Point(24, 22) };
+        var exitBtn = new Button { Text = "Exit kiosk", Dock = DockStyle.Right, Width = 130, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(160, 50, 50), Font = new Font("Segoe UI", 10F) };
+        exitBtn.FlatAppearance.BorderSize = 0;
+        exitBtn.Click += (_, _) => Close();
+        header.Controls.AddRange([title, exitBtn]);
+
+        var cartPanel = new Panel { Dock = DockStyle.Right, Width = 360, BackColor = Color.FromArgb(24, 31, 45), Padding = new Padding(10) };
+        var cartTitle = new Label { Text = "Your order", Dock = DockStyle.Top, Height = 40, Font = new Font("Segoe UI Semibold", 14F), ForeColor = Color.FromArgb(143, 154, 171) };
+        var sendBtn = new Button { Text = "SEND ORDER TO KITCHEN", Dock = DockStyle.Bottom, Height = 74, FlatStyle = FlatStyle.Flat, BackColor = mint, ForeColor = Color.FromArgb(16, 35, 29), Font = new Font("Segoe UI Semibold", 14F) };
+        sendBtn.FlatAppearance.BorderSize = 0;
+        sendBtn.Click += (_, _) => SendOrder();
+        var clearBtn = new Button { Text = "Clear", Dock = DockStyle.Bottom, Height = 40, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(80, 90, 110), ForeColor = Color.White };
+        clearBtn.FlatAppearance.BorderSize = 0;
+        clearBtn.Click += (_, _) => { cart.Clear(); RenderCart(); };
+        cartPanel.Controls.Add(cartList);
+        cartPanel.Controls.Add(totalLabel);
+        cartPanel.Controls.Add(clearBtn);
+        cartPanel.Controls.Add(sendBtn);
+        cartPanel.Controls.Add(cartTitle);
+
+        var center = new Panel { Dock = DockStyle.Fill, BackColor = background };
+        center.Controls.Add(tiles);
+        center.Controls.Add(tabsFlow);
+        center.Controls.Add(overlay);
+
+        Controls.Add(center);
+        Controls.Add(cartPanel);
+        Controls.Add(header);
+
+        currentCategory = products.Select(p => p.Category).FirstOrDefault() ?? "";
+        RenderTabs();
+        RenderTiles();
+        RenderCart();
+    }
+
+    private void RenderTabs()
+    {
+        tabsFlow.Controls.Clear();
+        foreach (var cat in products.Select(p => p.Category).Distinct())
+        {
+            var c = cat;
+            var tab = new Button { Text = c, AutoSize = true, MinimumSize = new Size(110, 38), FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 8, 0), BackColor = c == currentCategory ? mint : panelLight, ForeColor = c == currentCategory ? background : Color.White, Font = new Font("Segoe UI Semibold", 10F) };
+            tab.FlatAppearance.BorderSize = 0;
+            tab.Click += (_, _) => { currentCategory = c; RenderTabs(); RenderTiles(); };
+            tabsFlow.Controls.Add(tab);
+        }
+    }
+
+    private void RenderTiles()
+    {
+        tiles.SuspendLayout();
+        tiles.Controls.Clear();
+        foreach (var p in products.Where(p => p.Category == currentCategory))
+        {
+            var product = p;
+            var tile = new ProductTile(product, 230, 160) { Margin = new Padding(0, 0, 14, 14) };
+            tile.OutOfStock = false;
+            tile.Click += (_, _) => AddToCart(product);
+            tiles.Controls.Add(tile);
+        }
+        tiles.ResumeLayout();
+    }
+
+    private void AddToCart(Product p)
+    {
+        var idx = cart.FindIndex(c => c.P.Name == p.Name);
+        if (idx >= 0) cart[idx] = (cart[idx].P, cart[idx].Qty + 1);
+        else cart.Add((p, 1));
+        RenderCart();
+    }
+
+    private void RenderCart()
+    {
+        cartList.SuspendLayout();
+        cartList.Controls.Clear();
+        foreach (var (p, qty) in cart)
+        {
+            var row = new Panel { Width = 330, Height = 56, BackColor = panelLight, Margin = new Padding(0, 0, 0, 8) };
+            var nm = new Label { Text = p.Name, AutoSize = true, Location = new Point(10, 6), Font = new Font("Segoe UI", 9.5F) };
+            var pr = new Label { Text = (p.Price * qty).ToString("C"), AutoSize = true, Location = new Point(10, 28), ForeColor = mint, Font = new Font("Segoe UI", 9F) };
+            var minus = new Button { Text = "−", Size = new Size(30, 34), Location = new Point(224, 11), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(70, 90, 130), ForeColor = Color.White };
+            minus.FlatAppearance.BorderSize = 0;
+            minus.Click += (_, _) =>
+            {
+                var i = cart.FindIndex(c => c.P.Name == p.Name);
+                if (i < 0) return;
+                if (cart[i].Qty <= 1) cart.RemoveAt(i); else cart[i] = (cart[i].P, cart[i].Qty - 1);
+                RenderCart();
+            };
+            var qLbl = new Label { Text = qty.ToString(), AutoSize = true, Location = new Point(262, 18), Font = new Font("Segoe UI Semibold", 11F) };
+            var plus = new Button { Text = "+", Size = new Size(30, 34), Location = new Point(290, 11), FlatStyle = FlatStyle.Flat, BackColor = mint, ForeColor = background };
+            plus.FlatAppearance.BorderSize = 0;
+            plus.Click += (_, _) => AddToCart(p);
+            row.Controls.AddRange([nm, pr, minus, qLbl, plus]);
+            cartList.Controls.Add(row);
+        }
+        totalLabel.Text = cart.Sum(c => c.P.Price * c.Qty).ToString("C");
+        cartList.ResumeLayout();
+    }
+
+    private void SendOrder()
+    {
+        if (cart.Count == 0)
+        {
+            MessageBox.Show("Add something first.", "Kiosk", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var lines = cart
+            .SelectMany(c => Enumerable.Repeat(c.P, c.Qty))
+            .GroupBy(p => p.Name)
+            .Select(g => new SoldLine(g.Key, g.First().Family, g.Count(), g.First().Price, g.First().Category, resolvePrinter(g.First()), "", Seat: 0, Course: 0))
+            .ToList();
+        onSend(lines);
+        cart.Clear();
+        RenderCart();
+        overlay.Text = $"\u2713  Order sent!\n\nPay at the counter.\n\nOrder # confirmed";
+        overlay.Visible = true;
+        overlay.BringToFront();
+        hideOverlay.Stop();
+        hideOverlay.Start();
+    }
+}
+
+internal sealed class CustomerDisplayForm : Form
+{
+    private readonly Panel listPanel = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.FromArgb(20, 26, 36), Padding = new Padding(18, 10, 18, 10) };
+    private readonly Label contextLabel = new() { Dock = DockStyle.Top, Height = 54, Font = new Font("Segoe UI Semibold", 13F), ForeColor = Color.FromArgb(143, 154, 171), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(14, 0, 0, 0), BackColor = Color.FromArgb(24, 31, 45) };
+    private readonly Label totalValue = new() { Dock = DockStyle.Bottom, Height = 96, Font = new Font("Segoe UI Semibold", 34F), ForeColor = Color.FromArgb(71, 214, 174), TextAlign = ContentAlignment.MiddleRight, Padding = new Padding(0, 0, 22, 0), BackColor = Color.FromArgb(24, 31, 45) };
+    private readonly Label totalCaption = new() { Dock = DockStyle.Bottom, Height = 34, Text = "TOTAL", Font = new Font("Segoe UI Semibold", 11F), ForeColor = Color.FromArgb(143, 154, 171), TextAlign = ContentAlignment.MiddleRight, Padding = new Padding(0, 0, 24, 0), BackColor = Color.FromArgb(24, 31, 45) };
+    private readonly Label thanks = new() { Dock = DockStyle.Fill, Font = new Font("Segoe UI Semibold", 26F), ForeColor = Color.FromArgb(126, 240, 199), TextAlign = ContentAlignment.MiddleCenter, Visible = false, BackColor = Color.FromArgb(20, 26, 36) };
+    private readonly System.Windows.Forms.Timer thanksTimer = new() { Interval = 5000 };
+
+    public CustomerDisplayForm(Color background, Color mint)
+    {
+        Text = "Customer display";
+        Size = new Size(520, 780);
+        StartPosition = FormStartPosition.Manual;
+        Location = new Point(Screen.PrimaryScreen?.Bounds.Width ?? 1280, 80);
+        BackColor = background;
+        ForeColor = Color.White;
+        Font = new Font("Segoe UI", 11F);
+        thanksTimer.Tick += (_, _) => { thanks.Visible = false; thanksTimer.Stop(); };
+        Controls.Add(listPanel);
+        Controls.Add(contextLabel);
+        Controls.Add(thanks);
+        Controls.Add(totalValue);
+        Controls.Add(totalCaption);
+        SetOrder("", [], 0m);
+    }
+
+    public void SetOrder(string context, List<(string Text, decimal Amount)> rows, decimal total)
+    {
+        if (IsDisposed) return;
+        if (InvokeRequired) { try { BeginInvoke(() => SetOrder(context, rows, total)); } catch { } return; }
+        contextLabel.Text = "  " + context;
+        listPanel.SuspendLayout();
+        listPanel.Controls.Clear();
+        foreach (var (text, amount) in rows)
+        {
+            var row = new Panel { Dock = DockStyle.Top, Height = 44, Padding = new Padding(4, 6, 4, 6) };
+            var l = new Label { Text = text, AutoSize = false, Size = new Size(330, 32), ForeColor = Color.White, Font = new Font("Segoe UI", 11F) };
+            var r = new Label { Text = amount.ToString("C"), AutoSize = false, Size = new Size(130, 32), ForeColor = Color.FromArgb(71, 214, 174), TextAlign = ContentAlignment.MiddleRight, Font = new Font("Segoe UI Semibold", 11F), Dock = DockStyle.Right };
+            row.Controls.Add(l);
+            row.Controls.Add(r);
+            listPanel.Controls.Add(row);
+        }
+        listPanel.ResumeLayout();
+        totalValue.Text = total.ToString("C");
+    }
+
+    public void ShowThankYou(decimal paid)
+    {
+        if (IsDisposed) return;
+        if (InvokeRequired) { try { BeginInvoke(() => ShowThankYou(paid)); } catch { } return; }
+        thanks.Text = $"\u2713  PAID\n\n{paid:C}\n\nThank you!";
+        thanks.Visible = true;
+        thanks.BringToFront();
+        thanksTimer.Stop();
+        thanksTimer.Start();
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        thanksTimer.Stop();
+        thanksTimer.Dispose();
+        base.OnFormClosed(e);
     }
 }
 
