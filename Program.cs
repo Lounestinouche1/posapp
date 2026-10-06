@@ -21,7 +21,7 @@ internal static class Program
 
 internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "");
 internal sealed record SoldLine(string Product, string Family, int Quantity, decimal UnitPrice, string Category = "General", string PrinterDestination = "", string Note = "", string Modifiers = "", decimal Discount = 0, string DiscountType = "", int Course = 0, int Seat = 0);
-internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0, string DeliveryAddress = "", decimal CashAmount = -1);
+internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0, string DeliveryAddress = "", decimal CashAmount = -1, decimal Tendered = 0, decimal Rounding = 0);
 internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false, int FiredCourse = 0, string Source = "", string DeliveryAddress = "");
 internal sealed record Room(string Name, int TableCount);
     internal sealed record ProductFamily(string Name, string ImagePath = "", string PrinterDestination = "");
@@ -236,6 +236,7 @@ internal sealed class FeatureSettings
     public bool QuickSaleMode { get; set; } = false;
     public bool KioskMode { get; set; } = false;
     public bool CustomerDisplay { get; set; } = false;
+    public bool CashRounding { get; set; } = false;
 }
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -815,6 +816,8 @@ internal sealed class PosForm : Form
     private readonly Button repeatButton = new();
     private readonly Button parkButton = new();
     private readonly Button dealsButton = new();
+    private readonly Button reprintButton = new();
+    private (Sale Sale, List<SoldLine> Lines, decimal DiscountPercent, string Room, string Table)? lastReceipt;
     private readonly Button quickSaleBtn = new();
     private TextBox? barcodeBox;
     private readonly Panel qrPanel = new() { Dock = DockStyle.Top, Height = 34, Visible = false, BackColor = Color.FromArgb(44, 92, 70) };
@@ -977,6 +980,7 @@ internal sealed class PosForm : Form
         repeatButton.Visible = store.Features.RepeatOrders;
         parkButton.Visible = store.Features.ParkOrders && (basket.Count > 0 || hasOpenOrder);
         dealsButton.Visible = store.Features.ComboDeals && store.ComboDeals.Count > 0;
+        reprintButton.Visible = lastReceipt != null;
         fireButton.Visible = false;
         if (store.Features.CourseManagement && hasOpenOrder)
         {
@@ -1147,7 +1151,16 @@ internal sealed class PosForm : Form
         dealsButton.ForeColor = Color.White;
         dealsButton.Font = new Font("Segoe UI", 8F);
         dealsButton.Click += (_, _) => ShowDealsDialog();
-        summary.Controls.AddRange([totalCaption, totalLabel, orderButton, noteButton, payButton, splitBillButton, transferButton, mergeButton, discountButton, fireButton, repeatButton, parkButton, dealsButton]);
+        reprintButton.Text = "Reprint";
+        reprintButton.Location = new Point(240, 204);
+        reprintButton.Size = new Size(74, 34);
+        reprintButton.FlatStyle = FlatStyle.Flat;
+        reprintButton.FlatAppearance.BorderSize = 0;
+        reprintButton.BackColor = Color.FromArgb(60, 110, 100);
+        reprintButton.ForeColor = Color.White;
+        reprintButton.Font = new Font("Segoe UI", 8F);
+        reprintButton.Click += (_, _) => { if (lastReceipt is {} r) PrintPaymentReceipt(r.Sale, r.Lines, r.DiscountPercent, r.Room, r.Table); };
+        summary.Controls.AddRange([totalCaption, totalLabel, orderButton, noteButton, payButton, splitBillButton, transferButton, mergeButton, discountButton, fireButton, repeatButton, parkButton, dealsButton, reprintButton]);
         orderPanel.Controls.Add(basketList);
         orderPanel.Controls.Add(summary);
         orderPanel.Controls.Add(orderHeader);
@@ -2502,7 +2515,7 @@ internal sealed class PosForm : Form
         var showAddress = orderType == "Delivery";
         var extraRows = (showAddress ? 1 : 0) + (showGift ? 2 : 0) + (showRedeem ? 1 : 0);
 
-        using var payForm = new Form { Text = "Payment", Size = new Size(420, 440 + 44 * extraRows), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        using var payForm = new Form { Text = "Payment", Size = new Size(420, 440 + 44 * extraRows + 72), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
         var yPos = 15;
         Control MakeRow(string label, Control ctrl) { var p = new Panel { Location = new Point(20, yPos), Size = new Size(370, 38) }; var l = new Label { Text = label, AutoSize = true, Location = new Point(0, 8) }; ctrl.Location = new Point(150, 4); ctrl.Size = new Size(ctrl.Width, 30); p.Controls.AddRange([l, ctrl]); yPos += 44; return p; }
 
@@ -2512,8 +2525,14 @@ internal sealed class PosForm : Form
         var discountValue = new Label { Text = basketDiscountPercent > 0 ? $"-{discount:C} ({basketDiscountPercent:0.#}%)" : "None", AutoSize = true, ForeColor = basketDiscountPercent > 0 ? Color.Orange : Color.FromArgb(143, 154, 171) };
         var tipInput = new NumericUpDown { Minimum = 0, Maximum = 10000, Value = 0, Size = new Size(120, 30), BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 4) };
 
-        var paymentCombo = new ComboBox { Size = new Size(150, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 4) };
+        var paymentCombo = new ComboBox { Size = new Size(140, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White, Location = new Point(0, 4) };
         paymentCombo.Items.AddRange(["Cash", "Card", "Transfer", "Mobile"]); paymentCombo.SelectedIndex = 0;
+        var splitBtn = new Button { Text = "Split…", Location = new Point(146, 4), Size = new Size(70, 30), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(70, 90, 130), ForeColor = Color.White };
+        splitBtn.FlatAppearance.BorderSize = 0;
+        var paymentPanel = new Panel { Location = new Point(150, 4), Size = new Size(216, 30) };
+        paymentPanel.Controls.AddRange([paymentCombo, splitBtn]);
+        var splitTenders = (List<(string Method, decimal Amount)>?)null;
+        decimal tenderedValue = 0;
 
         var customerCombo = new ComboBox { Size = new Size(150, 30), DropDownStyle = ComboBoxStyle.DropDown, BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 4) };
         customerCombo.Items.Add("(none)");
@@ -2524,7 +2543,7 @@ internal sealed class PosForm : Form
             totalLabel,
             MakeRow("Discount:", discountValue),
             MakeRow("Tip:", tipInput),
-            MakeRow("Payment:", paymentCombo),
+            MakeRow("Payment:", paymentPanel),
             MakeRow("Customer:", customerCombo)
         };
 
@@ -2584,19 +2603,115 @@ internal sealed class PosForm : Form
         customerCombo.SelectedIndexChanged += (_, _) => RefreshCustRows();
         RefreshCustRows();
 
+        var tenderedInput = new NumericUpDown { Minimum = 0, Maximum = 100000000, Value = 0, DecimalPlaces = 2, Increment = 10, Size = new Size(95, 30), BackColor = panelLight, ForeColor = Color.White, Location = new Point(110, 2) };
+        var changeLabel = new Label { Location = new Point(110, 36), Size = new Size(256, 26), Font = new Font("Segoe UI Semibold", 11F), ForeColor = Color.FromArgb(126, 240, 199), TextAlign = ContentAlignment.MiddleLeft };
+        Panel? tenderPanel = null;
+
+        decimal LiveDue()
+        {
+            var d = totalBeforeDiscount - discount + tipInput.Value - appliedGiftBalance;
+            if (showGift && creditCheck.Enabled && creditCheck.Checked)
+                d -= customerCombo.Text == "(none)" ? 0 : store.Customers.FirstOrDefault(x => x.Name == customerCombo.Text)?.Balance ?? 0;
+            if (showRedeem && redeemInput.Enabled) d -= redeemInput.Value / 10m;
+            return d;
+        }
+        decimal RoundCash(decimal d)
+        {
+            if (!store.Features.CashRounding || splitTenders != null || paymentCombo.Text != "Cash" || d <= 0) return d;
+            return Math.Round(d / 5m, 0, MidpointRounding.AwayFromZero) * 5m;
+        }
+        void UpdateChange()
+        {
+            if (changeLabel == null) return;
+            var d = Math.Max(0, RoundCash(LiveDue()));
+            var t = tenderedInput.Value;
+            if (t <= 0) { changeLabel.Text = ""; return; }
+            changeLabel.Text = t < d ? $"Short: {d - t:C}" : $"CHANGE:  {t - d:C}";
+            changeLabel.ForeColor = t >= d ? Color.FromArgb(126, 240, 199) : Color.Orange;
+        }
+        void UpdateTenderVisibility()
+        {
+            if (tenderPanel == null) return;
+            tenderPanel.Visible = splitTenders == null && paymentCombo.Text == "Cash";
+            splitBtn.Text = splitTenders == null ? "Split…" : $"{splitTenders.Count} tenders ✓";
+            paymentCombo.Enabled = splitTenders == null;
+        }
+
+        tenderPanel = new Panel { Location = new Point(20, yPos), Size = new Size(370, 66) };
+        var cashLabel = new Label { Text = "Cash received:", AutoSize = true, Location = new Point(0, 6) };
+        void SetTender(decimal v)
+        {
+            if (v < tenderedInput.Minimum) v = tenderedInput.Minimum;
+            if (v > tenderedInput.Maximum) v = tenderedInput.Maximum;
+            tenderedInput.Value = v;
+        }
+        decimal CeilCash(decimal step)
+        {
+            var d = Math.Max(0, RoundCash(LiveDue()));
+            return d <= 0 ? step : (decimal)Math.Ceiling((double)(d / step)) * step;
+        }
+        Button QuickBtn(string text, int x, Func<decimal> value)
+        {
+            var b = new Button { Text = text, Location = new Point(x, 3), Size = new Size(38, 26), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(70, 90, 130), ForeColor = Color.White, Font = new Font("Segoe UI", 7.5F) };
+            b.FlatAppearance.BorderSize = 0;
+            b.Click += (_, _) => { SetTender(value()); UpdateChange(); };
+            return b;
+        }
+        tenderPanel.Controls.AddRange([cashLabel, tenderedInput,
+            QuickBtn("Exact", 214, () => Math.Max(0, RoundCash(LiveDue()))),
+            QuickBtn("→10", 254, () => CeilCash(10)),
+            QuickBtn("→50", 294, () => CeilCash(50)),
+            QuickBtn("→100", 334, () => CeilCash(100)),
+            changeLabel]);
+        rows.Add(tenderPanel);
+        yPos += 72;
+
+        paymentCombo.SelectedIndexChanged += (_, _) => { UpdateTenderVisibility(); UpdateChange(); };
+        tenderedInput.ValueChanged += (_, _) => UpdateChange();
+        tipInput.ValueChanged += (_, _) => UpdateChange();
+        creditCheck.CheckedChanged += (_, _) => UpdateChange();
+        redeemInput.ValueChanged += (_, _) => UpdateChange();
+        if (giftApplyBtn != null) giftApplyBtn.Click += (_, _) => UpdateChange();
+        splitBtn.Click += (_, _) =>
+        {
+            var due = LiveDue();
+            if (due <= 0) { MessageBox.Show("Nothing to split.", "Split payment", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            var result = ShowSplitPayment(due);
+            if (result == null) return;
+            splitTenders = result;
+            UpdateTenderVisibility();
+            UpdateChange();
+        };
+        UpdateTenderVisibility();
+        UpdateChange();
+
         payForm.Controls.AddRange([.. rows]);
         var payOk = new Button { Text = $"Accept payment  {totalBeforeDiscount - discount:C}", Location = new Point(20, yPos), Size = new Size(370, 48), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
         payOk.FlatAppearance.BorderSize = 0;
         payOk.Click += (_, _) =>
         {
-            var creditRequested = showGift && creditCheck.Enabled && creditCheck.Checked;
-            var redeemPts = showRedeem && redeemInput.Enabled ? (int)redeemInput.Value : 0;
-            var est = totalBeforeDiscount - discount + tipInput.Value - appliedGiftBalance - (creditRequested ? (customerCombo.Text == "(none)" ? 0 : store.Customers.FirstOrDefault(x => x.Name == customerCombo.Text)?.Balance ?? 0) : 0) - redeemPts / 10m;
-            if (est < -0.005m)
+            var due = LiveDue();
+            if (due < -0.005m)
             {
                 MessageBox.Show("Applied payments exceed the total.\nRemove the gift card, credit or points before continuing.", "Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+            var cashDue = Math.Max(0, RoundCash(due));
+            if (splitTenders != null)
+            {
+                var sum = splitTenders.Sum(t => t.Amount);
+                if (Math.Abs(sum - due) > 0.005m)
+                {
+                    MessageBox.Show($"Tendered amounts ({sum:C}) must equal the amount due ({due:C}).\nRemaining: {due - sum:C}", "Split payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+            else if (paymentCombo.Text == "Cash" && tenderedInput.Value > 0 && tenderedInput.Value < cashDue)
+            {
+                MessageBox.Show($"Cash received ({tenderedInput.Value:C}) is less than the amount due ({cashDue:C}).", "Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            tenderedValue = tenderedInput.Value;
             payForm.DialogResult = DialogResult.OK;
         };
         payForm.Controls.Add(payOk);
@@ -2652,15 +2767,35 @@ internal sealed class PosForm : Form
         }
         if (due < 0) due = 0;
 
+        decimal roundingOut = 0;
+        if (splitTenders == null && paymentType == "Cash" && due > 0)
+        {
+            var rounded = RoundCash(due);
+            if (rounded != due) { roundingOut = rounded - due; due = rounded; }
+        }
+
         var payParts = new List<string>();
         if (giftApplied > 0) payParts.Add("Gift card");
         if (creditApplied > 0) payParts.Add("Store credit");
         if (redeemAmount > 0) payParts.Add($"Points ({redeemPts})");
-        if (due > 0) payParts.Add(paymentType);
+        decimal cashAmt;
+        if (splitTenders is { Count: > 0 })
+        {
+            cashAmt = splitTenders.Where(t => t.Method == "Cash").Sum(t => t.Amount);
+            if (splitTenders.Count == 1) payParts.Add(splitTenders[0].Method);
+            else foreach (var part in splitTenders) payParts.Add($"{part.Method} {part.Amount:C}");
+        }
+        else
+        {
+            cashAmt = due > 0 && paymentType == "Cash" ? due : 0;
+            if (due > 0) payParts.Add(paymentType);
+        }
         var finalPaymentType = payParts.Count > 0 ? string.Join(" + ", payParts) : paymentType;
-        var cashAmt = due > 0 && paymentType == "Cash" ? due : 0;
+        var tenderedOut = splitTenders == null && paymentType == "Cash" && cashAmt > 0 ? tenderedValue : 0m;
 
-        store.AddSale(new Sale(DateTime.Now, finalTotal, selectedTable, currentOperator.Name, lines, paymentNum, billNum, tip, finalPaymentType, customerName, orderType, discount, DeliveryAddress: deliveryAddress, CashAmount: cashAmt));
+        var sale = new Sale(DateTime.Now, finalTotal, selectedTable, currentOperator.Name, lines, paymentNum, billNum, tip, finalPaymentType, customerName, orderType, discount, DeliveryAddress: deliveryAddress, CashAmount: cashAmt, Tendered: tenderedOut, Rounding: roundingOut);
+        store.AddSale(sale);
+        lastReceipt = (sale, lines, basketDiscountPercent, selectedRoom, selectedTable);
         if (giftApplied > 0)
         {
             var gi = store.GiftCards.FindIndex(c => string.Equals(c.Code, appliedGiftCode, StringComparison.OrdinalIgnoreCase));
@@ -2711,30 +2846,11 @@ internal sealed class PosForm : Form
         }
         store.RemoveOpenOrder(selectedRoom, selectedTable);
 
-        var payDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Payment");
-        if (payDest != null && !string.IsNullOrWhiteSpace(payDest.WindowsPrinter))
-        {
-            try
-            {
-                if (isOrderPc)
-                {
-                    var escPosBytes = BuildEscPosBytes(payDest, lines, selectedRoom, selectedTable, currentOperator.Name, billNumber: billNum, paymentNumber: paymentNum, discountPercent: basketDiscountPercent, discountAmount: discount);
-                    TcpPrintClient.SendPrintJob(GetMainPcHost(), payDest.WindowsPrinter, escPosBytes);
-                }
-                else if (payDest.CutAfterPrint)
-                {
-                    try { RawPrinter.PrintTicket(payDest, selectedRoom, selectedTable, currentOperator.Name, lines, ResolvePrinterName(payDest), billNumber: billNum, paymentNumber: paymentNum, discountPercent: basketDiscountPercent, discountAmount: discount); }
-                    catch (InvalidOperationException) { PrintWindowsTicket(payDest, lines, billNumber: billNum, paymentNumber: paymentNum, discountPercent: basketDiscountPercent, discountAmount: discount); }
-                }
-                else PrintWindowsTicket(payDest, lines, billNumber: billNum, paymentNumber: paymentNum, discountPercent: basketDiscountPercent, discountAmount: discount);
-            }
-            catch (Exception error)
-            {
-                MessageBox.Show($"Could not print payment: {error.Message}", "Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
+        PrintPaymentReceipt(sale, lines, basketDiscountPercent, selectedRoom, selectedTable);
 
-        MessageBox.Show($"Payment accepted\n{finalTotal:C}  •  {selectedTable}", "Sale complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        var changeLine = tenderedOut > 0 ? $"\nTendered: {tenderedOut:C}   Change: {tenderedOut - cashAmt:C}" : "";
+        var roundLine = roundingOut != 0 ? $"\nRounded: {(roundingOut > 0 ? "+" : "")}{roundingOut:C}" : "";
+        MessageBox.Show($"Payment accepted\n{finalTotal:C}  •  {selectedTable}{changeLine}{roundLine}", "Sale complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         custDisplay?.ShowThankYou(finalTotal);
         basket.Clear();
         activeSeat = 1;
@@ -2773,6 +2889,93 @@ internal sealed class PosForm : Form
         panel.Controls.Add(form);
         form.Show();
         ShowView(panel, "Printer routing", ShowSettings);
+    }
+
+    private void PrintPaymentReceipt(Sale sale, List<SoldLine> lines, decimal discountPercent, string room, string table)
+    {
+        var payDest = store.PrinterDestinations.FirstOrDefault(d => d.Name == "Payment");
+        if (payDest == null || string.IsNullOrWhiteSpace(payDest.WindowsPrinter)) return;
+        TicketLayout.Tendered = sale.Tendered;
+        TicketLayout.CashReceived = sale.CashAmount >= 0 ? sale.CashAmount : 0;
+        TicketLayout.Rounding = sale.Rounding;
+        try
+        {
+            if (isOrderPc)
+            {
+                var escPosBytes = BuildEscPosBytes(payDest, lines, room, table, sale.Operator, billNumber: sale.BillNumber, paymentNumber: sale.PaymentNumber, discountPercent: discountPercent, discountAmount: sale.Discount);
+                TcpPrintClient.SendPrintJob(GetMainPcHost(), payDest.WindowsPrinter, escPosBytes);
+            }
+            else if (payDest.CutAfterPrint)
+            {
+                try { RawPrinter.PrintTicket(payDest, room, table, sale.Operator, lines, ResolvePrinterName(payDest), billNumber: sale.BillNumber, paymentNumber: sale.PaymentNumber, discountPercent: discountPercent, discountAmount: sale.Discount); }
+                catch (InvalidOperationException) { PrintWindowsTicket(payDest, lines, billNumber: sale.BillNumber, paymentNumber: sale.PaymentNumber, discountPercent: discountPercent, discountAmount: sale.Discount, room: room, table: table); }
+            }
+            else PrintWindowsTicket(payDest, lines, billNumber: sale.BillNumber, paymentNumber: sale.PaymentNumber, discountPercent: discountPercent, discountAmount: sale.Discount, room: room, table: table);
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show($"Could not print payment: {error.Message}", "Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            TicketLayout.Tendered = 0;
+            TicketLayout.CashReceived = 0;
+            TicketLayout.Rounding = 0;
+        }
+    }
+
+    private List<(string Method, decimal Amount)>? ShowSplitPayment(decimal due)
+    {
+        var chosen = new List<(ComboBox Box, NumericUpDown Amount)>();
+        using var form = new Form { Text = $"Split payment — due {due:C}", Size = new Size(470, 440), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var listFlow = new FlowLayoutPanel { Location = new Point(12, 54), Size = new Size(432, 240), FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = background };
+        var remainingLabel = new Label { Location = new Point(12, 302), Size = new Size(432, 30), TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI Semibold", 11F), ForeColor = mint };
+        Button? okBtn = null;
+        List<(string Method, decimal Amount)>? result = null;
+
+        void Refresh()
+        {
+            var sum = chosen.Sum(c => c.Amount.Value);
+            remainingLabel.Text = $"Remaining: {due - sum:C}   tendered: {sum:C}";
+            if (okBtn != null) okBtn.Enabled = Math.Abs(sum - due) < 0.005m && chosen.Count > 0;
+        }
+        void AddRow(string method, decimal amount)
+        {
+            var row = new Panel { Size = new Size(404, 42), Margin = new Padding(0, 0, 0, 8) };
+            var box = new ComboBox { Location = new Point(0, 6), Size = new Size(120, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+            box.Items.AddRange(["Cash", "Card", "Transfer", "Mobile"]);
+            box.SelectedItem = box.Items.Contains(method) ? method : "Cash";
+            var amt = new NumericUpDown { Location = new Point(130, 6), Size = new Size(140, 30), Minimum = 0, Maximum = 100000000, DecimalPlaces = 2, Increment = 100, Value = Math.Clamp(amount, 0, 100000000) };
+            var remove = new Button { Text = "✕", Location = new Point(280, 6), Size = new Size(34, 30), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(160, 50, 50), ForeColor = Color.White };
+            remove.FlatAppearance.BorderSize = 0;
+            remove.Click += (_, _) => { chosen.Remove((box, amt)); listFlow.Controls.Remove(row); Refresh(); };
+            box.SelectedIndexChanged += (_, _) => Refresh();
+            amt.ValueChanged += (_, _) => Refresh();
+            row.Controls.AddRange([box, amt, remove]);
+            listFlow.Controls.Add(row);
+            chosen.Add((box, amt));
+            Refresh();
+        }
+        var addBtn = new Button { Text = "+ Add method", Location = new Point(330, 10), Size = new Size(110, 32), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(70, 90, 130), ForeColor = Color.White };
+        addBtn.FlatAppearance.BorderSize = 0;
+        addBtn.Click += (_, _) => { var last = chosen.Count > 0 ? chosen[^1].Box.Text : "Cash"; AddRow(last, 0); };
+        var head = new Label { Text = $"Amount due: {due:C}  —  methods must add up to it", AutoSize = true, ForeColor = Color.FromArgb(170, 180, 195), Location = new Point(14, 16) };
+        okBtn = new Button { Text = "Accept split", Location = new Point(206, 344), Size = new Size(116, 42), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        okBtn.FlatAppearance.BorderSize = 0;
+        okBtn.Click += (_, _) =>
+        {
+            result = chosen.Select(c => (c.Box.Text, c.Amount.Value)).ToList();
+            form.DialogResult = DialogResult.OK;
+        };
+        var cancelBtn = new Button { Text = "Cancel", Location = new Point(330, 344), Size = new Size(110, 42), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        cancelBtn.FlatAppearance.BorderSize = 0;
+        cancelBtn.Click += (_, _) => form.DialogResult = DialogResult.Cancel;
+
+        form.Controls.AddRange([listFlow, remainingLabel, head, addBtn, okBtn, cancelBtn]);
+        form.AcceptButton = okBtn;
+        form.CancelButton = cancelBtn;
+        AddRow("Cash", Math.Max(0, due));
+        return form.ShowDialog() == DialogResult.OK && result != null ? result : null;
     }
 
     private void PrintTickets(List<SoldLine> lines, int orderNumber = 0, int billNumber = 0, string orderType = "", string? room = null, string? table = null)
@@ -6220,6 +6423,7 @@ internal sealed class SettingsForm : Form
                 AddToggle("MultiRatePricing", "Multi-rate (dine-in / takeaway / delivery)");
                 AddToggle("CashDrawer", "Cash drawer management");
                 AddBtn("Open cash drawer", showCash!, features.CashDrawer);
+                AddToggle("CashRounding", "Round cash payments to nearest 5");
                 AddToggle("GiftCards", "Gift cards & store credit");
                 break;
             case "staff":

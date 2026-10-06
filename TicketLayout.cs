@@ -7,7 +7,10 @@ internal static class TicketLayout
 {
     public static string[] CourseNames = [];
     public static string CourseTag(int c) => c <= 0 ? "" : (CourseNames.Length >= c && !string.IsNullOrWhiteSpace(CourseNames[c - 1]) ? $"[{CourseNames[c - 1]}] " : $"[C{c}] ");
-    public static readonly string[] Available = ["Header", "Logo", "OrderNumber", "BillNumber", "PaymentNumber", "Operator", "Room", "Table", "Date", "Time", "Products", "Prices", "Items", "OrderType", "Total", "DiscountPercent", "PriceAfterDiscount", "Footer", "Separator", "Blank line", "Cutter"];
+    public static decimal Tendered = 0;
+    public static decimal CashReceived = 0;
+    public static decimal Rounding = 0;
+    public static readonly string[] Available = ["Header", "Logo", "OrderNumber", "BillNumber", "PaymentNumber", "Operator", "Room", "Table", "Date", "Time", "Products", "Prices", "Items", "OrderType", "Total", "Tendered", "Rounded", "DiscountPercent", "PriceAfterDiscount", "Footer", "Separator", "Blank line", "Cutter"];
     public static List<TicketComponentStyle> Components(PrinterDestination destination) => 
         destination.Layout is { Count: > 0 } ? destination.Layout : 
         [
@@ -24,6 +27,8 @@ internal static class TicketLayout
             new("Prices"),
             new("Separator"),
             new("Total", 14, true, false, "Right"),
+            new("Tendered"),
+            new("Rounded"),
             new("Separator"),
             new("Footer", 10, false, false, "Center"),
             new("Blank line"),
@@ -52,6 +57,8 @@ internal static class TicketLayout
         "Items" => string.Join(Environment.NewLine, lines.Select(line => $"{(line.Seat > 0 ? $"[S{line.Seat}] " : "")}{CourseTag(line.Course)}{line.Quantity} x {line.Product}  {line.UnitPrice * line.Quantity:C}{(string.IsNullOrWhiteSpace(line.Modifiers) ? "" : $"  (+ {line.Modifiers})")}{(string.IsNullOrWhiteSpace(line.Note) ? "" : $"  ({line.Note})")}")),
         "OrderType" => $"Order type: {orderType}",
         "Total" => "TOTAL  " + lines.Sum(line => line.UnitPrice * line.Quantity).ToString("C"),
+        "Tendered" => Tendered > 0 ? $"TENDERED  {Tendered:C}   CHANGE  {Tendered - CashReceived:C}" : "",
+        "Rounded" => Rounding != 0 ? $"ROUNDING  {(Rounding > 0 ? "+" : "")}{Rounding:C}" : "",
         "DiscountPercent" => discountPercent > 0 ? $"DISCOUNT  -{discountPercent:0.#}%" : discountAmount > 0 ? $"DISCOUNT  -{discountAmount:C}" : "",
         "PriceAfterDiscount" => "AFTER DISCOUNT  " + (lines.Sum(line => line.UnitPrice * line.Quantity) - discountAmount).ToString("C"),
         "Footer" => destination.Footer,
