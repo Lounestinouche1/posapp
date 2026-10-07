@@ -21,7 +21,7 @@ internal static class Program
 
 internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "", bool Weighted = false);
 internal sealed record SoldLine(string Product, string Family, int Quantity, decimal UnitPrice, string Category = "General", string PrinterDestination = "", string Note = "", string Modifiers = "", decimal Discount = 0, string DiscountType = "", int Course = 0, int Seat = 0);
-    internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0, string DeliveryAddress = "", decimal CashAmount = -1, decimal Tendered = 0, decimal Rounding = 0, decimal ServiceFee = 0, decimal CashDiscountAmt = 0, decimal SurchargeAmt = 0);
+    internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0, string DeliveryAddress = "", decimal CashAmount = -1, decimal Tendered = 0, decimal Rounding = 0, decimal ServiceFee = 0, decimal CashDiscountAmt = 0, decimal SurchargeAmt = 0, string Branch = "");
 internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false, int FiredCourse = 0, string Source = "", string DeliveryAddress = "");
 internal sealed record Room(string Name, int TableCount);
     internal sealed record ProductFamily(string Name, string ImagePath = "", string PrinterDestination = "");
@@ -276,6 +276,17 @@ internal sealed class FeatureSettings
     public bool MenuEngineering { get; set; } = false;
     public bool AccountingExport { get; set; } = false;
     public bool AiInsights { get; set; } = false;
+    public bool CloudBackup { get; set; } = false;
+    public string BackupPath { get; set; } = "";
+    public bool BackupDaily { get; set; } = false;
+    public bool ApiEnabled { get; set; } = false;
+    public string ApiKey { get; set; } = "";
+    public string WebhookUrl { get; set; } = "";
+    public string GuestOrderUrl { get; set; } = "";
+    public bool KdsLateAlarm { get; set; } = false;
+    public int KdsPrepMinutes { get; set; } = 15;
+    public List<string> Branches { get; set; } = [];
+    public string CurrentBranch { get; set; } = "";
 }
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -511,7 +522,10 @@ internal sealed class PosStore
             PrinterDestinations.Add(new PrinterDestination("Refund", refundSource?.WindowsPrinter ?? "", refundSource?.Header ?? "REFUND", refundSource?.Footer ?? "Thank you", refundSource?.CutAfterPrint ?? true, refundSource?.Layout == null ? null : [.. refundSource.Layout], refundSource?.LogoPath ?? ""));
         }
         if (File.Exists(featureSettingsFile))
-            Features = JsonSerializer.Deserialize<FeatureSettings>(File.ReadAllText(featureSettingsFile), JsonOptions) ?? Features;
+        {
+            var loadedFeatures = JsonSerializer.Deserialize<FeatureSettings>(File.ReadAllText(featureSettingsFile), JsonOptions);
+            if (loadedFeatures != null) CopyFeatures(loadedFeatures, Features);
+        }
         if (File.Exists(modifiersFile))
             ModifierGroups = JsonSerializer.Deserialize<List<ModifierGroup>>(File.ReadAllText(modifiersFile), JsonOptions) ?? ModifierGroups;
         if (File.Exists(customersFile))
@@ -562,6 +576,8 @@ internal sealed class PosStore
             LocationStock = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, decimal>>>(File.ReadAllText(locationStockFile), JsonOptions) ?? LocationStock;
         if (File.Exists(locationsFile))
             Locations = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(locationsFile), JsonOptions) ?? Locations;
+        if (File.Exists(prepFile))
+            PrepTimes = JsonSerializer.Deserialize<List<PrepRecord>>(File.ReadAllText(prepFile), JsonOptions) ?? [];
         if (File.Exists(productVariantsFile))
             ProductVariants = JsonSerializer.Deserialize<List<ProductVariant>>(File.ReadAllText(productVariantsFile), JsonOptions) ?? ProductVariants;
         if (File.Exists(auto86File))
@@ -607,9 +623,61 @@ internal sealed class PosStore
 
     public void AddSale(Sale sale)
     {
+        if (Features.MultiBranch && !string.IsNullOrWhiteSpace(Features.CurrentBranch))
+            sale = sale with { Branch = Features.CurrentBranch };
         Sales.Add(sale);
         suppressWatcher = true;
         File.WriteAllText(file, JsonSerializer.Serialize(Sales, JsonOptions));
+        suppressWatcher = false;
+        FireWebhook(sale);
+    }
+
+    private void FireWebhook(Sale sale)
+    {
+        var url = Features.WebhookUrl;
+        if (string.IsNullOrWhiteSpace(url)) return;
+        string payload;
+        try
+        {
+            payload = JsonSerializer.Serialize(new
+            {
+                @event = "sale.completed",
+                payment_number = sale.PaymentNumber,
+                time = sale.Time.ToString("yyyy-MM-ddTHH:mm:ss"),
+                total = sale.Total,
+                payment_type = sale.PaymentType,
+                @operator = sale.Operator,
+                branch = sale.Branch,
+                table = sale.Table,
+                order_type = sale.OrderType,
+                discount = sale.Discount,
+                tip = sale.Tip
+            });
+        }
+        catch { return; }
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var hc = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                _ = await hc.PostAsync(url, new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
+            }
+            catch { }
+        });
+    }
+
+    public string DataFolder => dataFolder;
+
+    internal sealed class PrepRecord { public DateTime Time { get; set; } public int Minutes { get; set; } }
+    private string prepFile => Path.Combine(dataFolder, "prep-times.json");
+    public List<PrepRecord> PrepTimes { get; private set; } = [];
+
+    public void AddPrepTime(int minutes)
+    {
+        PrepTimes.Add(new PrepRecord { Time = DateTime.Now, Minutes = minutes });
+        if (PrepTimes.Count > 500) PrepTimes = [.. PrepTimes.Skip(PrepTimes.Count - 500)];
+        suppressWatcher = true;
+        try { File.WriteAllText(prepFile, JsonSerializer.Serialize(PrepTimes, JsonOptions)); } catch { }
         suppressWatcher = false;
     }
 
@@ -663,10 +731,16 @@ internal sealed class PosStore
 
     public void SaveFeatures(FeatureSettings features)
     {
-        Features = features;
+        if (!ReferenceEquals(features, Features)) CopyFeatures(features, Features);
         suppressWatcher = true;
-        File.WriteAllText(featureSettingsFile, JsonSerializer.Serialize(features, JsonOptions));
+        File.WriteAllText(featureSettingsFile, JsonSerializer.Serialize(Features, JsonOptions));
         suppressWatcher = false;
+    }
+
+    private static void CopyFeatures(FeatureSettings src, FeatureSettings dst)
+    {
+        foreach (var p in typeof(FeatureSettings).GetProperties())
+            if (p.CanRead && p.CanWrite) p.SetValue(dst, p.GetValue(src));
     }
 
     public void SaveOpenOrders()
@@ -918,6 +992,7 @@ internal sealed class PosForm : Form
     private TextBox? barcodeBox;
     private readonly Panel qrPanel = new() { Dock = DockStyle.Top, Height = 34, Visible = false, BackColor = Color.FromArgb(44, 92, 70) };
     private readonly Label qrLabel = new();
+    private DateTime lastDailyBackup = DateTime.MinValue;
     private QrOrderServer? qrServer;
     private readonly Panel guestBar = new() { Dock = DockStyle.Top, Height = 40, Visible = false, BackColor = Color.FromArgb(190, 130, 40) };
     private readonly Panel trainingBar = new() { Dock = DockStyle.Top, Height = 34, Visible = false, BackColor = Color.FromArgb(180, 60, 60) };
@@ -984,7 +1059,8 @@ internal sealed class PosForm : Form
         RenderProducts();
         RenderBasket();
         TicketLayout.CourseNames = store.CourseNames.ToArray();
-        if (store.Features.QROrdering && !isOrderPc) StartQrServer();
+        if ((store.Features.QROrdering || store.Features.ApiEnabled) && !isOrderPc) StartQrServer();
+        StartBackupScheduler();
 
         store.DataChanged += OnDataChanged;
         store.GuestAlertRaised += OnGuestAlertRaised;
@@ -1144,7 +1220,7 @@ internal sealed class PosForm : Form
         salesLabel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         salesLabel.Location = new Point(content.ClientSize.Width - 300, 22);
         mainHeader.Controls.AddRange([greetingLabel, date, salesLabel]);
-        operatorButton.Text = "Operator: " + currentOperator.Name;
+        UpdateBranchBadge();
         operatorButton.Size = new Size(180, 34);
         operatorButton.Location = new Point(content.ClientSize.Width - 350, 14);
         operatorButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -2221,7 +2297,7 @@ internal sealed class PosForm : Form
         var src = "";
         if (hasOpenOrder && store.GetOpenOrder(selectedRoom, selectedTable) is { } o && o.Source.Length > 0)
             src = $"\nSource: {o.Source}";
-        return $"Operator: {currentOperator.Name}\nRoom: {selectedRoom}  •  {selectedTable}\nDine in{src}";
+        return $"Operator: {currentOperator.Name}{BranchSuffix()}\nRoom: {selectedRoom}  •  {selectedTable}\nDine in{src}";
     }
 
     private void RenderSeatBar()
@@ -3591,7 +3667,8 @@ internal sealed class PosForm : Form
         if (!HasPermission("View sales")) return;
         var panel = new Panel { Dock = DockStyle.Fill };
         var canRefund = store.Features.Refunds && HasPermission("Settings");
-        var form = new SalesReportForm(background, panelLight, mint, store.Sales, store.RegisterSettings.Currency, canRefund, RefundSale);
+        var form = new SalesReportForm(background, panelLight, mint, store.Sales, store.RegisterSettings.Currency, canRefund, RefundSale,
+            store.Features.MultiBranch && store.Features.Branches.Count > 0 ? store.Features.Branches : null);
         form.TopLevel = false;
         form.FormBorderStyle = FormBorderStyle.None;
         form.Dock = DockStyle.Fill;
@@ -3765,11 +3842,13 @@ internal sealed class PosForm : Form
                 seatBar.Visible = features.SeatOrdering;
                 orderHeader.Height = features.SeatOrdering ? 116 : 102;
                 RenderSeatBar();
-                if (features.QROrdering && !isOrderPc) StartQrServer(); else StopQrServer();
+                if ((features.QROrdering || features.ApiEnabled) && !isOrderPc) StartQrServer();
+                else if (!features.QROrdering && !features.ApiEnabled) StopQrServer();
                 quickSaleBtn.Visible = features.QuickSaleMode;
                 barcodeBox!.Visible = features.BarcodeScanning || features.QuickSaleMode;
                 trainingBar.Visible = features.TrainingMode;
                 UpdateOrderButtons();
+                UpdateBranchBadge();
             },
             ShowModifierManager, ShowCustomerManager, ShowHappyHourManager, ShowAuditLogViewer, ShowShiftReport, ShowCashDrawer,
             () => { floorPlanEdit = true; ShowRooms(); }, ShowEmailSettings, ManageCourseNames, ManageComboDeals, LaunchKiosk, ShowCustomerDisplay,
@@ -4114,7 +4193,7 @@ internal sealed class PosForm : Form
         picker.OperatorSelected += op =>
         {
             currentOperator = op;
-            operatorButton.Text = "Operator: " + currentOperator.Name;
+            UpdateBranchBadge();
             greetingLabel.Text = GreetingText();
             orderLabel.Text = OrderContextText();
             ApplyPermissions();
@@ -4145,7 +4224,7 @@ internal sealed class PosForm : Form
     {
         var hour = DateTime.Now.Hour;
         var greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-        return $"{greeting}, {currentOperator.Name}";
+        return $"{greeting}, {currentOperator.Name}{BranchSuffix()}";
     }
 
     private bool HasPermission(string permission) => currentOperator.Permissions.Contains("All permissions") || currentOperator.Permissions.Contains(permission);
@@ -4172,7 +4251,7 @@ internal sealed class PosForm : Form
         qrPanel.Visible = enabled;
         if (!enabled) return;
         var pending = store.OpenOrders.Count(o => o.Source is "QR" or "Kiosk");
-        qrLabel.Text = $"  Guest orders live — http://{TcpPrintServer.LocalIp}:8080 — {pending} open order(s), tap to manage";
+        qrLabel.Text = $"  Guest orders live — {EffectiveGuestUrl()} — {pending} open order(s), tap to manage";
     }
 
     private void UpdateNavVisibility() => ApplyPermissions();
@@ -4508,6 +4587,11 @@ internal sealed class PosForm : Form
             case "MenuEng": ShowMenuEngineering(); break;
             case "AcctExport": ShowAccountingExport(); break;
             case "Insights": ShowAiInsights(); break;
+            case "Backup": ShowBackupDialog(); break;
+            case "ApiCfg": ShowApiConfigDialog(); break;
+            case "Branches": ShowBranchesDialog(); break;
+            case "GuestUrl": ShowGuestUrlDialog(); break;
+            case "PrepAnalytics": ShowPrepAnalytics(); break;
         }
     }
 
@@ -4805,6 +4889,314 @@ internal sealed class PosForm : Form
         var close = ReportButton("Close", new Point(410, 240), new Size(130, 40), panelLight, Color.White);
         close.Click += (_, _) => f.DialogResult = DialogResult.OK;
         f.Controls.AddRange([title, hint, todayRb, weekRb, rowsLabel, export, close]);
+        f.ShowDialog();
+    }
+
+    private bool RunBackup(bool silent)
+    {
+        try
+        {
+            var dest = store.Features.BackupPath.Trim();
+            if (dest.Length == 0)
+            {
+                if (!silent) MessageBox.Show("Set a backup folder first.", "Cloud backup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+            Directory.CreateDirectory(dest);
+            var src = store.DataFolder;
+            var jsons = Directory.GetFiles(src, "*.json");
+            if (jsons.Length == 0)
+            {
+                if (!silent) MessageBox.Show("No database files found to back up.", "Cloud backup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+            var zip = Path.Combine(dest, $"vectron-backup-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
+            if (File.Exists(zip)) File.Delete(zip);
+            using (var zipStream = File.Create(zip))
+            using (var archive = new System.IO.Compression.ZipArchive(zipStream, System.IO.Compression.ZipArchiveMode.Create))
+                foreach (var file in jsons)
+                    System.IO.Compression.ZipFileExtensions.CreateEntryFromFile(archive, file, Path.GetFileName(file), System.IO.Compression.CompressionLevel.Optimal);
+            if (!silent) MessageBox.Show($"Backup created:\n{zip}\n\n{jsons.Length} database file(s) zipped.", "Cloud backup", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (!silent) MessageBox.Show($"Backup failed:\n{ex.Message}", "Cloud backup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
+        }
+    }
+
+    private void StartBackupScheduler()
+    {
+        void Check()
+        {
+            try
+            {
+                if (!store.Features.CloudBackup || !store.Features.BackupDaily) return;
+                if (store.Features.BackupPath.Trim().Length == 0) return;
+                if (lastDailyBackup.Date == DateTime.Today) return;
+                if (RunBackup(true)) lastDailyBackup = DateTime.Today;
+            }
+            catch { }
+        }
+        Check();
+        var t = new System.Windows.Forms.Timer { Interval = 30 * 60 * 1000 };
+        t.Tick += (_, _) => Check();
+        t.Start();
+    }
+
+    private void ShowBackupDialog()
+    {
+        if (!store.Features.CloudBackup) return;
+        using var f = ReportShell("Cloud backup & restore", 620, 400);
+        var head = new Label { Text = "Backup folder (network share, NAS, or sync folder):", AutoSize = true, Location = new Point(20, 14), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
+        var txt = new TextBox { Text = store.Features.BackupPath, Location = new Point(20, 44), Size = new Size(470, 30), BackColor = panelLight, ForeColor = Color.White };
+        var browse = ReportButton("Browse…", new Point(500, 42), new Size(95, 34), panelLight, Color.White);
+        browse.Click += (_, _) =>
+        {
+            using var fb = new FolderBrowserDialog { Description = "Choose the backup destination folder" };
+            if (fb.ShowDialog() == DialogResult.OK) txt.Text = fb.SelectedPath;
+        };
+        var daily = new CheckBox { Text = "Run a backup automatically once a day", Checked = store.Features.BackupDaily, AutoSize = true, Location = new Point(20, 88), ForeColor = Color.White };
+        var hint = new Label
+        {
+            Text = "Every backup zips all database JSON files (sales, products, operators,\nshifts, features…) into a timestamped .zip you can store off-site.",
+            AutoSize = true, Location = new Point(20, 122), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F)
+        };
+        var save = ReportButton("Save settings", new Point(20, 178), new Size(150, 40), mint, background);
+        save.Click += (_, _) =>
+        {
+            store.Features.BackupPath = txt.Text.Trim();
+            store.Features.BackupDaily = daily.Checked;
+            store.SaveFeatures(store.Features);
+            lastDailyBackup = DateTime.MinValue;
+            MessageBox.Show("Backup settings saved.", "Cloud backup", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        };
+        var now = ReportButton("Backup now", new Point(184, 178), new Size(150, 40), mint, background);
+        now.Click += (_, _) =>
+        {
+            store.Features.BackupPath = txt.Text.Trim();
+            store.Features.BackupDaily = daily.Checked;
+            store.SaveFeatures(store.Features);
+            RunBackup(false);
+        };
+        var restore = ReportButton("Restore from backup…", new Point(348, 178), new Size(200, 40), Color.FromArgb(170, 120, 50), Color.White);
+        restore.Click += (_, _) =>
+        {
+            using var dlg = new OpenFileDialog { Filter = "Backup zip (*.zip)|*.zip|All files (*.*)|*.*", Title = "Pick a vectron-backup zip" };
+            if (dlg.ShowDialog() != DialogResult.OK) return;
+            if (MessageBox.Show("Restoring will OVERWRITE the current database with the backup contents.\n\nContinue?", "Restore backup", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            try
+            {
+                System.IO.Compression.ZipFile.ExtractToDirectory(dlg.FileName, store.DataFolder, true);
+                MessageBox.Show("Backup restored.\nThe application will now restart to load the restored data.", "Restore", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Application.Restart();
+            }
+            catch (Exception ex) { MessageBox.Show($"Restore failed:\n{ex.Message}", "Restore", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        };
+        var lastRun = new Label { Text = "", AutoSize = true, Location = new Point(20, 236), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F) };
+        try
+        {
+            var existing = Directory.Exists(store.Features.BackupPath)
+                ? Directory.GetFiles(store.Features.BackupPath, "vectron-backup-*.zip").Select(File.GetLastWriteTime).OrderDescending().FirstOrDefault()
+                : default;
+            lastRun.Text = existing == default ? "No previous backup found in this folder." : $"Last backup in this folder: {existing:dd MMM yyyy HH:mm}";
+        }
+        catch { lastRun.Text = ""; }
+        var close = ReportButton("Close", new Point(470, 320), new Size(125, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, txt, browse, daily, hint, save, now, restore, lastRun, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowApiConfigDialog()
+    {
+        if (!store.Features.ApiEnabled) return;
+        using var f = ReportShell("REST API & webhooks", 640, 470);
+        var head = new Label { Text = "HTTP endpoints (JSON):", AutoSize = true, Location = new Point(20, 14), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
+        var ep = new Label
+        {
+            Text = $"GET  http://{TcpPrintServer.LocalIp}:8080/api/sales?limit=50&key=KEY\nGET  http://{TcpPrintServer.LocalIp}:8080/api/products?key=KEY\nGET  http://{TcpPrintServer.LocalIp}:8080/api/orders?key=KEY",
+            AutoSize = true, Location = new Point(20, 40), ForeColor = Color.FromArgb(170, 180, 195), Font = new Font("Consolas", 9F)
+        };
+        var keyLbl = new Label { Text = "API key (required on every request):", AutoSize = true, Location = new Point(20, 106), ForeColor = Color.White };
+        var keyTxt = new TextBox { Text = store.Features.ApiKey, Location = new Point(20, 132), Size = new Size(420, 30), BackColor = panelLight, ForeColor = Color.White };
+        var gen = ReportButton("Generate", new Point(450, 130), new Size(110, 34), panelLight, Color.White);
+        gen.Click += (_, _) => keyTxt.Text = Guid.NewGuid().ToString("N");
+        var hookLbl = new Label { Text = "Webhook URL (POST on every completed sale):", AutoSize = true, Location = new Point(20, 178), ForeColor = Color.White };
+        var hookTxt = new TextBox { Text = store.Features.WebhookUrl, Location = new Point(20, 204), Size = new Size(420, 30), BackColor = panelLight, ForeColor = Color.White };
+        var test = ReportButton("Send test", new Point(450, 202), new Size(110, 34), panelLight, Color.White);
+        test.Click += (_, _) =>
+        {
+            var url = hookTxt.Text.Trim();
+            if (url.Length == 0) { MessageBox.Show("Enter a webhook URL first.", "Webhooks", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            try
+            {
+                using var hc = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                var payload = "{\"event\":\"test\",\"message\":\"Vectron POS webhook test\"}";
+                var resp = hc.PostAsync(url, new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json")).GetAwaiter().GetResult();
+                MessageBox.Show(resp.IsSuccessStatusCode ? $"Webhook delivered (HTTP {(int)resp.StatusCode})." : $"Server replied HTTP {(int)resp.StatusCode}.", "Webhooks", MessageBoxButtons.OK, resp.IsSuccessStatusCode ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            }
+            catch (Exception ex) { MessageBox.Show($"Webhook failed:\n{ex.Message}", "Webhooks", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        };
+        var hookHint = new Label
+        {
+            Text = "Every sale completed at the till POSTs a JSON payload like\n{ \"event\": \"sale.completed\", \"total\": 12.5, \"payment_type\": \"Cash\", … }.",
+            AutoSize = true, Location = new Point(20, 244), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F)
+        };
+        var save = ReportButton("Save", new Point(20, 300), new Size(130, 40), mint, background);
+        save.Click += (_, _) =>
+        {
+            store.Features.ApiKey = keyTxt.Text.Trim();
+            store.Features.WebhookUrl = hookTxt.Text.Trim();
+            store.SaveFeatures(store.Features);
+            MessageBox.Show("API settings saved.", "REST API", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        };
+        var close = ReportButton("Close", new Point(480, 396), new Size(125, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, ep, keyLbl, keyTxt, gen, hookLbl, hookTxt, test, hookHint, save, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowBranchesDialog()
+    {
+        if (!store.Features.MultiBranch) return;
+        using var f = ReportShell("Branches", 480, 540);
+        var head = new Label { Text = "Every sale is stamped with the current branch.", AutoSize = true, Location = new Point(20, 14), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
+        var lv = new ListBox { Location = new Point(20, 46), Size = new Size(300, 300), BackColor = panelLight, ForeColor = Color.White };
+        foreach (var b in store.Features.Branches) lv.Items.Add(b);
+        var txt = new TextBox { Location = new Point(20, 356), Size = new Size(190, 30), BackColor = panelLight, ForeColor = Color.White };
+        var add = ReportButton("Add", new Point(220, 354), new Size(95, 34), mint, background);
+        add.Click += (_, _) =>
+        {
+            var name = txt.Text.Trim();
+            if (name.Length == 0) return;
+            if (!lv.Items.Cast<string>().Contains(name)) lv.Items.Add(name);
+            txt.Text = "";
+        };
+        var remove = ReportButton("Remove selected", new Point(20, 396), new Size(150, 34), Color.FromArgb(170, 50, 50), Color.White);
+        remove.Click += (_, _) => { if (lv.SelectedItem != null) lv.Items.Remove(lv.SelectedItem); };
+        var curLbl = new Label { Text = "Current branch for this register:", AutoSize = true, Location = new Point(20, 442), ForeColor = Color.White };
+        var combo = new ComboBox { Location = new Point(20, 468), Size = new Size(300, 30), DropDownStyle = ComboBoxStyle.DropDown, BackColor = panelLight, ForeColor = Color.White };
+        foreach (var b in lv.Items.Cast<string>()) combo.Items.Add(b);
+        combo.Items.Add("(none)");
+        combo.Text = string.IsNullOrWhiteSpace(store.Features.CurrentBranch) ? "(none)" : store.Features.CurrentBranch;
+        var save = ReportButton("Save", new Point(334, 464), new Size(110, 38), mint, background);
+        save.Click += (_, _) =>
+        {
+            store.Features.Branches = lv.Items.Cast<string>().ToList();
+            store.Features.CurrentBranch = combo.Text.Trim() == "(none)" ? "" : combo.Text.Trim();
+            if (store.Features.CurrentBranch.Length > 0 && !store.Features.Branches.Contains(store.Features.CurrentBranch))
+                store.Features.Branches.Add(store.Features.CurrentBranch);
+            store.SaveFeatures(store.Features);
+            MessageBox.Show($"Branches saved.\nCurrent branch: {(store.Features.CurrentBranch.Length == 0 ? "(none)" : store.Features.CurrentBranch)}", "Branches", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            f.DialogResult = DialogResult.OK;
+        };
+        var close = ReportButton("Close", new Point(334, 20), new Size(110, 34), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+        f.Controls.AddRange([head, lv, txt, add, remove, curLbl, combo, save, close]);
+        if (f.ShowDialog() == DialogResult.OK) UpdateBranchBadge();
+    }
+
+    private void UpdateBranchBadge()
+    {
+        if (IsDisposed) return;
+        var b = store.Features.MultiBranch ? store.Features.CurrentBranch.Trim() : "";
+        operatorButton.Text = "Operator: " + currentOperator.Name + (b.Length > 0 ? $"  •  {b}" : "");
+        if (greetingLabel != null && !greetingLabel.IsDisposed) greetingLabel.Text = GreetingText();
+        if (orderLabel != null && !orderLabel.IsDisposed) orderLabel.Text = OrderContextText();
+    }
+
+    private string BranchSuffix()
+    {
+        var b = store.Features.MultiBranch ? store.Features.CurrentBranch.Trim() : "";
+        return b.Length > 0 ? $"  •  {b}" : "";
+    }
+
+    private string EffectiveGuestUrl()
+    {
+        var custom = store.Features.GuestOrderUrl?.Trim() ?? "";
+        return custom.Length > 0 ? custom.TrimEnd('/') : $"http://{TcpPrintServer.LocalIp}:8080";
+    }
+
+    private void ShowGuestUrlDialog()
+    {
+        if (!(store.Features.QROrdering || store.Features.KioskMode)) return;
+        using var f = ReportShell("Guest ordering URL", 580, 470);
+        var head = new Label { Text = "Guests open this URL in their phone browser to browse the menu & order:", AutoSize = true, Location = new Point(20, 14), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
+        var defaultLbl = new Label { Text = $"Built-in (local network): http://{TcpPrintServer.LocalIp}:8080", AutoSize = true, Location = new Point(20, 44), ForeColor = Color.FromArgb(170, 180, 195), Font = new Font("Segoe UI", 9F) };
+        var txtLbl = new Label { Text = "Public URL override (tunnel / domain — leave empty for local):", AutoSize = true, Location = new Point(20, 74), ForeColor = Color.White };
+        var txt = new TextBox { Text = store.Features.GuestOrderUrl, Location = new Point(20, 100), Size = new Size(400, 30), BackColor = panelLight, ForeColor = Color.White };
+        var pic = new PictureBox { Location = new Point(20, 146), Size = new Size(220, 220), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.White };
+        var urlLbl = new Label { Location = new Point(20, 372), Size = new Size(400, 34), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F), AutoEllipsis = true };
+        void RefreshQr()
+        {
+            var url = EffectiveGuestUrl();
+            urlLbl.Text = url;
+            try { pic.Image?.Dispose(); pic.Image = QrCode.ToBitmap(url, 5); } catch { pic.Image = null; }
+        }
+        RefreshQr();
+        var copy = ReportButton("Copy URL", new Point(260, 146), new Size(130, 38), panelLight, Color.White);
+        copy.Click += (_, _) => { try { Clipboard.SetText(EffectiveGuestUrl()); MessageBox.Show("URL copied to clipboard.", "Guest ordering", MessageBoxButtons.OK, MessageBoxIcon.Information); } catch { } };
+        var save = ReportButton("Save", new Point(260, 196), new Size(130, 38), mint, background);
+        save.Click += (_, _) =>
+        {
+            store.Features.GuestOrderUrl = txt.Text.Trim();
+            store.SaveFeatures(store.Features);
+            UpdateQrBanner();
+            RefreshQr();
+            MessageBox.Show("Guest ordering URL saved.", "Guest ordering", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        };
+        var hint = new Label
+        {
+            Text = "The banner on the order screen and the table QR labels\nuse this URL when it is set.",
+            AutoSize = true, Location = new Point(260, 248), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F)
+        };
+        var close = ReportButton("Close", new Point(420, 406), new Size(125, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, defaultLbl, txtLbl, txt, pic, urlLbl, copy, save, hint, close]);
+        f.ShowDialog();
+        pic.Image?.Dispose();
+    }
+
+    private void ShowPrepAnalytics()
+    {
+        if (!store.Features.KdsLateAlarm) return;
+        using var f = ReportShell("KDS prep-time analytics", 640, 560);
+        var target = store.Features.KdsPrepMinutes;
+        var recs = store.PrepTimes;
+        string stats;
+        if (recs.Count == 0)
+            stats = "No completed orders yet — press ✓ READY on the KDS to record prep times.";
+        else
+        {
+            var avg = recs.Average(r => r.Minutes);
+            var onTime = recs.Count(r => r.Minutes <= target) * 100.0 / recs.Count;
+            stats = $"Orders: {recs.Count}   •   Avg prep: {avg:0.0} min   •   Fastest: {recs.Min(r => r.Minutes)} min   •   Slowest: {recs.Max(r => r.Minutes)} min\nOn time (≤ {target} min target): {onTime:0.0}%   •   Last: {recs.Max(r => r.Time):dd MMM HH:mm}";
+        }
+        var head = new Label { Text = stats, Location = new Point(14, 12), Size = new Size(430, 64), ForeColor = Color.Orange, Font = new Font("Segoe UI Semibold", 11F) };
+        var targetLbl = new Label { Text = "Target prep (min):", AutoSize = true, Location = new Point(456, 14), ForeColor = Color.White };
+        var targetNum = new NumericUpDown { Minimum = 1, Maximum = 180, Value = Math.Clamp(store.Features.KdsPrepMinutes, 1, 180), Location = new Point(456, 38), Size = new Size(70, 30), BackColor = panelLight, ForeColor = Color.White };
+        var saveTarget = ReportButton("Save", new Point(534, 36), new Size(84, 34), mint, background);
+        saveTarget.Click += (_, _) =>
+        {
+            store.Features.KdsPrepMinutes = (int)targetNum.Value;
+            store.SaveFeatures(store.Features);
+            MessageBox.Show($"Target prep time: {store.Features.KdsPrepMinutes} minutes.", "KDS settings", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        };
+        var lv = new ListView { Location = new Point(14, 88), Size = new Size(610, 400), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv.Columns.AddRange([new ColumnHeader { Text = "Completed", Width = 190 }, new ColumnHeader { Text = "Prep minutes", Width = 110 }, new ColumnHeader { Text = "Status", Width = 110 }, new ColumnHeader { Text = "Branch", Width = 140 }]);
+        foreach (var r in recs.AsEnumerable().Reverse().Take(100))
+        {
+            var late = r.Minutes > target;
+            var item = new ListViewItem([r.Time.ToString("yyyy-MM-dd HH:mm:ss"), r.Minutes.ToString(), late ? "LATE" : "on time", store.Features.CurrentBranch]);
+            if (late) item.ForeColor = Color.FromArgb(235, 120, 100);
+            else item.ForeColor = Color.FromArgb(130, 220, 150);
+            lv.Items.Add(item);
+        }
+        var close = ReportButton("Close", new Point(496, 502), new Size(128, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, targetLbl, targetNum, saveTarget, lv, close]);
         f.ShowDialog();
     }
 
@@ -6460,6 +6852,71 @@ internal sealed class PosForm : Form
                 .GroupBy(p => p.Category)
                 .Select(g => new { category = g.Key, products = g.Select(p => new { name = p.Name, price = p.Price }).ToList() })
                 .ToList());
+        if (method == "GET" && (path == "/api/sales" || path == "/api/products" || path == "/api/orders"))
+        {
+            static string QV(string q, string k)
+            {
+                foreach (var pair in q.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var kv = pair.Split('=', 2);
+                    if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
+                }
+                return "";
+            }
+            if (!store.Features.ApiEnabled) return JsonResponse(new { ok = false, error = "API is disabled (Settings > Network)." });
+            if (!string.IsNullOrEmpty(store.Features.ApiKey) && QV(query, "key") != store.Features.ApiKey)
+                return JsonResponse(new { ok = false, error = "Missing or invalid ?key=." });
+            if (path == "/api/sales")
+            {
+                var limit = int.TryParse(QV(query, "limit"), out var l) ? Math.Clamp(l, 1, 500) : 50;
+                return JsonResponse(new
+                {
+                    ok = true,
+                    sales = store.Sales.OrderByDescending(s => s.Time).Take(limit).Select(s => new
+                    {
+                        payment = s.PaymentNumber,
+                        time = s.Time.ToString("yyyy-MM-ddTHH:mm:ss"),
+                        total = s.Total,
+                        payment_type = s.PaymentType,
+                        @operator = s.Operator,
+                        branch = s.Branch,
+                        table = s.Table,
+                        order_type = s.OrderType,
+                        discount = s.Discount,
+                        tip = s.Tip,
+                        refund = s.IsRefund
+                    }).ToList()
+                });
+            }
+            if (path == "/api/products")
+                return JsonResponse(new
+                {
+                    ok = true,
+                    products = store.Products.Where(p => !Is86(store, p.Name)).Select(p => new
+                    {
+                        name = p.Name,
+                        category = p.Category,
+                        price = p.Price,
+                        family = p.Family,
+                        barcode = p.Barcode,
+                        weighted = p.Weighted
+                    }).ToList()
+                });
+            return JsonResponse(new
+            {
+                ok = true,
+                orders = store.OpenOrders.Select(o => new
+                {
+                    room = o.Room,
+                    table = o.Table,
+                    order = o.OrderNumber,
+                    created = o.Created.ToString("yyyy-MM-ddTHH:mm:ss"),
+                    ready = o.Ready,
+                    source = o.Source,
+                    items = o.Items.Select(i => new { product = i.Product, qty = i.Quantity, price = i.UnitPrice, note = i.Note }).ToList()
+                }).ToList()
+            });
+        }
         if (method == "POST" && path == "/api/order")
             return HandleQrOrder(body);
         if (method == "GET" && path == "/api/call")
@@ -7978,9 +8435,14 @@ internal sealed class SettingsForm : Form
                 AddBtn("Accounting export CSV", () => _report?.Invoke("AcctExport"), features.AccountingExport);
                 AddToggle("AiInsights", "AI insights (auto analysis)");
                 AddBtn("AI insights", () => _report?.Invoke("Insights"), features.AiInsights);
+                AddBtn("KDS prep-time analytics", () => _report?.Invoke("PrepAnalytics"), features.KdsLateAlarm);
                 break;
             case "network":
                 AddBtn("Network settings", showNet);
+                AddToggle("CloudBackup", "Cloud backup (daily zip to a folder you trust)");
+                AddBtn("Backup & restore", () => _report?.Invoke("Backup"), features.CloudBackup);
+                AddToggle("ApiEnabled", "REST API for external systems (POS → ERP / BI)");
+                AddBtn("API key & webhooks", () => _report?.Invoke("ApiCfg"), features.ApiEnabled);
                 break;
             case "ordering":
                 AddToggle("SplitBill", "Split bill (by seat or item)");
@@ -7993,6 +8455,7 @@ internal sealed class SettingsForm : Form
                 AddToggle("HoldFire", "Hold fire — kitchen only gets courses when you press Fire");
                 AddToggle("Reservations", "Reservations / bookings (floor plan badges)");
                 AddToggle("KitchenDisplay", "Kitchen display screen (KDS)");
+                AddToggle("KdsLateAlarm", "KDS late alarm (beep & flash past target prep time)");
                 AddToggle("EightySixBoard", "86 board (mark products out of stock)");
                 AddToggle("SeatOrdering", "Seat-level ordering (items assigned to seats)");
                 AddToggle("FloorPlanEditor", "Floor plan editor (drag & drop, rename tables)");
@@ -8064,8 +8527,10 @@ internal sealed class SettingsForm : Form
             case "operations":
                 AddToggle("DeliveryOrders", "Delivery orders");
                 AddToggle("MultiBranch", "Multi-branch support");
+                AddBtn("Manage branches & current branch", () => _report?.Invoke("Branches"), features.MultiBranch);
                 AddToggle("Refunds", "Refunds (refund ticket, restock, negative sale)");
                 AddToggle("QROrdering", "QR code self-ordering (customer phone scan)");
+                AddBtn("Guest ordering URL & QR code", () => _report?.Invoke("GuestUrl"), features.QROrdering || features.KioskMode);
                 AddToggle("KioskMode", "Kiosk self-order mode (fullscreen, pay at counter)");
                 AddBtn("Launch kiosk", _showKiosk!, features.KioskMode);
                 AddToggle("CustomerDisplay", "Customer-facing display (2nd screen)");
@@ -8092,6 +8557,8 @@ internal sealed class KitchenDisplayForm : Form
     private readonly List<(OpenOrder Order, Label Timer)> cards = [];
     private bool stopped;
     private bool wasAttached;
+    private readonly HashSet<(int Order, long Created)> alarmed = [];
+    private bool flashPhase;
 
     public KitchenDisplayForm(Color background, Color panelLight, Color mint, PosStore store)
     {
@@ -8141,17 +8608,40 @@ internal sealed class KitchenDisplayForm : Form
     private void OnTick()
     {
         if (!CheckAttached()) return;
+        flashPhase = !flashPhase;
         foreach (var (order, timer) in cards) UpdateTimer(order, timer);
+        if (store.Features.KdsLateAlarm)
+        {
+            foreach (var (order, _) in cards)
+            {
+                if (order.Ready) continue;
+                if ((DateTime.Now - order.Created).TotalMinutes >= store.Features.KdsPrepMinutes)
+                {
+                    if (alarmed.Add((order.OrderNumber, order.Created.Ticks)))
+                    {
+                        try { Console.Beep(950, 350); } catch { }
+                    }
+                }
+            }
+            var live = store.OpenOrders.Select(o => (o.OrderNumber, o.Created.Ticks)).ToHashSet();
+            foreach (var key in alarmed.Where(k => !live.Contains(k)).ToList()) alarmed.Remove(key);
+        }
     }
 
     private void UpdateTimer(OpenOrder order, Label timer)
     {
         var elapsed = DateTime.Now - order.Created;
         timer.Text = $"{(int)elapsed.TotalMinutes:00}:{elapsed.Seconds:00}";
+        var late = store.Features.KdsLateAlarm && !order.Ready && elapsed.TotalMinutes >= store.Features.KdsPrepMinutes;
         timer.ForeColor = order.Ready ? Color.FromArgb(130, 140, 155)
+            : late ? (flashPhase ? Color.FromArgb(255, 70, 70) : Color.FromArgb(255, 200, 90))
             : elapsed.TotalMinutes < 10 ? Color.FromArgb(110, 210, 145)
             : elapsed.TotalMinutes < 20 ? Color.FromArgb(245, 180, 80)
             : Color.FromArgb(235, 90, 90);
+        var header = timer.Parent as Panel;
+        if (header != null)
+            header.BackColor = late && flashPhase ? Color.FromArgb(155, 45, 45)
+                : order.Ready ? Color.FromArgb(46, 100, 74) : panelLight;
     }
 
     private void Render()
@@ -8218,7 +8708,13 @@ internal sealed class KitchenDisplayForm : Form
         if (current == null) { Render(); return; }
         store.RemoveOpenOrder(order.Room, order.Table);
         store.AddOpenOrder(current with { Ready = !current.Ready });
-        if (!current.Ready) store.RaiseGuestAlert(order.Room, order.Table, "ready");
+        if (!current.Ready)
+        {
+            var mins = (int)Math.Round((DateTime.Now - current.Created).TotalMinutes);
+            if (mins >= 0 && mins < 600) store.AddPrepTime(mins);
+            alarmed.Remove((current.OrderNumber, current.Created.Ticks));
+            store.RaiseGuestAlert(order.Room, order.Table, "ready");
+        }
         else store.DismissGuestAlerts(order.Room, order.Table, "ready");
         Render();
     }
@@ -8487,7 +8983,8 @@ internal sealed class SalesReportForm : Form
     private readonly Color background;
     private readonly Color panelLight;
     private readonly Color mint;
-    private readonly List<Sale> sales;
+    private readonly List<Sale> allSales;
+    private List<Sale> sales;
     private readonly string currency;
     private readonly FlowLayoutPanel dateButtons = new();
     private readonly Button backButton = new();
@@ -8503,11 +9000,12 @@ internal sealed class SalesReportForm : Form
     private int selectedYear;
     private int selectedMonth;
 
-    public SalesReportForm(Color background, Color panelLight, Color mint, List<Sale> sales, string currency, bool refundsEnabled = false, Action<Sale>? onRefund = null)
+    public SalesReportForm(Color background, Color panelLight, Color mint, List<Sale> sales, string currency, bool refundsEnabled = false, Action<Sale>? onRefund = null, List<string>? branches = null)
     {
         this.background = background;
         this.panelLight = panelLight;
         this.mint = mint;
+        allSales = sales;
         this.sales = sales;
         this.currency = currency;
         this.refundsEnabled = refundsEnabled;
@@ -8572,6 +9070,21 @@ internal sealed class SalesReportForm : Form
         tabs.Size = new Size(720, 305);
         tabs.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
         Controls.AddRange([title, selectionLabel, summaryLabel, backButton, printButton, refundButton, dateButtons, tabs]);
+        if (branches is { Count: > 0 })
+        {
+            var branchLbl = new Label { Text = "Branch:", AutoSize = true, Location = new Point(470, 26), ForeColor = Color.FromArgb(190, 200, 215) };
+            var branchCombo = new ComboBox { Location = new Point(525, 22), Size = new Size(120, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+            branchCombo.Items.Add("All");
+            foreach (var b in branches) branchCombo.Items.Add(b);
+            branchCombo.SelectedIndex = 0;
+            branchCombo.SelectedIndexChanged += (_, _) =>
+            {
+                var sel = branchCombo.SelectedItem?.ToString() ?? "All";
+                sales = sel == "All" ? allSales : allSales.Where(s => s.Branch == sel).ToList();
+                ShowYears();
+            };
+            Controls.AddRange([branchLbl, branchCombo]);
+        }
         ShowYears();
     }
 
