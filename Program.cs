@@ -19,7 +19,7 @@ internal static class Program
     }
 }
 
-internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "");
+internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "", bool Weighted = false);
 internal sealed record SoldLine(string Product, string Family, int Quantity, decimal UnitPrice, string Category = "General", string PrinterDestination = "", string Note = "", string Modifiers = "", decimal Discount = 0, string DiscountType = "", int Course = 0, int Seat = 0);
 internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0, string DeliveryAddress = "", decimal CashAmount = -1, decimal Tendered = 0, decimal Rounding = 0);
 internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false, int FiredCourse = 0, string Source = "", string DeliveryAddress = "");
@@ -29,7 +29,7 @@ internal sealed record OperatorAccount(string Name, List<string> Permissions, st
 internal sealed record ModifierGroup(string Name, List<ModifierOption> Options);
 internal sealed record ModifierOption(string Name, decimal Price);
 internal sealed record Customer(string Name, string Phone = "", string Email = "", int Points = 0, decimal Balance = 0);
-internal sealed record Ingredient(string Name, string Unit, decimal Stock, decimal MinStock, decimal Cost = 0);
+internal sealed record Ingredient(string Name, string Unit, decimal Stock, decimal MinStock, decimal Cost = 0, DateTime? Expiry = null);
 internal sealed record RecipeItem(string Ingredient, decimal Quantity);
 internal sealed record ShiftRecord(string Operator, DateTime ClockIn, DateTime? ClockOut = null, decimal OpeningBalance = 0, decimal ClosingBalance = 0);
 internal sealed record AuditEntry(DateTime Time, string Operator, string Action, string Detail = "");
@@ -44,6 +44,11 @@ internal sealed record Reservation(string Name, string Phone, int PartySize, Dat
 internal sealed record ScheduleEntry(string Operator, DateTime Date, TimeSpan Start, TimeSpan End);
 internal sealed record Supplier(string Name, string Phone = "", string Email = "");
 internal sealed record POLine(string Ingredient, decimal Qty, decimal Cost);
+internal sealed record StockTakeLine(string Ingredient, decimal SystemQty, decimal CountedQty);
+internal sealed record StockTake(int Id, DateTime When, string By, string Note, List<StockTakeLine> Lines);
+internal sealed record WasteEntry(string Ingredient, decimal Qty, string Reason, DateTime When, string By);
+internal sealed record StockTransfer(int Id, string From, string To, string Ingredient, decimal Qty, DateTime When, string By);
+internal sealed record ProductVariant(string Product, string Name, decimal Price, string Barcode = "");
 internal sealed record PurchaseOrder(int Id, string Supplier, DateTime Created, string Status, List<POLine> Lines);
 internal sealed record EmailSettings(string Host, int Port, string User, string Password, string From, bool Tls);
 internal sealed record ParkedOrder(string Id, string Room, string Table, string Operator, DateTime Time, List<SoldLine> Items, string Note = "");
@@ -237,6 +242,14 @@ internal sealed class FeatureSettings
     public bool KioskMode { get; set; } = false;
     public bool CustomerDisplay { get; set; } = false;
     public bool CashRounding { get; set; } = false;
+    public bool HoldFire { get; set; } = false;
+    public bool Auto86 { get; set; } = false;
+    public bool Stocktakes { get; set; } = false;
+    public bool WasteTracking { get; set; } = false;
+    public bool StockTransfers { get; set; } = false;
+    public bool BarcodeLabels { get; set; } = false;
+    public bool WeightedItems { get; set; } = false;
+    public bool ProductVariants { get; set; } = false;
 }
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -361,6 +374,13 @@ internal sealed class PosStore
     public List<ScheduleEntry> Schedule { get; private set; } = [];
     public List<Supplier> Suppliers { get; private set; } = [];
     public List<PurchaseOrder> PurchaseOrders { get; private set; } = [];
+    public List<StockTake> StockTakes { get; private set; } = [];
+    public List<WasteEntry> WasteLog { get; private set; } = [];
+    public List<StockTransfer> StockTransfers { get; private set; } = [];
+    public Dictionary<string, Dictionary<string, decimal>> LocationStock { get; private set; } = [];
+    public List<string> Locations { get; private set; } = [];
+    public List<ProductVariant> ProductVariants { get; private set; } = [];
+    public List<string> Auto86 { get; private set; } = [];
     public EmailSettings EmailSettings { get; private set; } = new("", 587, "", "", "", true);
     private string giftCardsFile => Path.Combine(dataFolder, "gift-cards.json");
     private string cashMovementsFile => Path.Combine(dataFolder, "cash-movements.json");
@@ -372,6 +392,13 @@ internal sealed class PosStore
     private string courseNamesFile => Path.Combine(dataFolder, "course-names.json");
     private string parkedOrdersFile => Path.Combine(dataFolder, "parked-orders.json");
     private string comboDealsFile => Path.Combine(dataFolder, "combo-deals.json");
+    private string stockTakesFile => Path.Combine(dataFolder, "stocktakes.json");
+    private string wasteFile => Path.Combine(dataFolder, "waste-log.json");
+    private string transfersFile => Path.Combine(dataFolder, "stock-transfers.json");
+    private string locationStockFile => Path.Combine(dataFolder, "location-stock.json");
+    private string locationsFile => Path.Combine(dataFolder, "locations.json");
+    private string productVariantsFile => Path.Combine(dataFolder, "product-variants.json");
+    private string auto86File => Path.Combine(dataFolder, "86-auto.json");
     public int OrderCounter { get; private set; }
     public int BillCounter { get; private set; }
     public int PaymentCounter { get; private set; }
@@ -483,6 +510,20 @@ internal sealed class PosStore
             Suppliers = JsonSerializer.Deserialize<List<Supplier>>(File.ReadAllText(suppliersFile), JsonOptions) ?? Suppliers;
         if (File.Exists(purchaseOrdersFile))
             PurchaseOrders = JsonSerializer.Deserialize<List<PurchaseOrder>>(File.ReadAllText(purchaseOrdersFile), JsonOptions) ?? PurchaseOrders;
+        if (File.Exists(stockTakesFile))
+            StockTakes = JsonSerializer.Deserialize<List<StockTake>>(File.ReadAllText(stockTakesFile), JsonOptions) ?? StockTakes;
+        if (File.Exists(wasteFile))
+            WasteLog = JsonSerializer.Deserialize<List<WasteEntry>>(File.ReadAllText(wasteFile), JsonOptions) ?? WasteLog;
+        if (File.Exists(transfersFile))
+            StockTransfers = JsonSerializer.Deserialize<List<StockTransfer>>(File.ReadAllText(transfersFile), JsonOptions) ?? StockTransfers;
+        if (File.Exists(locationStockFile))
+            LocationStock = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, decimal>>>(File.ReadAllText(locationStockFile), JsonOptions) ?? LocationStock;
+        if (File.Exists(locationsFile))
+            Locations = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(locationsFile), JsonOptions) ?? Locations;
+        if (File.Exists(productVariantsFile))
+            ProductVariants = JsonSerializer.Deserialize<List<ProductVariant>>(File.ReadAllText(productVariantsFile), JsonOptions) ?? ProductVariants;
+        if (File.Exists(auto86File))
+            Auto86 = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(auto86File), JsonOptions) ?? Auto86;
         if (File.Exists(emailSettingsFile))
             EmailSettings = JsonSerializer.Deserialize<EmailSettings>(File.ReadAllText(emailSettingsFile), JsonOptions) ?? EmailSettings;
         if (File.Exists(courseNamesFile))
@@ -609,6 +650,13 @@ internal sealed class PosStore
     public void SaveSchedule(List<ScheduleEntry> entries) { Schedule = entries; suppressWatcher = true; File.WriteAllText(scheduleFile, JsonSerializer.Serialize(entries, JsonOptions)); suppressWatcher = false; }
     public void SaveSuppliers(List<Supplier> sups) { Suppliers = sups; suppressWatcher = true; File.WriteAllText(suppliersFile, JsonSerializer.Serialize(sups, JsonOptions)); suppressWatcher = false; }
     public void SavePurchaseOrders(List<PurchaseOrder> pos) { PurchaseOrders = pos; suppressWatcher = true; File.WriteAllText(purchaseOrdersFile, JsonSerializer.Serialize(pos, JsonOptions)); suppressWatcher = false; }
+    public void SaveStockTakes(List<StockTake> takes) { StockTakes = takes; suppressWatcher = true; File.WriteAllText(stockTakesFile, JsonSerializer.Serialize(takes, JsonOptions)); suppressWatcher = false; }
+    public void SaveWasteLog(List<WasteEntry> entries) { WasteLog = entries; suppressWatcher = true; File.WriteAllText(wasteFile, JsonSerializer.Serialize(entries, JsonOptions)); suppressWatcher = false; }
+    public void SaveStockTransfers(List<StockTransfer> transfers) { StockTransfers = transfers; suppressWatcher = true; File.WriteAllText(transfersFile, JsonSerializer.Serialize(transfers, JsonOptions)); suppressWatcher = false; }
+    public void SaveLocationStock() { suppressWatcher = true; File.WriteAllText(locationStockFile, JsonSerializer.Serialize(LocationStock, JsonOptions)); suppressWatcher = false; }
+    public void SaveLocations(List<string> locations) { Locations = locations; suppressWatcher = true; File.WriteAllText(locationsFile, JsonSerializer.Serialize(locations, JsonOptions)); suppressWatcher = false; }
+    public void SaveProductVariants(List<ProductVariant> variants) { ProductVariants = variants; suppressWatcher = true; File.WriteAllText(productVariantsFile, JsonSerializer.Serialize(variants, JsonOptions)); suppressWatcher = false; }
+    public void SaveAuto86(List<string> items) { Auto86 = items; suppressWatcher = true; File.WriteAllText(auto86File, JsonSerializer.Serialize(items, JsonOptions)); suppressWatcher = false; }
     public void SaveEmailSettings(EmailSettings settings) { EmailSettings = settings; suppressWatcher = true; File.WriteAllText(emailSettingsFile, JsonSerializer.Serialize(settings, JsonOptions)); suppressWatcher = false; }
     public void SaveCourseNames(List<string> names) { CourseNames = names; suppressWatcher = true; File.WriteAllText(courseNamesFile, JsonSerializer.Serialize(names, JsonOptions)); suppressWatcher = false; }
     public void SaveParkedOrders(List<ParkedOrder> orders) { ParkedOrders = orders; suppressWatcher = true; File.WriteAllText(parkedOrdersFile, JsonSerializer.Serialize(orders, JsonOptions)); suppressWatcher = false; }
@@ -813,6 +861,8 @@ internal sealed class PosForm : Form
     private Button purchasesNavButton = new();
     private Button drawerNavButton = new();
     private Button fireButton = new();
+    private Button delayFireButton = new();
+    private readonly List<System.Windows.Forms.Timer> delayFireTimers = [];
     private readonly Button repeatButton = new();
     private readonly Button parkButton = new();
     private readonly Button dealsButton = new();
@@ -982,6 +1032,7 @@ internal sealed class PosForm : Form
         dealsButton.Visible = store.Features.ComboDeals && store.ComboDeals.Count > 0;
         reprintButton.Visible = lastReceipt != null;
         fireButton.Visible = false;
+        delayFireButton.Visible = false;
         if (store.Features.CourseManagement && hasOpenOrder)
         {
             var order = store.GetOpenOrder(selectedRoom, selectedTable);
@@ -990,6 +1041,7 @@ internal sealed class PosForm : Form
                 var next = order.Items.Where(l => l.Course > order.FiredCourse).Min(l => l.Course);
                 fireButton.Text = "Fire " + CourseLabel(next);
                 fireButton.Visible = true;
+                delayFireButton.Visible = true;
             }
         }
     }
@@ -1085,7 +1137,7 @@ internal sealed class PosForm : Form
         basketList.WrapContents = false;
         basketList.AutoScroll = true;
         basketList.Padding = new Padding(0, 18, 0, 8);
-        var summary = new Panel { Dock = DockStyle.Bottom, Height = 244 };
+        var summary = new Panel { Dock = DockStyle.Bottom, Height = 282 };
         totalLabel.AutoSize = true;
         totalLabel.Font = new Font("Segoe UI Semibold", 22F);
         totalLabel.Location = new Point(0, 8);
@@ -1104,7 +1156,7 @@ internal sealed class PosForm : Form
         noteButton.Click += (_, _) => PrintBill();
         payButton = ActionButton("Take payment", 158, 70, 152, 48, mint);
         payButton.Click += (_, _) => CompleteSale();
-        splitBillButton = ActionButton("Split bill", 158, 166, 74, 34, Color.FromArgb(100, 80, 140));
+        splitBillButton = ActionButton("Split bill", 0, 242, 74, 34, Color.FromArgb(100, 80, 140));
         splitBillButton.Font = new Font("Segoe UI", 8F);
         splitBillButton.Visible = false;
         splitBillButton.Click += (_, _) => SplitBill();
@@ -1124,6 +1176,10 @@ internal sealed class PosForm : Form
         fireButton.Font = new Font("Segoe UI", 8F);
         fireButton.Visible = false;
         fireButton.Click += (_, _) => FireNextCourse();
+        delayFireButton = ActionButton("⏱ Delay", 160, 166, 74, 34, Color.FromArgb(90, 100, 140));
+        delayFireButton.Font = new Font("Segoe UI", 8F);
+        delayFireButton.Visible = false;
+        delayFireButton.Click += (_, _) => ScheduleDelayFire();
         repeatButton.Text = "Repeat";
         repeatButton.Location = new Point(0, 204);
         repeatButton.Size = new Size(74, 34);
@@ -1160,7 +1216,7 @@ internal sealed class PosForm : Form
         reprintButton.ForeColor = Color.White;
         reprintButton.Font = new Font("Segoe UI", 8F);
         reprintButton.Click += (_, _) => { if (lastReceipt is {} r) PrintPaymentReceipt(r.Sale, r.Lines, r.DiscountPercent, r.Room, r.Table); };
-        summary.Controls.AddRange([totalCaption, totalLabel, orderButton, noteButton, payButton, splitBillButton, transferButton, mergeButton, discountButton, fireButton, repeatButton, parkButton, dealsButton, reprintButton]);
+        summary.Controls.AddRange([totalCaption, totalLabel, orderButton, noteButton, payButton, splitBillButton, transferButton, mergeButton, discountButton, fireButton, delayFireButton, repeatButton, parkButton, dealsButton, reprintButton]);
         orderPanel.Controls.Add(basketList);
         orderPanel.Controls.Add(summary);
         orderPanel.Controls.Add(orderHeader);
@@ -1290,7 +1346,7 @@ internal sealed class PosForm : Form
         foreach (var product in products.Where(item => item.Category == category))
         {
             var tile = new ProductTile(product, tileWidth, tileHeight) { Margin = new Padding(0, 0, 14, 14) };
-            tile.OutOfStock = store.EightySix.Contains(product.Name);
+            tile.OutOfStock = Is86(store, product.Name);
             tile.Click += (_, _) => AddProduct(product);
             productGrid.Controls.Add(tile);
         }
@@ -1567,7 +1623,7 @@ internal sealed class PosForm : Form
             products.AddRange(updatedProducts);
             store.SaveProducts(products);
             RenderProducts();
-        });
+        }, store.Features, store.ProductVariants, store.SaveProductVariants);
         form.TopLevel = false;
         form.FormBorderStyle = FormBorderStyle.None;
         form.Dock = DockStyle.Fill;
@@ -2141,10 +2197,29 @@ internal sealed class PosForm : Form
 
     private void AddProduct(Product product)
     {
-        if (store.EightySix.Contains(product.Name))
+        if (Is86(store, product.Name))
         {
             MessageBox.Show($"{product.Name} is out of stock (86'd).", "86 board", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
+        }
+        if (store.Features.ProductVariants)
+        {
+            var prods = store.ProductVariants.Where(v => v.Product == product.Name).ToList();
+            if (prods.Count > 0)
+            {
+                using var vf = new Form { Text = product.Name + " — choose variant", Size = new Size(360, 130 + prods.Count * 34), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+                var pick = new ComboBox { Location = new Point(20, 40), Size = new Size(300, 28), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+                foreach (var v in prods) pick.Items.Add($"{v.Name} — {v.Price:C}");
+                pick.SelectedIndex = 0;
+                var vOk = new Button { Text = "Add to order", Location = new Point(20, 84), Size = new Size(140, 34), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+                vOk.FlatAppearance.BorderSize = 0;
+                vOk.Click += (_, _) => vf.DialogResult = DialogResult.OK;
+                vf.Controls.AddRange([new Label { Text = "This product has variants:", AutoSize = true, Location = new Point(20, 14) }, pick, vOk]);
+                vf.AcceptButton = vOk;
+                if (vf.ShowDialog() != DialogResult.OK) return;
+                var chosen = prods[pick.SelectedIndex];
+                product = product with { Name = $"{product.Name} ({chosen.Name})", Price = chosen.Price, Barcode = chosen.Barcode.Length > 0 ? chosen.Barcode : product.Barcode };
+            }
         }
         var finalPrice = product.Price;
         if (store.Features.HappyHour && store.HappyHourRules.Count > 0)
@@ -2207,8 +2282,30 @@ internal sealed class PosForm : Form
             noteForm.ShowDialog();
         }
         var index = basket.FindIndex(item => item.Product.Name == product.Name && item.Product.PrinterDestination == product.PrinterDestination && item.Note == note && item.Modifiers == modifiers && (!store.Features.SeatOrdering || item.Seat == activeSeat));
-        if (index >= 0) basket[index] = (new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode), basket[index].Count + 1, basket[index].Course, basket[index].Note, basket[index].Seat, basket[index].Modifiers);
-        else basket.Add((new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode), 1, store.Features.CourseManagement ? 1 : 0, note, store.Features.SeatOrdering ? activeSeat : 0, modifiers));
+        if (store.Features.WeightedItems && product.Weighted)
+        {
+            using var wf = new Form { Text = $"Weight — {product.Name}", Size = new Size(340, 190), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+            var wLabel = new Label { Text = $"Scale weight in kg ({product.Price:C}/kg):", AutoSize = true, Location = new Point(16, 16) };
+            var wInput = new NumericUpDown { Location = new Point(16, 46), Size = new Size(140, 30), Minimum = 0.001m, Maximum = 10000, DecimalPlaces = 3, Increment = 0.05m, BackColor = panelLight, ForeColor = Color.White };
+            var wTotal = new Label { AutoSize = true, Location = new Point(16, 88), ForeColor = mint, Font = new Font("Segoe UI Semibold", 12F) };
+            void UpdateW() => wTotal.Text = $"= {Math.Round(wInput.Value * finalPrice, 2):C}";
+            wInput.ValueChanged += (_, _) => UpdateW();
+            UpdateW();
+            var wOk = new Button { Text = "Add", Location = new Point(16, 122), Size = new Size(90, 32), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+            var wSkip = new Button { Text = "Cancel", Location = new Point(116, 122), Size = new Size(90, 32), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            wOk.FlatAppearance.BorderSize = 0; wSkip.FlatAppearance.BorderSize = 0;
+            wOk.Click += (_, _) => wf.DialogResult = DialogResult.OK;
+            wSkip.Click += (_, _) => wf.DialogResult = DialogResult.Cancel;
+            wf.Controls.AddRange([wLabel, wInput, wTotal, wOk, wSkip]);
+            wf.AcceptButton = wOk;
+            if (wf.ShowDialog() != DialogResult.OK) return;
+            var w = wInput.Value;
+            finalPrice = Math.Round(finalPrice * w, 2);
+            note = string.IsNullOrWhiteSpace(note) ? $"{w:0.###} kg @ {product.Price:C}/kg" : $"{note} · {w:0.###} kg";
+            index = basket.FindIndex(item => item.Product.Name == product.Name && item.Product.PrinterDestination == product.PrinterDestination && item.Note == note && item.Modifiers == modifiers && (!store.Features.SeatOrdering || item.Seat == activeSeat));
+        }
+        if (index >= 0) basket[index] = (new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode, product.Weighted), basket[index].Count + 1, basket[index].Course, basket[index].Note, basket[index].Seat, basket[index].Modifiers);
+        else basket.Add((new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode, product.Weighted), 1, store.Features.CourseManagement ? 1 : 0, note, store.Features.SeatOrdering ? activeSeat : 0, modifiers));
         RenderBasket();
     }
 
@@ -2332,6 +2429,7 @@ internal sealed class PosForm : Form
         }
         if (order.FiredCourse == 0)
         {
+            if (store.Features.HoldFire) return;
             var first = order.Items.Where(l => l.Course <= 1).ToList();
             if (first.Count == 0) return;
             PrintTickets(first, orderType: order.OrderType);
@@ -2362,6 +2460,67 @@ internal sealed class PosForm : Form
     {
         store.RemoveOpenOrder(order.Room, order.Table);
         store.AddOpenOrder(order with { FiredCourse = course });
+    }
+
+    private void ScheduleDelayFire()
+    {
+        var order = store.GetOpenOrder(selectedRoom, selectedTable);
+        if (order == null) return;
+        using var f = new Form { Text = "Delay fire", Size = new Size(320, 190), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var lbl = new Label { Text = "Send the next course automatically after:", AutoSize = true, Location = new Point(16, 16) };
+        var minutes = new NumericUpDown { Location = new Point(16, 46), Size = new Size(100, 30), Minimum = 1, Maximum = 180, Value = 5, BackColor = panelLight, ForeColor = Color.White };
+        var lbl2 = new Label { Text = "minutes", AutoSize = true, Location = new Point(126, 49) };
+        var ok = new Button { Text = "Schedule", Location = new Point(16, 92), Size = new Size(110, 34), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+        ok.FlatAppearance.BorderSize = 0;
+        var cancel = new Button { Text = "Cancel", Location = new Point(136, 92), Size = new Size(90, 34), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        cancel.FlatAppearance.BorderSize = 0;
+        ok.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        cancel.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+        f.Controls.AddRange([lbl, minutes, lbl2, ok, cancel]);
+        f.AcceptButton = ok;
+        if (f.ShowDialog() != DialogResult.OK) return;
+        var table = selectedTable;
+        var room = selectedRoom;
+        var timer = new System.Windows.Forms.Timer { Interval = (int)minutes.Value * 60_000 };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            delayFireTimers.Remove(timer);
+            timer.Dispose();
+            var current = store.GetOpenOrder(room, table);
+            if (current != null && current.Items.Any(l => l.Course > current.FiredCourse))
+            {
+                var savedTable = selectedTable; var savedRoom = selectedRoom;
+                selectedTable = table; selectedRoom = room;
+                FireNextCourse();
+                selectedTable = savedTable; selectedRoom = savedRoom;
+                if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Delay fire", $"{table} fired after {(int)minutes.Value} min");
+            }
+        };
+        delayFireTimers.Add(timer);
+        timer.Start();
+        MessageBox.Show($"Course will fire automatically in {(int)minutes.Value} minutes for {table}.", "Delay fire", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private static bool Is86(PosStore store, string name) => store.EightySix.Contains(name) || store.Auto86.Contains(name);
+
+    private void Auto86Sync()
+    {
+        if (!store.Features.Auto86 || store.Recipes.Count == 0) return;
+        var auto = store.Auto86.ToList();
+        var changed = false;
+        foreach (var (product, recipeItems) in store.Recipes)
+        {
+            var low = recipeItems.Any(ri =>
+            {
+                var ingr = store.Ingredients.FirstOrDefault(i => i.Name == ri.Ingredient);
+                return ingr != null && ingr.MinStock > 0 && ingr.Stock <= ingr.MinStock;
+            });
+            var inAuto = auto.Contains(product);
+            if (low && !inAuto) { auto.Add(product); changed = true; }
+            else if (!low && inAuto) { auto.Remove(product); changed = true; }
+        }
+        if (changed) store.SaveAuto86(auto);
     }
 
     private void PrintBill()
@@ -2840,6 +2999,7 @@ internal sealed class PosForm : Form
                 }
             }
             store.SaveIngredients(store.Ingredients);
+            Auto86Sync();
             if (alerts.Count > 0)
                 MessageBox.Show("LOW STOCK ALERTS:\n\n" + string.Join("\n", alerts.Select(a => $"• {a.Ingredient}: {a.Remaining:F1} remaining (min: {a.MinStock:F1})\n  Used by: {a.ProductName}")),
                     "Stock Alert", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -3350,6 +3510,7 @@ internal sealed class PosForm : Form
                 }
             }
             store.SaveIngredients(store.Ingredients);
+            Auto86Sync();
         }
         if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Refund", $"sale #{sale.PaymentNumber} {sale.Table} → -{amount:C} ({selected.Count} items)");
 
@@ -3957,6 +4118,7 @@ internal sealed class PosForm : Form
                 }
             }
             store.SaveIngredients(store.Ingredients);
+            Auto86Sync();
             if (alerts.Count > 0)
                 MessageBox.Show("LOW STOCK ALERTS:\n\n" + string.Join("\n", alerts.Select(a => $"• {a.Ingredient}: {a.Remaining:F1} remaining (min: {a.MinStock:F1})\n  Used by: {a.ProductName}")),
                     "Stock Alert", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -4802,6 +4964,7 @@ internal sealed class PosForm : Form
                 else store.Ingredients.Add(new Ingredient(l.Ingredient, "unit", l.Qty, 0, l.Cost));
             }
             store.SaveIngredients(store.Ingredients);
+            Auto86Sync();
             var poIdx = store.PurchaseOrders.FindIndex(p => p.Id == po.Id);
             store.PurchaseOrders[poIdx] = store.PurchaseOrders[poIdx] with { Status = "Received" };
             store.SavePurchaseOrders(store.PurchaseOrders);
@@ -4821,6 +4984,90 @@ internal sealed class PosForm : Form
             RebuildPo();
         };
         poButtons.Controls.AddRange([newPoBtn, receiveBtn, cancelPoBtn]);
+
+        var reorderBtn = B("Reorder low", Color.FromArgb(140, 110, 50));
+        var emailPoBtn = B("Email PO (PDF)", Color.FromArgb(70, 90, 130));
+        reorderBtn.Click += (_, _) =>
+        {
+            var low = store.Ingredients.Where(i => i.MinStock > 0 && i.Stock <= i.MinStock).ToList();
+            if (low.Count == 0)
+            {
+                MessageBox.Show("No ingredients are at or below their reorder point.", "Reorder", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            using var f = new Form { Text = "Reorder low stock", Size = new Size(600, 470), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 9.5F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+            var supLabel = new Label { Text = "Supplier:", AutoSize = true, Location = new Point(20, 18) };
+            var supC = new ComboBox { Location = new Point(100, 14), Size = new Size(260, 28), DropDownStyle = ComboBoxStyle.DropDown, BackColor = panelLight, ForeColor = Color.White };
+            foreach (var s in store.Suppliers) supC.Items.Add(s.Name);
+            if (supC.Items.Count > 0) supC.SelectedIndex = 0;
+            var grid = new DataGridView { Location = new Point(20, 55), Size = new Size(545, 320), BackgroundColor = panelLight, BorderStyle = BorderStyle.None, ForeColor = Color.White, GridColor = Color.FromArgb(60, 70, 85), AllowUserToAddRows = true, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill };
+            grid.Columns.AddRange(
+                new DataGridViewTextBoxColumn { HeaderText = "Ingredient", ReadOnly = true },
+                new DataGridViewTextBoxColumn { HeaderText = "Suggested qty", Width = 110 },
+                new DataGridViewTextBoxColumn { HeaderText = "Unit cost", Width = 90 });
+            foreach (var i in low)
+                grid.Rows.Add(i.Name, Math.Max(i.MinStock * 2 - i.Stock, Math.Ceiling(i.MinStock)), i.Cost);
+            var ok = new Button { Text = "Create PO", Location = new Point(20, 390), Size = new Size(150, 40), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+            var cancel = new Button { Text = "Cancel", Location = new Point(185, 390), Size = new Size(120, 40), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            ok.FlatAppearance.BorderSize = 0; cancel.FlatAppearance.BorderSize = 0;
+            ok.Click += (_, _) =>
+            {
+                var lines = new List<POLine>();
+                foreach (DataGridViewRow row in grid.Rows)
+                {
+                    if (row.IsNewRow) continue;
+                    var name = row.Cells[0].Value?.ToString();
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+                    if (!decimal.TryParse(row.Cells[1].Value?.ToString(), out var qty) || qty <= 0) continue;
+                    if (!decimal.TryParse(row.Cells[2].Value?.ToString(), out var cost)) cost = 0;
+                    lines.Add(new POLine(name, qty, cost));
+                }
+                if (lines.Count == 0) { MessageBox.Show("Add at least one line.", "Reorder", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                var id = store.PurchaseOrders.Count > 0 ? store.PurchaseOrders.Max(p => p.Id) + 1 : 1;
+                store.PurchaseOrders.Add(new PurchaseOrder(id, supC.Text.Trim(), DateTime.Now, "Open", lines));
+                store.SavePurchaseOrders(store.PurchaseOrders);
+                if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Reorder PO", $"#{id} {supC.Text} — {lines.Count} low-stock lines");
+                f.DialogResult = DialogResult.OK;
+            };
+            cancel.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+            f.Controls.AddRange([supLabel, supC, grid, ok, cancel]);
+            f.AcceptButton = ok;
+            if (f.ShowDialog() == DialogResult.OK) RebuildPo();
+        };
+        emailPoBtn.Click += (_, _) =>
+        {
+            var po = SelectedPo();
+            if (po == null) return;
+            var sup = store.Suppliers.FirstOrDefault(s => s.Name == po.Supplier);
+            var reportLines = new List<ReportLine>
+            {
+                new($"PURCHASE ORDER #{po.Id}", ReportLineStyles.Title),
+                new($"Supplier: {po.Supplier}{(sup != null && sup.Email.Length > 0 ? $"  <{sup.Email}>" : "")}", ReportLineStyles.Header),
+                new($"Created: {po.Created:dd/MM/yyyy HH:mm}    Status: {po.Status}", ReportLineStyles.Small),
+                new("", ReportLineStyles.Rule),
+            };
+            foreach (var l in po.Lines)
+                reportLines.Add(new($"{l.Qty,-10:0.##} {l.Ingredient,-30} {l.Cost,10:C}  = {l.Qty * l.Cost,10:C}", ReportLineStyles.Normal));
+            reportLines.Add(new("", ReportLineStyles.Rule));
+            reportLines.Add(new($"TOTAL: {po.Lines.Sum(l => l.Qty * l.Cost):C}", ReportLineStyles.Header));
+            var tmpPdf = Path.Combine(Path.GetTempPath(), $"po-{po.Id}-{DateTime.Now:yyyyMMdd-HHmmss}.pdf");
+            try { TicketPdf.Save(tmpPdf, reportLines); }
+            catch (Exception ex) { MessageBox.Show($"Could not build PDF: {ex.Message}", "Email PO", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (store.EmailSettings.Host.Length == 0 || sup == null || string.IsNullOrWhiteSpace(sup.Email))
+            {
+                using var save = new SaveFileDialog { Filter = "PDF file|*.pdf", FileName = $"PO-{po.Id}.pdf" };
+                if (save.ShowDialog() == DialogResult.OK)
+                {
+                    File.Copy(tmpPdf, save.FileName, true);
+                    MessageBox.Show($"PO #{po.Id} saved as PDF:\n{save.FileName}\n\n(Set SMTP in Settings → Receipts and a supplier email to send directly.)", "Email PO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return;
+            }
+            if (SendMailWithAttachment(sup.Email, $"Purchase order #{po.Id} — {po.Supplier}", $"Please find attached purchase order #{po.Id} created {po.Created:dd/MM/yyyy}.", tmpPdf))
+                MessageBox.Show($"PO #{po.Id} emailed to {sup.Email}.", "Email PO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            else MessageBox.Show("Sending failed — check SMTP settings in Settings → Receipts.", "Email PO", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        };
+        poButtons.Controls.AddRange([reorderBtn, emailPoBtn]);
         poTab.Controls.AddRange([poList, poButtons]);
 
         var supTab = new TabPage { Text = "Suppliers", BackColor = background, ForeColor = Color.White };
@@ -4909,6 +5156,300 @@ internal sealed class PosForm : Form
         RebuildProfit();
 
         tabs.TabPages.AddRange([poTab, supTab, profitTab]);
+
+        var lowIngs = store.Ingredients.Where(i => i.MinStock > 0 && i.Stock <= i.MinStock).ToList();
+        if (lowIngs.Count > 0)
+        {
+            var lowBanner = new Label { Dock = DockStyle.Top, Height = 30, Text = $"⚠ {lowIngs.Count} ingredient(s) at/below reorder point: " + string.Join(", ", lowIngs.Select(i => $"{i.Name} ({i.Stock:0.#}/{i.MinStock:0.#})")) + "   → use Reorder low", ForeColor = Color.FromArgb(245, 180, 80), BackColor = Color.FromArgb(50, 42, 26), Padding = new Padding(8, 7, 0, 0) };
+            poTab.Controls.Add(lowBanner);
+        }
+
+        if (store.Features.Stocktakes)
+        {
+            var stTab = new TabPage { Text = "Stocktake", BackColor = background, ForeColor = Color.White };
+            var stList = new ListView { Dock = DockStyle.Fill, BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false };
+            stList.Columns.Add("#", 50); stList.Columns.Add("Date", 130); stList.Columns.Add("By", 110); stList.Columns.Add("Note", 200); stList.Columns.Add("Lines", 70); stList.Columns.Add("Net variance", 110);
+            void RebuildSt()
+            {
+                stList.Items.Clear();
+                foreach (var st in store.StockTakes.OrderByDescending(s => s.Id))
+                {
+                    var variance = st.Lines.Sum(l => l.CountedQty - l.SystemQty);
+                    var item = new ListViewItem([st.Id.ToString(), st.When.ToString("dd/MM/yyyy HH:mm"), st.By, st.Note, st.Lines.Count.ToString(), variance.ToString("+0.##;-0.##;0")]);
+                    if (variance != 0) item.ForeColor = Color.FromArgb(245, 180, 80);
+                    stList.Items.Add(item);
+                }
+            }
+            RebuildSt();
+            var stButtons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 46, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 6, 0, 0) };
+            var newCountBtn = new Button { Text = "New count", Size = new Size(140, 36), BackColor = Color.FromArgb(60, 130, 90), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 8, 0), Font = new Font("Segoe UI Semibold", 9.5F) };
+            newCountBtn.FlatAppearance.BorderSize = 0;
+            newCountBtn.Click += (_, _) =>
+            {
+                if (store.Ingredients.Count == 0) { MessageBox.Show("No ingredients yet — add them in Stock management first.", "Stocktake", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+                using var f = new Form { Text = "New stock count", Size = new Size(620, 520), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 9.5F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+                var hint = new Label { Text = "Enter the counted quantity for each ingredient (system values are pre-filled).", AutoSize = true, Location = new Point(20, 14), ForeColor = Color.FromArgb(170, 180, 195) };
+                var noteBox = new TextBox { Location = new Point(20, 40), Size = new Size(380, 28), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = "Note (optional, e.g. 'Friday count')" };
+                var grid = new DataGridView { Location = new Point(20, 78), Size = new Size(565, 340), BackgroundColor = panelLight, BorderStyle = BorderStyle.None, ForeColor = Color.White, GridColor = Color.FromArgb(60, 70, 85), AllowUserToAddRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill };
+                grid.Columns.AddRange(
+                    new DataGridViewTextBoxColumn { HeaderText = "Ingredient", ReadOnly = true },
+                    new DataGridViewTextBoxColumn { HeaderText = "System", ReadOnly = true, Width = 80 },
+                    new DataGridViewTextBoxColumn { HeaderText = "Counted", Width = 90 });
+                foreach (var i in store.Ingredients) grid.Rows.Add(i.Name, i.Stock.ToString("0.##"), i.Stock.ToString("0.##"));
+                var okBtn = new Button { Text = "Save count", Location = new Point(20, 430), Size = new Size(150, 40), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+                var cancelBtn2 = new Button { Text = "Cancel", Location = new Point(185, 430), Size = new Size(120, 40), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                okBtn.FlatAppearance.BorderSize = 0; cancelBtn2.FlatAppearance.BorderSize = 0;
+                okBtn.Click += (_, _) =>
+                {
+                    var stLines = new List<StockTakeLine>();
+                    foreach (DataGridViewRow row in grid.Rows)
+                    {
+                        var name = row.Cells[0].Value?.ToString();
+                        if (string.IsNullOrWhiteSpace(name)) continue;
+                        var idx = store.Ingredients.FindIndex(x => x.Name == name);
+                        if (idx < 0) continue;
+                        if (!decimal.TryParse(row.Cells[2].Value?.ToString(), out var counted)) counted = store.Ingredients[idx].Stock;
+                        if (counted == store.Ingredients[idx].Stock) continue;
+                        stLines.Add(new StockTakeLine(name, store.Ingredients[idx].Stock, counted));
+                        store.Ingredients[idx] = store.Ingredients[idx] with { Stock = counted };
+                    }
+                    if (stLines.Count == 0) { MessageBox.Show("No differences to save — all counts match system stock.", "Stocktake", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+                    store.SaveIngredients(store.Ingredients);
+                    var id = store.StockTakes.Count > 0 ? store.StockTakes.Max(s => s.Id) + 1 : 1;
+                    store.StockTakes.Add(new StockTake(id, DateTime.Now, currentOperator.Name, noteBox.Text.Trim(), stLines));
+                    store.SaveStockTakes(store.StockTakes);
+                    Auto86Sync();
+                    if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Stocktake", $"#{id} — {stLines.Count} adjustments, net {(stLines.Sum(l => l.CountedQty - l.SystemQty)):0.##}");
+                    f.DialogResult = DialogResult.OK;
+                };
+                cancelBtn2.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+                f.Controls.AddRange([hint, noteBox, grid, okBtn, cancelBtn2]);
+                f.AcceptButton = okBtn;
+                if (f.ShowDialog() == DialogResult.OK) RebuildSt();
+            };
+            stButtons.Controls.Add(newCountBtn);
+            stTab.Controls.AddRange([stList, stButtons]);
+            tabs.TabPages.Add(stTab);
+        }
+
+        if (store.Features.WasteTracking)
+        {
+            var wasteTab = new TabPage { Text = "Waste & expiry", BackColor = background, ForeColor = Color.White };
+            var wasteList = new ListView { Dock = DockStyle.Fill, BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false };
+            wasteList.Columns.Add("When", 130); wasteList.Columns.Add("Ingredient", 160); wasteList.Columns.Add("Qty", 80); wasteList.Columns.Add("Reason", 220); wasteList.Columns.Add("By", 110);
+            void RebuildWaste()
+            {
+                wasteList.Items.Clear();
+                foreach (var w in store.WasteLog.OrderByDescending(w => w.When))
+                    wasteList.Items.Add(new ListViewItem([w.When.ToString("dd/MM/yyyy HH:mm"), w.Ingredient, w.Qty.ToString("0.##"), w.Reason, w.By]));
+            }
+            RebuildWaste();
+            var wasteButtons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 46, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 6, 0, 0) };
+            var logWasteBtn = new Button { Text = "Log waste", Size = new Size(130, 36), BackColor = Color.FromArgb(180, 70, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 8, 0), Font = new Font("Segoe UI Semibold", 9.5F) };
+            logWasteBtn.FlatAppearance.BorderSize = 0;
+            var setExpiryBtn = new Button { Text = "Set expiry date", Size = new Size(150, 36), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 8, 0), Font = new Font("Segoe UI Semibold", 9.5F) };
+            setExpiryBtn.FlatAppearance.BorderSize = 0;
+            logWasteBtn.Click += (_, _) =>
+            {
+                if (store.Ingredients.Count == 0) { MessageBox.Show("No ingredients yet.", "Waste", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+                using var f = new Form { Text = "Log waste", Size = new Size(360, 280), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+                var ingrC = new ComboBox { Location = new Point(20, 34), Size = new Size(240, 28), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+                foreach (var i in store.Ingredients) ingrC.Items.Add($"{i.Name} (stock {i.Stock:0.##} {i.Unit})");
+                if (ingrC.Items.Count > 0) ingrC.SelectedIndex = 0;
+                var qty = new NumericUpDown { Location = new Point(20, 74), Size = new Size(110, 28), Minimum = 0.01m, Maximum = 100000, DecimalPlaces = 2, Increment = 0.1m, BackColor = panelLight, ForeColor = Color.White };
+                var reason = new TextBox { Location = new Point(20, 114), Size = new Size(240, 28), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = "Reason (spoiled, dropped…)" };
+                var okBtn = new Button { Text = "Log it", Location = new Point(20, 156), Size = new Size(100, 32), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+                okBtn.FlatAppearance.BorderSize = 0;
+                var cancelBtn3 = new Button { Text = "Cancel", Location = new Point(130, 156), Size = new Size(100, 32), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                cancelBtn3.FlatAppearance.BorderSize = 0;
+                okBtn.Click += (_, _) =>
+                {
+                    var idx = ingrC.SelectedIndex;
+                    if (idx < 0) return;
+                    var ingr = store.Ingredients[idx];
+                    if (qty.Value > ingr.Stock) { MessageBox.Show($"Only {ingr.Stock:0.##} {ingr.Unit} in stock.", "Waste", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    store.Ingredients[idx] = ingr with { Stock = ingr.Stock - qty.Value };
+                    store.SaveIngredients(store.Ingredients);
+                    store.WasteLog.Add(new WasteEntry(ingr.Name, qty.Value, string.IsNullOrWhiteSpace(reason.Text) ? "Waste" : reason.Text.Trim(), DateTime.Now, currentOperator.Name));
+                    store.SaveWasteLog(store.WasteLog);
+                    Auto86Sync();
+                    if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Waste", $"{ingr.Name} -{qty.Value:0.##} ({reason.Text})");
+                    f.DialogResult = DialogResult.OK;
+                };
+                cancelBtn3.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+                f.Controls.AddRange([new Label { Text = "Ingredient", AutoSize = true, Location = new Point(20, 12) }, ingrC, new Label { Text = "Quantity", AutoSize = true, Location = new Point(20, 58) }, qty, new Label { Text = "Reason", AutoSize = true, Location = new Point(20, 98) }, reason, okBtn, cancelBtn3]);
+                f.AcceptButton = okBtn;
+                if (f.ShowDialog() == DialogResult.OK) RebuildWaste();
+            };
+            setExpiryBtn.Click += (_, _) =>
+            {
+                if (store.Ingredients.Count == 0) { MessageBox.Show("No ingredients yet.", "Expiry", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+                using var f = new Form { Text = "Set expiry date", Size = new Size(360, 230), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+                var ingrC = new ComboBox { Location = new Point(20, 34), Size = new Size(240, 28), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+                foreach (var i in store.Ingredients) ingrC.Items.Add(i.Name);
+                if (ingrC.Items.Count > 0) ingrC.SelectedIndex = 0;
+                var date = new DateTimePicker { Location = new Point(20, 74), Size = new Size(240, 28), Format = DateTimePickerFormat.Short, BackColor = panelLight, ForeColor = Color.White };
+                var okBtn = new Button { Text = "Save", Location = new Point(20, 116), Size = new Size(100, 32), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+                okBtn.FlatAppearance.BorderSize = 0;
+                okBtn.Click += (_, _) =>
+                {
+                    var idx = ingrC.SelectedIndex;
+                    if (idx < 0) return;
+                    store.Ingredients[idx] = store.Ingredients[idx] with { Expiry = date.Value.Date };
+                    store.SaveIngredients(store.Ingredients);
+                    if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Expiry set", $"{store.Ingredients[idx].Name} → {date.Value:dd/MM/yyyy}");
+                    f.DialogResult = DialogResult.OK;
+                };
+                f.Controls.AddRange([new Label { Text = "Ingredient", AutoSize = true, Location = new Point(20, 12) }, ingrC, new Label { Text = "Best before", AutoSize = true, Location = new Point(20, 58) }, date, okBtn]);
+                f.AcceptButton = okBtn;
+                f.ShowDialog();
+            };
+            wasteButtons.Controls.AddRange([logWasteBtn, setExpiryBtn]);
+            wasteTab.Controls.AddRange([wasteList, wasteButtons]);
+            tabs.TabPages.Add(wasteTab);
+        }
+
+        if (store.Features.StockTransfers)
+        {
+            var trTab = new TabPage { Text = "Transfers", BackColor = background, ForeColor = Color.White };
+            var trList = new ListView { Dock = DockStyle.Fill, BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false };
+            trList.Columns.Add("#", 50); trList.Columns.Add("When", 130); trList.Columns.Add("From", 130); trList.Columns.Add("To", 130); trList.Columns.Add("Ingredient", 150); trList.Columns.Add("Qty", 70); trList.Columns.Add("By", 100);
+            void RebuildTr()
+            {
+                trList.Items.Clear();
+                foreach (var t in store.StockTransfers.OrderByDescending(t => t.Id))
+                    trList.Items.Add(new ListViewItem([t.Id.ToString(), t.When.ToString("dd/MM/yyyy HH:mm"), t.From, t.To, t.Ingredient, t.Qty.ToString("0.##"), t.By]));
+            }
+            RebuildTr();
+            var trButtons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 46, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 6, 0, 0) };
+            var newTrBtn = new Button { Text = "New transfer", Size = new Size(140, 36), BackColor = Color.FromArgb(55, 120, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 8, 0), Font = new Font("Segoe UI Semibold", 9.5F) };
+            newTrBtn.FlatAppearance.BorderSize = 0;
+            var locBtn = new Button { Text = "Manage locations", Size = new Size(160, 36), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 8, 0), Font = new Font("Segoe UI Semibold", 9.5F) };
+            locBtn.FlatAppearance.BorderSize = 0;
+            string[] Locations() => ["Main", .. store.Locations];
+            locBtn.Click += (_, _) =>
+            {
+                using var f = new Form { Text = "Locations", Size = new Size(340, 340), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+                var lb = new ListBox { Location = new Point(20, 34), Size = new Size(200, 180), BackColor = panelLight, ForeColor = Color.White };
+                void FillLb() { lb.Items.Clear(); foreach (var l in Locations()) lb.Items.Add(l); }
+                FillLb();
+                var newLoc = new TextBox { Location = new Point(20, 224), Size = new Size(150, 28), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = "New location" };
+                var addB = new Button { Text = "+", Location = new Point(178, 224), Size = new Size(42, 28), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+                var delB = new Button { Text = "Remove", Location = new Point(20, 258), Size = new Size(90, 28), BackColor = Color.FromArgb(180, 70, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                addB.FlatAppearance.BorderSize = 0; delB.FlatAppearance.BorderSize = 0;
+                addB.Click += (_, _) =>
+                {
+                    var name = newLoc.Text.Trim();
+                    if (name.Length == 0 || name == "Main" || store.Locations.Contains(name)) return;
+                    store.Locations.Add(name); store.SaveLocations(store.Locations); newLoc.Text = ""; FillLb();
+                };
+                delB.Click += (_, _) =>
+                {
+                    if (lb.SelectedItem is not string s || s == "Main") return;
+                    store.Locations.Remove(s); store.SaveLocations(store.Locations); FillLb();
+                };
+                f.Controls.AddRange([lb, newLoc, addB, delB]);
+                f.ShowDialog();
+            };
+            newTrBtn.Click += (_, _) =>
+            {
+                if (store.Ingredients.Count == 0) { MessageBox.Show("No ingredients yet.", "Transfer", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+                using var f = new Form { Text = "New stock transfer", Size = new Size(400, 330), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+                var fromC = new ComboBox { Location = new Point(20, 34), Size = new Size(150, 28), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+                var toC = new ComboBox { Location = new Point(200, 34), Size = new Size(150, 28), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+                foreach (var l in Locations()) { fromC.Items.Add(l); toC.Items.Add(l); }
+                if (fromC.Items.Count > 0) { fromC.SelectedIndex = 0; toC.SelectedIndex = Math.Min(1, toC.Items.Count - 1); }
+                var ingrC = new ComboBox { Location = new Point(20, 90), Size = new Size(240, 28), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+                foreach (var i in store.Ingredients) ingrC.Items.Add($"{i.Name} (main {i.Stock:0.##} {i.Unit})");
+                if (ingrC.Items.Count > 0) ingrC.SelectedIndex = 0;
+                var qty = new NumericUpDown { Location = new Point(20, 146), Size = new Size(110, 28), Minimum = 0.01m, Maximum = 100000, DecimalPlaces = 2, Increment = 0.1m, BackColor = panelLight, ForeColor = Color.White };
+                var okBtn = new Button { Text = "Transfer", Location = new Point(20, 196), Size = new Size(120, 34), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+                var cancelBtn4 = new Button { Text = "Cancel", Location = new Point(150, 196), Size = new Size(100, 34), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                okBtn.FlatAppearance.BorderSize = 0; cancelBtn4.FlatAppearance.BorderSize = 0;
+                okBtn.Click += (_, _) =>
+                {
+                    var from = fromC.SelectedItem?.ToString() ?? "Main";
+                    var to = toC.SelectedItem?.ToString() ?? "Main";
+                    if (from == to) { MessageBox.Show("From and To must differ.", "Transfer", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    var idx = ingrC.SelectedIndex;
+                    if (idx < 0) return;
+                    var ingr = store.Ingredients[idx];
+                    void AddLoc(string loc, string ing, decimal amount)
+                    {
+                        if (!store.LocationStock.ContainsKey(loc)) store.LocationStock[loc] = [];
+                        store.LocationStock[loc].TryGetValue(ing, out var cur);
+                        store.LocationStock[loc][ing] = cur + amount;
+                    }
+                    decimal GetLoc(string loc, string ing) => store.LocationStock.TryGetValue(loc, out var d) && d.TryGetValue(ing, out var v) ? v : 0;
+                    if (from == "Main")
+                    {
+                        if (qty.Value > ingr.Stock) { MessageBox.Show($"Only {ingr.Stock:0.##} {ingr.Unit} in main stock.", "Transfer", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                        store.Ingredients[idx] = ingr with { Stock = ingr.Stock - qty.Value };
+                        store.SaveIngredients(store.Ingredients);
+                        AddLoc(to, ingr.Name, qty.Value);
+                    }
+                    else if (to == "Main")
+                    {
+                        if (qty.Value > GetLoc(from, ingr.Name)) { MessageBox.Show($"Only {GetLoc(from, ingr.Name):0.##} {ingr.Unit} at {from}.", "Transfer", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                        AddLoc(from, ingr.Name, -qty.Value);
+                        store.Ingredients[idx] = ingr with { Stock = ingr.Stock + qty.Value };
+                        store.SaveIngredients(store.Ingredients);
+                    }
+                    else
+                    {
+                        if (qty.Value > GetLoc(from, ingr.Name)) { MessageBox.Show($"Only {GetLoc(from, ingr.Name):0.##} {ingr.Unit} at {from}.", "Transfer", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                        AddLoc(from, ingr.Name, -qty.Value);
+                        AddLoc(to, ingr.Name, qty.Value);
+                    }
+                    store.SaveLocationStock();
+                    var id = store.StockTransfers.Count > 0 ? store.StockTransfers.Max(t => t.Id) + 1 : 1;
+                    store.StockTransfers.Add(new StockTransfer(id, from, to, ingr.Name, qty.Value, DateTime.Now, currentOperator.Name));
+                    store.SaveStockTransfers(store.StockTransfers);
+                    Auto86Sync();
+                    if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Transfer", $"#{id} {qty.Value:0.##} {ingr.Name}: {from} → {to}");
+                    f.DialogResult = DialogResult.OK;
+                };
+                cancelBtn4.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+                f.Controls.AddRange([new Label { Text = "From", AutoSize = true, Location = new Point(20, 12) }, fromC, new Label { Text = "To", AutoSize = true, Location = new Point(200, 12) }, toC, new Label { Text = "Ingredient", AutoSize = true, Location = new Point(20, 70) }, ingrC, new Label { Text = "Quantity", AutoSize = true, Location = new Point(20, 126) }, qty, okBtn, cancelBtn4]);
+                f.AcceptButton = okBtn;
+                if (f.ShowDialog() == DialogResult.OK) RebuildTr();
+            };
+            trButtons.Controls.AddRange([newTrBtn, locBtn]);
+            trTab.Controls.AddRange([trList, trButtons]);
+            tabs.TabPages.Add(trTab);
+        }
+
+        {
+            var fcTab = new TabPage { Text = "Forecast", BackColor = background, ForeColor = Color.White };
+            var fcList = new ListView { Dock = DockStyle.Fill, BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false };
+            fcList.Columns.Add("Product", 200); fcList.Columns.Add("Sold (30d)", 90); fcList.Columns.Add("Revenue (30d)", 120); fcList.Columns.Add("Last sale", 120); fcList.Columns.Add("Status", 90); fcList.Columns.Add("Suggestion", 300);
+            var cutoff = DateTime.Now.AddDays(-30);
+            var stats = new List<(string Name, int Qty, decimal Rev, DateTime? Last)>();
+            foreach (var p in store.Products)
+            {
+                var linesForProduct = store.Sales.Where(s => !s.IsRefund && s.Time >= cutoff && s.Items != null).SelectMany(s => s.Items!).Where(l => l.Product == p.Name).ToList();
+                var lastSale = store.Sales.Where(s => !s.IsRefund && s.Items != null && s.Items!.Any(l => l.Product == p.Name)).Select(s => (DateTime?)s.Time).DefaultIfEmpty(null).Max();
+                stats.Add((p.Name, linesForProduct.Sum(l => l.Quantity), linesForProduct.Sum(l => l.Quantity * l.UnitPrice), lastSale));
+            }
+            foreach (var (name, qty, rev, last) in stats.OrderByDescending(s => s.Qty))
+            {
+                var status = qty == 0 ? "DEAD" : qty <= 5 ? "Slow" : qty >= 21 ? "Hot" : "OK";
+                var suggestion = status switch
+                {
+                    "DEAD" => "No sales in 30 days — consider delisting or promotion",
+                    "Slow" => "Low turnover — keep stock minimal",
+                    "Hot" => $"Top mover ({qty / 30m:0.0}/day) — keep 7 days of stock ready",
+                    _ => ""
+                };
+                var item = new ListViewItem([name, qty.ToString(), rev.ToString("C"), last?.ToString("dd/MM/yyyy") ?? "—", status, suggestion]);
+                if (status == "DEAD") item.ForeColor = Color.FromArgb(235, 90, 90);
+                else if (status == "Hot") item.ForeColor = Color.FromArgb(110, 210, 145);
+                else if (status == "Slow") item.ForeColor = Color.FromArgb(245, 180, 80);
+                fcList.Items.Add(item);
+            }
+            fcTab.Controls.Add(fcList);
+            tabs.TabPages.Add(fcTab);
+        }
         panel.Controls.Add(tabs);
         ShowView(panel, "Purchases & food cost", ShowSettings);
     }
@@ -4941,6 +5482,26 @@ internal sealed class PosForm : Form
         f.Controls.AddRange([hint, saveBtn, cancelBtn]);
         f.AcceptButton = saveBtn;
         f.ShowDialog();
+    }
+
+    private bool SendMailWithAttachment(string to, string subject, string body, string attachmentPath)
+    {
+        var es = store.EmailSettings;
+        if (es.Host.Length == 0) return false;
+        try
+        {
+            using var msg = new System.Net.Mail.MailMessage(es.From, to, subject, body);
+            if (File.Exists(attachmentPath)) msg.Attachments.Add(new System.Net.Mail.Attachment(attachmentPath));
+            using var client = new System.Net.Mail.SmtpClient(es.Host, es.Port) { EnableSsl = es.Tls };
+            if (es.User.Length > 0) client.Credentials = new System.Net.NetworkCredential(es.User, es.Password);
+            client.Send(msg);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (store.Features.AuditLog) store.LogAudit("System", "Email failed", ex.Message);
+            return false;
+        }
     }
 
     private void TrySendEmailReceipt(string customerName, string paymentType, List<SoldLine> lines, decimal finalTotal, decimal discount, decimal tip, int paymentNum, string orderType)
@@ -5036,7 +5597,7 @@ internal sealed class PosForm : Form
             return HtmlResponse(BuildOrderPage(query));
         if (method == "GET" && path == "/api/menu")
             return JsonResponse(store.Products
-                .Where(p => !store.EightySix.Contains(p.Name))
+                .Where(p => !Is86(store, p.Name))
                 .GroupBy(p => p.Category)
                 .Select(g => new { category = g.Key, products = g.Select(p => new { name = p.Name, price = p.Price }).ToList() })
                 .ToList());
@@ -5237,7 +5798,7 @@ internal sealed class PosForm : Form
             return "";
         }
         var menuJson = JsonSerializer.Serialize(store.Products
-            .Where(p => !store.EightySix.Contains(p.Name))
+            .Where(p => !Is86(store, p.Name))
             .GroupBy(p => p.Category)
             .Select(g => new { category = g.Key, products = g.Select(p => new { name = p.Name, price = p.Price }).ToList() })
             .ToList());
@@ -5521,8 +6082,14 @@ internal sealed class PosForm : Form
     {
         var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
         var lv = new ListView { Dock = DockStyle.Fill, BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true };
-        lv.Columns.Add("Ingredient", 160); lv.Columns.Add("Stock", 80); lv.Columns.Add("Unit", 60); lv.Columns.Add("Min Stock", 80); lv.Columns.Add("Cost", 80);
-        foreach (var i in store.Ingredients) lv.Items.Add(new ListViewItem([i.Name, i.Stock.ToString("F1"), i.Unit, i.MinStock.ToString("F1"), i.Cost.ToString("C")]));
+        lv.Columns.Add("Ingredient", 160); lv.Columns.Add("Stock", 80); lv.Columns.Add("Unit", 60); lv.Columns.Add("Min Stock", 80); lv.Columns.Add("Cost", 80); lv.Columns.Add("Expiry", 90);
+        foreach (var i in store.Ingredients)
+        {
+            var item = new ListViewItem([i.Name, i.Stock.ToString("F1"), i.Unit, i.MinStock.ToString("F1"), i.Cost.ToString("C"), i.Expiry?.ToString("dd/MM/yyyy") ?? "—"]);
+            if (i.Expiry != null && i.Expiry.Value.Date < DateTime.Today) item.ForeColor = Color.FromArgb(235, 90, 90);
+            else if (i.Expiry != null && i.Expiry.Value.Date <= DateTime.Today.AddDays(7)) item.ForeColor = Color.FromArgb(245, 180, 80);
+            lv.Items.Add(item);
+        }
         var addBtn = new Button { Text = "Add", Dock = DockStyle.Bottom, Height = 36, BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
         addBtn.FlatAppearance.BorderSize = 0;
         addBtn.Click += (_, _) =>
@@ -5564,7 +6131,7 @@ internal sealed class PosForm : Form
                 scroll.Controls.Add(new Label { Text = group.Key.ToUpperInvariant(), Font = new Font("Segoe UI Semibold", 12F), ForeColor = mint, AutoSize = true, Margin = new Padding(0, 14, 0, 4) });
                 foreach (var product in group)
                 {
-                    var out86 = store.EightySix.Contains(product.Name);
+                    var out86 = Is86(store, product.Name);
                     var row = new Panel { Width = 560, Height = 46, BackColor = panelLight, Margin = new Padding(0, 2, 0, 2) };
                     var name = new Label { Text = product.Name, AutoSize = true, Font = out86 ? new Font("Segoe UI", 11F, FontStyle.Strikeout) : new Font("Segoe UI", 11F), ForeColor = out86 ? Color.FromArgb(150, 160, 175) : Color.White, Location = new Point(12, 13) };
                     var price = new Label { Text = product.Price.ToString("C"), AutoSize = true, ForeColor = mint, Location = new Point(260, 14) };
@@ -5575,6 +6142,12 @@ internal sealed class PosForm : Form
                         var list = store.EightySix.ToList();
                         if (!list.Remove(product.Name)) list.Add(product.Name);
                         store.SaveEightySix(list);
+                        if (store.Auto86.Contains(product.Name))
+                        {
+                            var auto = store.Auto86.ToList();
+                            auto.Remove(product.Name);
+                            store.SaveAuto86(auto);
+                        }
                         RenderProducts();
                         Rebuild();
                     };
@@ -6402,6 +6975,7 @@ internal sealed class SettingsForm : Form
                 AddToggle("ItemNotes", "Special instructions per item");
                 AddToggle("CourseManagement", "Course-by-course sending to kitchen");
                 AddBtn("Edit course names (Course 1 = ...)", _showCourseNames!, features.CourseManagement);
+                AddToggle("HoldFire", "Hold fire — kitchen only gets courses when you press Fire");
                 AddToggle("Reservations", "Reservations / bookings (floor plan badges)");
                 AddToggle("KitchenDisplay", "Kitchen display screen (KDS)");
                 AddToggle("EightySixBoard", "86 board (mark products out of stock)");
@@ -6437,6 +7011,13 @@ internal sealed class SettingsForm : Form
             case "inventory":
                 AddToggle("StockManagement", "Ingredient stock / recipe deduction");
                 AddToggle("InventoryAlerts", "Low stock alerts");
+                AddToggle("Auto86", "Auto-86 when ingredients hit reorder point");
+                AddToggle("Stocktakes", "Stock counts (stocktake) with audit trail");
+                AddToggle("WasteTracking", "Waste & expiry tracking");
+                AddToggle("StockTransfers", "Stock transfers between locations");
+                AddToggle("WeightedItems", "Weight-priced items (price per kg, scale entry)");
+                AddToggle("ProductVariants", "Product variants (size / color) + CSV import");
+                AddToggle("BarcodeLabels", "Barcode label printing (Code 39)");
                 AddToggle("BarcodeScanning", "Barcode scanning");
                 AddToggle("Purchasing", "Purchase orders, suppliers & food cost");
                 break;
@@ -8051,16 +8632,25 @@ internal sealed class ProductManagerForm : Form
     private readonly TextBox color = new();
     private readonly TextBox imagePath = new();
     private readonly TextBox barcode = new();
+    private readonly CheckBox weighted = new();
+    private readonly FeatureSettings features;
+    private readonly List<ProductVariant> variants;
+    private readonly Action<List<ProductVariant>> saveVariants;
+    private readonly Color bg, pl, mintC;
     private int selectedIndex = -1;
 
-    public ProductManagerForm(Color background, Color panelLight, Color mint, List<Product> source, Action<List<Product>> save)
+    public ProductManagerForm(Color background, Color panelLight, Color mint, List<Product> source, Action<List<Product>> save, FeatureSettings features, List<ProductVariant> sourceVariants, Action<List<ProductVariant>> saveVariants)
     {
         products = [.. source];
         this.save = save;
+        this.features = features;
+        variants = [.. sourceVariants];
+        this.saveVariants = saveVariants;
+        bg = background; pl = panelLight; mintC = mint;
         Text = "Product catalog";
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(720, 520);
-        MinimumSize = new Size(620, 460);
+        ClientSize = new Size(720, 560);
+        MinimumSize = new Size(620, 500);
         BackColor = background;
         ForeColor = Color.White;
         Font = new Font("Segoe UI", 10F);
@@ -8110,6 +8700,10 @@ internal sealed class ProductManagerForm : Form
         barcode.Location = new Point(310, 376);
         barcode.Size = new Size(250, 30);
         StyleField(barcode, panelLight);
+        weighted.Text = "Priced per kg (weight item)";
+        weighted.Location = new Point(570, 380);
+        weighted.AutoSize = true;
+        weighted.ForeColor = Color.White;
 
         var add = CatalogButton("New product", 24, 435, 120, panelLight);
         add.Click += (_, _) => AddProduct();
@@ -8118,7 +8712,30 @@ internal sealed class ProductManagerForm : Form
         var saveButton = CatalogButton("Save changes", 530, 435, 130, mint);
         saveButton.ForeColor = background;
         saveButton.Click += (_, _) => SaveProduct();
-        Controls.AddRange([title, list, nameLabel, name, categoryLabel, category, priceLabel, price, colorLabel, color, imageLabel, imagePath, importImage, barcodeLabel, barcode, add, remove, saveButton]);
+        Controls.AddRange([title, list, nameLabel, name, categoryLabel, category, priceLabel, price, colorLabel, color, imageLabel, imagePath, importImage, barcodeLabel, barcode, weighted, add, remove, saveButton]);
+
+        var row2 = new FlowLayoutPanel { Location = new Point(20, 480), Size = new Size(680, 44), FlowDirection = FlowDirection.LeftToRight, BackColor = background };
+        if (features.ProductVariants)
+        {
+            var variantsBtn = CatalogButton("Variants…", 0, 0, 100, panelLight);
+            variantsBtn.Margin = new Padding(0, 0, 8, 0);
+            variantsBtn.Click += (_, _) => ShowVariants();
+            var importBtn = CatalogButton("Import CSV", 0, 0, 110, panelLight);
+            importBtn.Margin = new Padding(0, 0, 8, 0);
+            importBtn.Click += (_, _) => ImportCsv();
+            var exportBtn = CatalogButton("Export CSV", 0, 0, 110, panelLight);
+            exportBtn.Margin = new Padding(0, 0, 8, 0);
+            exportBtn.Click += (_, _) => ExportCsv();
+            row2.Controls.AddRange([variantsBtn, importBtn, exportBtn]);
+        }
+        if (features.BarcodeLabels)
+        {
+            var labelsBtn = CatalogButton("Print barcode labels", 0, 0, 160, Color.FromArgb(70, 90, 130));
+            labelsBtn.Margin = new Padding(0, 0, 8, 0);
+            labelsBtn.Click += (_, _) => PrintLabels();
+            row2.Controls.Add(labelsBtn);
+        }
+        Controls.Add(row2);
         if (products.Count > 0) list.SelectedIndex = 0;
     }
 
@@ -8137,7 +8754,7 @@ internal sealed class ProductManagerForm : Form
     {
         if (selectedIndex >= 0 && selectedIndex < products.Count && selectedIndex != list.SelectedIndex)
         {
-            products[selectedIndex] = products[selectedIndex] with { Name = name.Text.Trim(), Category = category.SelectedItem?.ToString() ?? "Popular", Price = price.Value, Color = color.Text.Trim(), ImagePath = imagePath.Text.Trim(), Barcode = barcode.Text.Trim() };
+            products[selectedIndex] = products[selectedIndex] with { Name = name.Text.Trim(), Category = category.SelectedItem?.ToString() ?? "Popular", Price = price.Value, Color = color.Text.Trim(), ImagePath = imagePath.Text.Trim(), Barcode = barcode.Text.Trim(), Weighted = weighted.Checked };
             list.Items[selectedIndex] = products[selectedIndex].Name;
         }
         if (list.SelectedIndex < 0 || list.SelectedIndex >= products.Count) return;
@@ -8149,6 +8766,7 @@ internal sealed class ProductManagerForm : Form
         color.Text = product.Color;
         imagePath.Text = product.ImagePath;
         barcode.Text = product.Barcode;
+        weighted.Checked = product.Weighted;
     }
 
     private void AddProduct()
@@ -8170,10 +8788,198 @@ internal sealed class ProductManagerForm : Form
     {
         if (selectedIndex >= 0 && selectedIndex < products.Count)
         {
-            products[selectedIndex] = products[selectedIndex] with { Name = name.Text.Trim(), Category = category.SelectedItem?.ToString() ?? "Popular", Price = price.Value, Color = color.Text.Trim(), ImagePath = imagePath.Text.Trim(), Barcode = barcode.Text.Trim() };
+            products[selectedIndex] = products[selectedIndex] with { Name = name.Text.Trim(), Category = category.SelectedItem?.ToString() ?? "Popular", Price = price.Value, Color = color.Text.Trim(), ImagePath = imagePath.Text.Trim(), Barcode = barcode.Text.Trim(), Weighted = weighted.Checked };
             list.Items[selectedIndex] = products[selectedIndex].Name;
         }
         save(products);
+    }
+
+    private Product? CurrentProduct()
+    {
+        if (selectedIndex < 0 || selectedIndex >= products.Count) return null;
+        products[selectedIndex] = products[selectedIndex] with { Name = name.Text.Trim(), Category = category.SelectedItem?.ToString() ?? "Popular", Price = price.Value, Color = color.Text.Trim(), ImagePath = imagePath.Text.Trim(), Barcode = barcode.Text.Trim(), Weighted = weighted.Checked };
+        list.Items[selectedIndex] = products[selectedIndex].Name;
+        return products[selectedIndex];
+    }
+
+    private void ShowVariants()
+    {
+        var product = CurrentProduct();
+        if (product == null) { MessageBox.Show("Select a product first.", "Variants", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        using var f = new Form { Text = $"Variants — {product.Name}", Size = new Size(520, 420), StartPosition = FormStartPosition.CenterParent, BackColor = bg, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var lv = new ListView { Location = new Point(16, 16), Size = new Size(360, 250), BackColor = Color.FromArgb(27, 34, 46), ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false };
+        lv.Columns.Add("Variant", 150); lv.Columns.Add("Price", 90); lv.Columns.Add("Barcode", 110);
+        void Fill()
+        {
+            lv.Items.Clear();
+            foreach (var v in variants.Where(v => v.Product == product.Name))
+                lv.Items.Add(new ListViewItem([v.Name, v.Price.ToString("C"), v.Barcode]));
+        }
+        Fill();
+        var vName = new TextBox { Location = new Point(16, 276), Size = new Size(130, 28), BackColor = pl, ForeColor = Color.White, PlaceholderText = "Size / name" };
+        var vPrice = new NumericUpDown { Location = new Point(156, 276), Size = new Size(90, 28), Minimum = 0, Maximum = 100000, DecimalPlaces = 2, Increment = 0.5m, BackColor = pl, ForeColor = Color.White };
+        var vBarcode = new TextBox { Location = new Point(256, 276), Size = new Size(120, 28), BackColor = pl, ForeColor = Color.White, PlaceholderText = "Barcode" };
+        var addBtn = new Button { Text = "+ Add", Location = new Point(16, 312), Size = new Size(90, 30), BackColor = mintC, ForeColor = bg, FlatStyle = FlatStyle.Flat };
+        var delBtn = new Button { Text = "Remove", Location = new Point(116, 312), Size = new Size(90, 30), BackColor = Color.FromArgb(180, 70, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var closeBtn = new Button { Text = "Close", Location = new Point(390, 312), Size = new Size(90, 30), BackColor = pl, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        addBtn.FlatAppearance.BorderSize = 0; delBtn.FlatAppearance.BorderSize = 0; closeBtn.FlatAppearance.BorderSize = 0;
+        addBtn.Click += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(vName.Text)) { MessageBox.Show("Enter a variant name (e.g. Large, 1kg).", "Variants", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            variants.Add(new ProductVariant(product.Name, vName.Text.Trim(), vPrice.Value, vBarcode.Text.Trim()));
+            saveVariants(variants);
+            vName.Text = ""; vBarcode.Text = ""; vPrice.Value = 0;
+            Fill();
+        };
+        delBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0) return;
+            var vn = lv.SelectedItems[0].Text;
+            variants.RemoveAll(v => v.Product == product.Name && v.Name == vn);
+            saveVariants(variants);
+            Fill();
+        };
+        closeBtn.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([lv, vName, vPrice, vBarcode, addBtn, delBtn, closeBtn]);
+        f.ShowDialog();
+    }
+
+    private Color panelLightOf() => pl;
+
+    private void ImportCsv()
+    {
+        using var open = new OpenFileDialog { Filter = "CSV files|*.csv|All files|*.*" };
+        if (open.ShowDialog() != DialogResult.OK) return;
+        try
+        {
+            var lines = File.ReadAllLines(open.FileName);
+            var sep = lines.Length > 0 && lines[0].Count(c => c == ';') > lines[0].Count(c => c == ',') ? ';' : ',';
+            var imported = 0; var updated = 0; var skipped = 0;
+            foreach (var raw in lines.Skip(1))
+            {
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                var parts = SplitCsv(raw, sep);
+                if (parts.Length < 3) { skipped++; continue; }
+                if (!decimal.TryParse(parts[2], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p) &&
+                    !decimal.TryParse(parts[2], out p)) { skipped++; continue; }
+                var pname = parts[0].Trim();
+                if (pname.Length == 0) continue;
+                var pcat = parts.Length > 1 && parts[1].Trim().Length > 0 ? parts[1].Trim() : "Popular";
+                var pcolor = parts.Length > 3 && parts[3].Trim().Length > 0 ? parts[3].Trim() : "#70C1B3";
+                var pfamily = parts.Length > 4 && parts[4].Trim().Length > 0 ? parts[4].Trim() : "General";
+                var pbarcode = parts.Length > 5 ? parts[5].Trim() : "";
+                var pweighted = parts.Length > 6 && parts[6].Trim().Equals("weighted", StringComparison.OrdinalIgnoreCase);
+                var idx = products.FindIndex(x => string.Equals(x.Name, pname, StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0)
+                {
+                    products[idx] = products[idx] with { Category = pcat, Price = p, Color = pcolor, Family = pfamily, Barcode = pbarcode, Weighted = pweighted };
+                    updated++;
+                }
+                else
+                {
+                    products.Add(new Product(pname, pcat, p, pcolor, pfamily, "", "", pbarcode, pweighted));
+                    imported++;
+                }
+            }
+            save(products);
+            list.Items.Clear();
+            foreach (var p in products) list.Items.Add(p.Name);
+            if (products.Count > 0) list.SelectedIndex = 0;
+            MessageBox.Show($"CSV imported:\n{imported} new product(s), {updated} updated, {skipped} skipped.", "Import CSV", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { MessageBox.Show($"Import failed: {ex.Message}", "Import CSV", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+    }
+
+    private static string[] SplitCsv(string line, char sep)
+    {
+        var parts = new List<string>();
+        var cur = new StringBuilder();
+        var inQuotes = false;
+        foreach (var c in line)
+        {
+            if (c == '"') { inQuotes = !inQuotes; continue; }
+            if (c == sep && !inQuotes) { parts.Add(cur.ToString()); cur.Clear(); }
+            else cur.Append(c);
+        }
+        parts.Add(cur.ToString());
+        return [.. parts];
+    }
+
+    private void ExportCsv()
+    {
+        using var save = new SaveFileDialog { Filter = "CSV files|*.csv", FileName = $"products-{DateTime.Now:yyyyMMdd}.csv" };
+        if (save.ShowDialog() != DialogResult.OK) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("Name,Category,Price,Color,Family,Barcode,Weighted");
+        foreach (var p in products)
+            sb.AppendLine(string.Join(",", $"\"{p.Name.Replace("\"", "\"\"")}\"", p.Category, p.Price.ToString(System.Globalization.CultureInfo.InvariantCulture), p.Color, p.Family, p.Barcode, p.Weighted ? "weighted" : ""));
+        File.WriteAllText(save.FileName, sb.ToString());
+        MessageBox.Show($"Exported {products.Count} product(s) to:\n{save.FileName}", "Export CSV", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private void PrintLabels()
+    {
+        var product = CurrentProduct();
+        if (product == null) { MessageBox.Show("Select a product first.", "Labels", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        if (string.IsNullOrWhiteSpace(product.Barcode) || !Code39.CanEncode(product.Barcode))
+        {
+            MessageBox.Show("This product has no valid barcode for printing.\nAllowed: 0-9, A-Z, '-', '.' and spaces.\nSet it in the Barcode field first.", "Labels", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        using var qtyForm = new Form { Text = "How many labels?", Size = new Size(300, 170), StartPosition = FormStartPosition.CenterParent, BackColor = bg, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var qty = new NumericUpDown { Location = new Point(20, 40), Size = new Size(100, 30), Minimum = 1, Maximum = 500, Value = 1, BackColor = panelLightOf(), ForeColor = Color.White };
+        var okQty = new Button { Text = "Print", Location = new Point(20, 84), Size = new Size(100, 32), BackColor = mintC, ForeColor = bg, FlatStyle = FlatStyle.Flat };
+        okQty.FlatAppearance.BorderSize = 0;
+        qtyForm.Controls.AddRange([new Label { Text = "Label count:", AutoSize = true, Location = new Point(20, 14) }, qty, okQty]);
+        qtyForm.AcceptButton = okQty;
+        okQty.Click += (_, _) => qtyForm.DialogResult = DialogResult.OK;
+        if (qtyForm.ShowDialog() != DialogResult.OK) return;
+
+        using var dialog = new PrintDialog { AllowSomePages = false };
+        using var doc = new PrintDocument { DocumentName = $"Labels {product.Name}" };
+        var count = (int)qty.Value;
+        var barcodeBmp = Code39.Render(product.Barcode, 3);
+        var done = 0;
+        doc.PrintPage += (_, e) =>
+        {
+            if (e.Graphics == null) { e.HasMorePages = false; return; }
+            var g = e.Graphics;
+            const int labelW = 300, labelH = 160, gapX = 10, gapY = 10;
+            var x0 = 20; var y0 = 20;
+            for (var row = 0; row < 5 && done < count; row++)
+            {
+                for (var col = 0; col < 3 && done < count; col++)
+                {
+                    var x = x0 + col * (labelW + gapX);
+                    var y = y0 + row * (labelH + gapY);
+                    if (y + labelH > g.VisibleClipBounds.Height) break;
+                    using (var border = new Pen(Color.FromArgb(120, 130, 145))) g.DrawRectangle(border, x, y, labelW, labelH);
+                    using (var nameFont = new Font("Segoe UI Semibold", 11F))
+                    using (var priceFont = new Font("Segoe UI", 10F))
+                    using (var codeFont = new Font("Consolas", 8F))
+                    using (var black = new SolidBrush(Color.Black))
+                    {
+                        g.DrawString(product.Name, nameFont, black, x + 8, y + 6);
+                        g.DrawString(product.Price.ToString("C"), priceFont, black, x + 8, y + 28);
+                        var bw = Math.Min(labelW - 16, 200);
+                        var scale = (float)bw / barcodeBmp.Width;
+                        var bh = Math.Min(60, (int)(barcodeBmp.Height * scale));
+                        g.DrawImage(barcodeBmp, new RectangleF(x + 8, y + 54, bw, bh));
+                        g.DrawString(product.Barcode, codeFont, black, x + 8, y + 54 + bh + 2);
+                    }
+                    done++;
+                }
+                if (y0 + (row + 1) * (labelH + gapY) > g.VisibleClipBounds.Height) break;
+            }
+            e.HasMorePages = done < count;
+        };
+        dialog.Document = doc;
+        if (dialog.ShowDialog() == DialogResult.OK)
+        {
+            try { doc.Print(); }
+            catch (Exception ex) { MessageBox.Show($"Print failed: {ex.Message}", "Labels", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        }
+        barcodeBmp.Dispose();
     }
 }
 
