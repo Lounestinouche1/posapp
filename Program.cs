@@ -263,6 +263,19 @@ internal sealed class FeatureSettings
     public bool OfflinePayments { get; set; } = false;
     public bool VirtualTerminal { get; set; } = false;
     public bool EGiftEmail { get; set; } = false;
+    public bool TrainingMode { get; set; } = false;
+    public bool EmployeeDiscount { get; set; } = false;
+    public decimal EmployeeDiscountPct { get; set; } = 10;
+    public bool PinLogin { get; set; } = false;
+    public bool PayrollExport { get; set; } = false;
+    public bool ServerPerformance { get; set; } = false;
+    public bool LiveDashboard { get; set; } = false;
+    public bool CloseOfDay { get; set; } = false;
+    public bool DiscountVoidReport { get; set; } = false;
+    public bool OccupancyHeatmap { get; set; } = false;
+    public bool MenuEngineering { get; set; } = false;
+    public bool AccountingExport { get; set; } = false;
+    public bool AiInsights { get; set; } = false;
 }
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -779,7 +792,7 @@ internal sealed class LoginForm : Form
 {
     public OperatorAccount? LoggedInOperator { get; private set; }
 
-    public LoginForm(Color background, Color panelLight, Color mint, List<OperatorAccount> operators)
+    public LoginForm(Color background, Color panelLight, Color mint, List<OperatorAccount> operators, bool pinMode = false)
     {
         Text = "Login";
         StartPosition = FormStartPosition.CenterScreen;
@@ -792,28 +805,28 @@ internal sealed class LoginForm : Form
         MinimizeBox = false;
 
         var title = new Label { Text = "VECTRON POS", AutoSize = true, Font = new Font("Segoe UI Semibold", 20F), ForeColor = mint, Location = new Point(90, 20) };
-        var subtitle = new Label { Text = "Select operator and enter password", AutoSize = true, ForeColor = Color.FromArgb(143, 154, 171), Location = new Point(60, 60) };
+        var subtitle = new Label { Text = pinMode ? "Select operator and enter PIN" : "Select operator and enter password", AutoSize = true, ForeColor = Color.FromArgb(143, 154, 171), Location = new Point(60, 60) };
         var operatorLabel = new Label { Text = "Operator", AutoSize = true, Location = new Point(30, 100) };
         var operatorList = new ComboBox { Location = new Point(30, 126), Size = new Size(300, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
         foreach (var op in operators) operatorList.Items.Add(op.Name);
         if (operatorList.Items.Count > 0) operatorList.SelectedIndex = 0;
-        var passwordLabel = new Label { Text = "Password", AutoSize = true, Location = new Point(30, 172) };
+        var passwordLabel = new Label { Text = pinMode ? "PIN" : "Password", AutoSize = true, Location = new Point(30, 172) };
         var passwordBox = new TextBox { Location = new Point(30, 198), Size = new Size(300, 30), BackColor = panelLight, ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, UseSystemPasswordChar = true };
-        passwordBox.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) TryLogin(operators, operatorList, passwordBox); };
-        var loginButton = new Button { Text = "Login", Location = new Point(30, 250), Size = new Size(300, 40), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+        passwordBox.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) TryLogin(operators, operatorList, passwordBox, pinMode); };
+        var loginButton = new Button { Text = pinMode ? "Enter" : "Login", Location = new Point(30, 250), Size = new Size(300, 40), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
         loginButton.FlatAppearance.BorderSize = 0;
-        loginButton.Click += (_, _) => TryLogin(operators, operatorList, passwordBox);
+        loginButton.Click += (_, _) => TryLogin(operators, operatorList, passwordBox, pinMode);
         Controls.AddRange([title, subtitle, operatorLabel, operatorList, passwordLabel, passwordBox, loginButton]);
         AcceptButton = loginButton;
     }
 
-    private void TryLogin(List<OperatorAccount> operators, ComboBox operatorList, TextBox passwordBox)
+    private void TryLogin(List<OperatorAccount> operators, ComboBox operatorList, TextBox passwordBox, bool pinMode)
     {
         if (operatorList.SelectedIndex < 0) return;
         var selected = operators[operatorList.SelectedIndex];
         if (!string.IsNullOrWhiteSpace(selected.Password) && selected.Password != passwordBox.Text)
         {
-            MessageBox.Show("Incorrect password.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(pinMode ? "Incorrect PIN." : "Incorrect password.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         LoggedInOperator = selected;
@@ -907,6 +920,8 @@ internal sealed class PosForm : Form
     private readonly Label qrLabel = new();
     private QrOrderServer? qrServer;
     private readonly Panel guestBar = new() { Dock = DockStyle.Top, Height = 40, Visible = false, BackColor = Color.FromArgb(190, 130, 40) };
+    private readonly Panel trainingBar = new() { Dock = DockStyle.Top, Height = 34, Visible = false, BackColor = Color.FromArgb(180, 60, 60) };
+    private readonly Label trainingLabel = new();
     private readonly Label guestLabel = new() { Dock = DockStyle.Fill, ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI Semibold", 10F) };
     private readonly Button guestDismissBtn = new() { Text = "Dismiss all", Dock = DockStyle.Right, Width = 110, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(140, 60, 40), Font = new Font("Segoe UI", 9F) };
     private CustomerDisplayForm? custDisplay;
@@ -945,7 +960,7 @@ internal sealed class PosForm : Form
 
         if (store.Operators.Any(op => !string.IsNullOrWhiteSpace(op.Password)))
         {
-            using var login = new LoginForm(background, panelLight, mint, store.Operators);
+            using var login = new LoginForm(background, panelLight, mint, store.Operators, store.Features.PinLogin);
             if (login.ShowDialog(this) != DialogResult.OK || login.LoggedInOperator == null)
             {
                 Close();
@@ -1304,6 +1319,14 @@ internal sealed class PosForm : Form
         guestBar.Controls.Add(guestLabel);
         guestBar.Controls.Add(guestDismissBtn);
         menuPanel.Controls.Add(guestBar);
+        trainingLabel.Dock = DockStyle.Fill;
+        trainingLabel.ForeColor = Color.White;
+        trainingLabel.Font = new Font("Segoe UI Semibold", 10F);
+        trainingLabel.TextAlign = ContentAlignment.MiddleLeft;
+        trainingLabel.Text = "  TRAINING MODE — sales are NOT recorded";
+        trainingBar.Controls.Add(trainingLabel);
+        trainingBar.Visible = store.Features.TrainingMode;
+        menuPanel.Controls.Add(trainingBar);
         workspacePanel.Controls.Add(menuPanel);
         workspacePanel.Controls.Add(orderPanel);
         workspacePanel.Resize += (_, _) => LayoutWorkspace(workspacePanel, menuPanel, orderPanel);
@@ -2618,7 +2641,7 @@ internal sealed class PosForm : Form
         using var form = new Form
         {
             Text = "Discount",
-            Size = new Size(400, 565),
+            Size = new Size(store.Features.EmployeeDiscount ? 480 : 400, 565),
             StartPosition = FormStartPosition.CenterParent,
             BackColor = background,
             ForeColor = Color.White,
@@ -2684,11 +2707,19 @@ internal sealed class PosForm : Form
             basketDiscountPercent = percent > 0 ? percent : 0;
             form.DialogResult = DialogResult.OK;
         };
-        var cancelBtn = new Button { Text = "Cancel", Location = new Point(260, 449), Size = new Size(110, 50), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10F) };
+        var cancelBtn = new Button { Text = "Cancel", Location = new Point(store.Features.EmployeeDiscount ? 370 : 260, 449), Size = store.Features.EmployeeDiscount ? new Size(90, 50) : new Size(110, 50), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10F) };
         cancelBtn.FlatAppearance.BorderSize = 0;
         cancelBtn.Click += (_, _) => form.DialogResult = DialogResult.Cancel;
+        var extraButtons = new List<Control> { orderCaption, percentCaption, percentValue, resultCaption, resultValue, applyBtn, cancelBtn };
+        if (store.Features.EmployeeDiscount)
+        {
+            var empBtn = new Button { Text = $"Employee {store.Features.EmployeeDiscountPct:0.#}%", Location = new Point(258, 449), Size = new Size(104, 50), BackColor = Color.FromArgb(200, 140, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9F) };
+            empBtn.FlatAppearance.BorderSize = 0;
+            empBtn.Click += (_, _) => { entry = ((int)store.Features.EmployeeDiscountPct).ToString(); RefreshPreview(); };
+            extraButtons.Add(empBtn);
+        }
 
-        form.Controls.AddRange([orderCaption, percentCaption, percentValue, resultCaption, resultValue, applyBtn, cancelBtn]);
+        form.Controls.AddRange([.. extraButtons]);
         form.AcceptButton = applyBtn;
         form.CancelButton = cancelBtn;
         RefreshPreview();
@@ -3074,8 +3105,9 @@ internal sealed class PosForm : Form
 
         var saleTotal = paymentType == "Deposit" ? finalTotal - depositRemaining : finalTotal;
         var sale = new Sale(DateTime.Now, saleTotal, selectedTable, currentOperator.Name, lines, paymentNum, billNum, tip, finalPaymentType, customerName, orderType, discount, DeliveryAddress: deliveryAddress, CashAmount: cashAmt, Tendered: tenderedOut, Rounding: roundingOut, ServiceFee: svcFee, CashDiscountAmt: cashDiscFee, SurchargeAmt: surchFee);
-        store.AddSale(sale);
-        if (paymentType == "Deposit" && depositRemaining > 0)
+        var trainingMode = store.Features.TrainingMode;
+        if (!trainingMode) store.AddSale(sale);
+        if (!trainingMode && paymentType == "Deposit" && depositRemaining > 0)
         {
             var soId = store.SpecialOrders.Count > 0 ? store.SpecialOrders.Max(s => s.Id) + 1 : 1;
             store.SpecialOrders.Add(new SpecialOrder(soId, DateTime.Now, customerName, selectedTable, finalTotal, saleTotal, "Open", paymentNum));
@@ -3083,7 +3115,7 @@ internal sealed class PosForm : Form
             if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Deposit taken", $"special order #{soId} — {depositAmt:C} paid, {depositRemaining:C} due");
         }
         lastReceipt = (sale, lines, basketDiscountPercent, selectedRoom, selectedTable);
-        if (giftApplied > 0)
+        if (!trainingMode && giftApplied > 0)
         {
             var gi = store.GiftCards.FindIndex(c => string.Equals(c.Code, appliedGiftCode, StringComparison.OrdinalIgnoreCase));
             if (gi >= 0)
@@ -3092,7 +3124,7 @@ internal sealed class PosForm : Form
                 store.SaveGiftCards(store.GiftCards);
             }
         }
-        if (cust != null)
+        if (!trainingMode && cust != null)
         {
             var cIdx = store.Customers.IndexOf(cust);
             if (cIdx >= 0)
@@ -3108,9 +3140,9 @@ internal sealed class PosForm : Form
                 if (paymentType == "Tab" && due > 0 && store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Tab charge", $"{cust.Name} +{due:C} (due {cust.TabDue + due:C})");
             }
         }
-        if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Payment", $"{finalTotal:C} ({finalPaymentType}) {orderType} discount={discount:C} tip={tip:C}" + (giftApplied > 0 ? $" gift=-{giftApplied:C}" : "") + (creditApplied > 0 ? $" credit=-{creditApplied:C}" : "") + (redeemAmount > 0 ? $" points={redeemPts}" : ""));
-        TrySendEmailReceipt(customerName, finalPaymentType, lines, finalTotal, discount, tip, paymentNum, orderType, serviceFee: svcFee, cashDisc: cashDiscFee, surcharge: surchFee);
-        if (store.Features.StockManagement && store.Recipes.Count > 0)
+        if (!trainingMode && store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Payment", $"{finalTotal:C} ({finalPaymentType}) {orderType} discount={discount:C} tip={tip:C}" + (giftApplied > 0 ? $" gift=-{giftApplied:C}" : "") + (creditApplied > 0 ? $" credit=-{creditApplied:C}" : "") + (redeemAmount > 0 ? $" points={redeemPts}" : ""));
+        if (!trainingMode) TrySendEmailReceipt(customerName, finalPaymentType, lines, finalTotal, discount, tip, paymentNum, orderType, serviceFee: svcFee, cashDisc: cashDiscFee, surcharge: surchFee);
+        if (!trainingMode && store.Features.StockManagement && store.Recipes.Count > 0)
         {
             var alerts = new List<StockAlert>();
             foreach (var line in lines)
@@ -3138,13 +3170,14 @@ internal sealed class PosForm : Form
                 MessageBox.Show("LOW STOCK ALERTS:\n\n" + string.Join("\n", alerts.Select(a => $"• {a.Ingredient}: {a.Remaining:F1} remaining (min: {a.MinStock:F1})\n  Used by: {a.ProductName}")),
                     "Stock Alert", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
-        store.RemoveOpenOrder(selectedRoom, selectedTable);
+        if (!trainingMode) store.RemoveOpenOrder(selectedRoom, selectedTable);
 
-        PrintPaymentReceipt(sale, lines, basketDiscountPercent, selectedRoom, selectedTable);
+        if (!trainingMode) PrintPaymentReceipt(sale, lines, basketDiscountPercent, selectedRoom, selectedTable);
 
         var changeLine = tenderedOut > 0 ? $"\nTendered: {tenderedOut:C}   Change: {tenderedOut - cashAmt:C}" : "";
         var roundLine = roundingOut != 0 ? $"\nRounded: {(roundingOut > 0 ? "+" : "")}{roundingOut:C}" : "";
-        MessageBox.Show($"Payment accepted\n{finalTotal:C}  •  {selectedTable}{changeLine}{roundLine}", "Sale complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        var trainingLine = trainingMode ? "\n⚠ TRAINING MODE — not recorded" : "";
+        MessageBox.Show($"Payment accepted\n{finalTotal:C}  •  {selectedTable}{changeLine}{roundLine}{trainingLine}", "Sale complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         custDisplay?.ShowThankYou(finalTotal);
         basket.Clear();
         activeSeat = 1;
@@ -3735,11 +3768,12 @@ internal sealed class PosForm : Form
                 if (features.QROrdering && !isOrderPc) StartQrServer(); else StopQrServer();
                 quickSaleBtn.Visible = features.QuickSaleMode;
                 barcodeBox!.Visible = features.BarcodeScanning || features.QuickSaleMode;
+                trainingBar.Visible = features.TrainingMode;
                 UpdateOrderButtons();
             },
             ShowModifierManager, ShowCustomerManager, ShowHappyHourManager, ShowAuditLogViewer, ShowShiftReport, ShowCashDrawer,
             () => { floorPlanEdit = true; ShowRooms(); }, ShowEmailSettings, ManageCourseNames, ManageComboDeals, LaunchKiosk, ShowCustomerDisplay,
-            ShowFeeSettings, () => ShowFindReceipt(), ShowSpecialOrders, ShowOfflineQueue, ShowVirtualTerminal);
+            ShowFeeSettings, () => ShowFindReceipt(), ShowSpecialOrders, ShowOfflineQueue, ShowVirtualTerminal, DispatchReport);
         settingsForm.TopLevel = false;
         settingsForm.FormBorderStyle = FormBorderStyle.None;
         settingsForm.Dock = DockStyle.Fill;
@@ -4458,6 +4492,371 @@ internal sealed class PosForm : Form
         var summary = new Label { Text = $"Today: {todaySales.Count} sales  •  {todayTotal:C}\nShifts: {active.Count}", AutoSize = true, Location = new Point(15, 268), ForeColor = mint };
         form.Controls.AddRange([lv, summary]);
         form.ShowDialog();
+    }
+
+    private void DispatchReport(string id)
+    {
+        switch (id)
+        {
+            case "Payroll": ShowPayrollExport(); break;
+            case "ServerPerf": ShowServerPerformance(); break;
+            case "EmpPct": PromptEmployeeDiscountPct(); break;
+            case "LiveDash": ShowLiveDashboard(); break;
+            case "CloseDay": ShowCloseOfDayScreen(); break;
+            case "DiscVoid": ShowDiscountVoidReport(); break;
+            case "Heatmap": ShowOccupancyHeatmap(); break;
+            case "MenuEng": ShowMenuEngineering(); break;
+            case "AcctExport": ShowAccountingExport(); break;
+            case "Insights": ShowAiInsights(); break;
+        }
+    }
+
+    private Form ReportShell(string title, int w, int h)
+    {
+        return new Form { Text = title, Size = new Size(w, h), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+    }
+
+    private Button ReportButton(string text, Point loc, Size size, Color back, Color fore)
+    {
+        var b = new Button { Text = text, Location = loc, Size = size, BackColor = back, ForeColor = fore, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        b.FlatAppearance.BorderSize = 0;
+        return b;
+    }
+
+    private void PromptEmployeeDiscountPct()
+    {
+        using var f = ReportShell("Employee discount %", 340, 210);
+        var lbl = new Label { Text = "Discount % for staff purchases:", AutoSize = true, Location = new Point(20, 16) };
+        var num = new NumericUpDown { Minimum = 0, Maximum = 100, DecimalPlaces = 1, Increment = 5, Value = Math.Min(100, store.Features.EmployeeDiscountPct), Location = new Point(20, 46), Size = new Size(140, 30), BackColor = panelLight, ForeColor = Color.White };
+        var ok = ReportButton("Save", new Point(20, 96), new Size(120, 38), mint, background);
+        ok.Click += (_, _) => { store.Features.EmployeeDiscountPct = num.Value; store.SaveFeatures(store.Features); f.DialogResult = DialogResult.OK; };
+        var cancel = ReportButton("Cancel", new Point(150, 96), new Size(110, 38), panelLight, Color.White);
+        cancel.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+        f.Controls.AddRange([lbl, num, ok, cancel]);
+        f.ShowDialog();
+    }
+
+    private void ShowPayrollExport()
+    {
+        if (!store.Features.PayrollExport) return;
+        using var f = ReportShell("Payroll export", 740, 530);
+        var from = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        var head = new Label { Text = $"Pay period: {from:MMMM yyyy} (1 → today)", AutoSize = true, Location = new Point(14, 12), ForeColor = mint, Font = new Font("Segoe UI Semibold", 12F) };
+        var lv = new ListView { Location = new Point(14, 42), Size = new Size(696, 340), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv.Columns.AddRange([new ColumnHeader { Text = "Operator", Width = 170 }, new ColumnHeader { Text = "Shifts", Width = 70 }, new ColumnHeader { Text = "Hours", Width = 80 }, new ColumnHeader { Text = "Wage/h", Width = 90 }, new ColumnHeader { Text = "Gross pay", Width = 110 }, new ColumnHeader { Text = "Clocked in", Width = 90 }]);
+        decimal grand = 0;
+        var rows = new List<(string Name, int Shifts, decimal Hours, decimal Wage, decimal Pay)>();
+        foreach (var op in store.Operators)
+        {
+            var shifts = store.Shifts.Where(s => s.Operator == op.Name && s.ClockIn >= from).ToList();
+            var hours = (decimal)shifts.Sum(s => ((s.ClockOut ?? DateTime.Now) - s.ClockIn).TotalHours);
+            var pay = Math.Round(hours * op.Wage, 2);
+            grand += pay;
+            var open = shifts.Count(s => s.ClockOut == null);
+            rows.Add((op.Name, shifts.Count, hours, op.Wage, pay));
+            lv.Items.Add(new ListViewItem([op.Name, shifts.Count.ToString(), hours.ToString("0.0"), op.Wage.ToString("C"), pay.ToString("C"), open.ToString()]));
+        }
+        var total = new Label { Text = $"Total gross payroll: {grand:C}", AutoSize = true, Location = new Point(14, 394), ForeColor = Color.Orange, Font = new Font("Segoe UI Semibold", 13F) };
+        var export = ReportButton("Export CSV", new Point(14, 434), new Size(170, 40), mint, background);
+        export.Click += (_, _) =>
+        {
+            using var dlg = new SaveFileDialog { Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*", FileName = $"payroll-{DateTime.Now:yyyy-MM}.csv" };
+            if (dlg.ShowDialog() != DialogResult.OK) return;
+            var sb = new StringBuilder("Operator,Shifts,Hours,WagePerHour,GrossPay\n");
+            foreach (var r in rows) sb.AppendLine($"{r.Name},{r.Shifts},{r.Hours.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)},{r.Wage.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)},{r.Pay.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}");
+            sb.AppendLine($"TOTAL,,,{grand.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}");
+            File.WriteAllText(dlg.FileName, sb.ToString());
+            MessageBox.Show($"Payroll CSV exported:\n{dlg.FileName}", "Payroll export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        };
+        var close = ReportButton("Close", new Point(580, 434), new Size(130, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, lv, total, export, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowServerPerformance()
+    {
+        if (!store.Features.ServerPerformance) return;
+        using var f = ReportShell("Server performance", 780, 530);
+        var today = store.Sales.Where(s => s.Time.Date == DateTime.Today && !s.IsRefund).ToList();
+        var head = new Label { Text = $"Today — {DateTime.Today:dd/MM/yyyy}", AutoSize = true, Location = new Point(14, 12), ForeColor = mint, Font = new Font("Segoe UI Semibold", 12F) };
+        var lv = new ListView { Location = new Point(14, 42), Size = new Size(736, 350), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv.Columns.AddRange([new ColumnHeader { Text = "Server", Width = 160 }, new ColumnHeader { Text = "Sales", Width = 80 }, new ColumnHeader { Text = "Gross", Width = 110 }, new ColumnHeader { Text = "Items", Width = 80 }, new ColumnHeader { Text = "Avg ticket", Width = 110 }, new ColumnHeader { Text = "Discounts", Width = 90 }, new ColumnHeader { Text = "Refunds", Width = 90 }]);
+        var best = ""; decimal bestGross = 0;
+        foreach (var g in today.GroupBy(s => s.Operator).OrderByDescending(g => g.Sum(s => s.Total)))
+        {
+            var gross = g.Sum(s => s.Total);
+            if (gross > bestGross) { bestGross = gross; best = g.Key; }
+            var items = g.Sum(s => s.Items?.Sum(i => i.Quantity) ?? 0);
+            var avg = g.Count() > 0 ? gross / g.Count() : 0;
+            var discs = g.Count(s => s.Discount > 0);
+            var refunds = store.Sales.Count(s => s.Time.Date == DateTime.Today && s.IsRefund && s.Operator == g.Key);
+            lv.Items.Add(new ListViewItem([g.Key, g.Count().ToString(), gross.ToString("C"), items.ToString(), avg.ToString("C"), discs.ToString(), refunds.ToString()]));
+        }
+        var summary = new Label { Text = today.Count == 0 ? "No sales yet today." : $"Top server: {best} ({bestGross:C})   •   {today.Count} sales   •   {today.Sum(s => s.Total):C} gross", AutoSize = true, Location = new Point(14, 404), ForeColor = Color.Orange, Font = new Font("Segoe UI Semibold", 11F) };
+        var close = ReportButton("Close", new Point(620, 452), new Size(130, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, lv, summary, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowLiveDashboard()
+    {
+        if (!store.Features.LiveDashboard) return;
+        using var f = ReportShell("Live dashboard", 1000, 640);
+        var today = store.Sales.Where(s => s.Time.Date == DateTime.Today).ToList();
+        var gross = today.Where(s => !s.IsRefund).Sum(s => s.Total);
+        var count = today.Count(s => !s.IsRefund);
+        var kpi1 = new Label { Text = $"Sales\n{gross:C}", AutoSize = true, Location = new Point(20, 14), ForeColor = mint, Font = new Font("Segoe UI Semibold", 14F) };
+        var kpi2 = new Label { Text = $"Transactions\n{count}", AutoSize = true, Location = new Point(200, 14), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 14F) };
+        var kpi3 = new Label { Text = $"Avg ticket\n{(count > 0 ? (gross / count).ToString("C") : 0m.ToString("C"))}", AutoSize = true, Location = new Point(380, 14), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 14F) };
+        var kpi4 = new Label { Text = $"Tips\n{today.Sum(s => s.Tip):C}", AutoSize = true, Location = new Point(560, 14), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 14F) };
+        var kpi5 = new Label { Text = $"Open tables\n{store.OpenOrders.Count}", AutoSize = true, Location = new Point(730, 14), ForeColor = Color.Orange, Font = new Font("Segoe UI Semibold", 14F) };
+        var graph = new Panel { Location = new Point(20, 86), Size = new Size(720, 360), BackColor = panelLight };
+        List<Sale> gToday = today;
+        graph.Paint += (_, e) =>
+        {
+            var hours = Enumerable.Range(6, 18).Select(h => (Hour: h, Value: gToday.Where(s => s.Time.Hour == h).Sum(s => s.Total))).ToList();
+            var max = Math.Max(1m, hours.Max(x => x.Value));
+            var x = 14;
+            foreach (var row in hours)
+            {
+                var bh = (int)(280.0 * (double)row.Value / (double)max);
+                if (row.Value > 0) e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(60, 190, 120)), new Rectangle(x, 300 - bh, 34, bh));
+                if (row.Value > 0) e.Graphics.DrawString(row.Value.ToString("0"), Font, Brushes.White, x, Math.Max(2, 300 - bh - 16));
+                e.Graphics.DrawString($"{row.Hour}h", Font, Brushes.LightGray, x, 306);
+                x += 39;
+            }
+            e.Graphics.DrawString("Hourly sales — today", Font, Brushes.Gainsboro, 14, 6);
+        };
+        var lv = new ListView { Location = new Point(756, 86), Size = new Size(210, 360), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true };
+        lv.Columns.Add("Hour", 70); lv.Columns.Add("Sales", 120);
+        foreach (var h in Enumerable.Range(6, 18))
+        {
+            var v = today.Where(s => s.Time.Hour == h).Sum(s => s.Total);
+            if (v > 0) lv.Items.Add(new ListViewItem([$"{h}h", v.ToString("C")]));
+        }
+        var refresh = ReportButton("Refresh", new Point(20, 462), new Size(140, 40), mint, background);
+        refresh.Click += (_, _) => { f.Dispose(); ShowLiveDashboard(); };
+        var close = ReportButton("Close", new Point(172, 462), new Size(130, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([kpi1, kpi2, kpi3, kpi4, kpi5, graph, lv, refresh, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowCloseOfDayScreen()
+    {
+        if (!store.Features.CloseOfDay) return;
+        using var f = ReportShell("Close of day", 720, 580);
+        var today = store.Sales.Where(s => s.Time.Date == DateTime.Today).ToList();
+        var head = new Label { Text = $"Close of day — {DateTime.Today:dd/MM/yyyy}", AutoSize = true, Location = new Point(14, 12), ForeColor = mint, Font = new Font("Segoe UI Semibold", 12F) };
+        var lv = new ListView { Location = new Point(14, 42), Size = new Size(430, 460), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv.Columns.Add("Metric", 220); lv.Columns.Add("Value", 190);
+        var gross = today.Where(s => !s.IsRefund).Sum(s => s.Total);
+        var refunds = today.Where(s => s.IsRefund).Sum(s => s.Total);
+        void Row(string k, string v) => lv.Items.Add(new ListViewItem([k, v]));
+        Row("Gross sales", gross.ToString("C"));
+        Row("Refunds", refunds.ToString("C"));
+        Row("Net sales", (gross - refunds).ToString("C"));
+        Row("Transactions", today.Count(s => !s.IsRefund).ToString());
+        Row("Avg ticket", (today.Count(s => !s.IsRefund) > 0 ? (gross / today.Count(s => !s.IsRefund)) : 0).ToString("C"));
+        Row("Tips", today.Sum(s => s.Tip).ToString("C"));
+        Row("Discounts given", today.Sum(s => s.Discount).ToString("C"));
+        Row("Service fees", today.Sum(s => s.ServiceFee).ToString("C"));
+        Row("Cash discount given", today.Sum(s => s.CashDiscountAmt).ToString("C"));
+        Row("Card surcharge", today.Sum(s => s.SurchargeAmt).ToString("C"));
+        Row("Rounding", today.Sum(s => s.Rounding).ToString("C"));
+        var cash = today.Where(s => s.CashAmount >= 0).Sum(s => s.CashAmount);
+        Row("Cash collected", cash.ToString("C"));
+        var lv2 = new ListView { Location = new Point(458, 42), Size = new Size(236, 460), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv2.Columns.Add("Method", 130); lv2.Columns.Add("Sum", 100);
+        foreach (var g in today.GroupBy(s => s.PaymentType).OrderByDescending(g => g.Sum(s => s.Total)))
+            lv2.Items.Add(new ListViewItem([g.Key.Length > 16 ? g.Key[..16] : g.Key, g.Sum(s => s.Total).ToString("C")]));
+        var close = ReportButton("Close", new Point(14, 512), new Size(130, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, lv, lv2, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowDiscountVoidReport()
+    {
+        if (!store.Features.DiscountVoidReport) return;
+        using var f = ReportShell("Discount & void frequency", 860, 540);
+        var from = DateTime.Today.AddDays(-6);
+        var sales = store.Sales.Where(s => s.Time.Date >= from).ToList();
+        var head = new Label { Text = $"Last 7 days ({from:dd/MM} → today)", AutoSize = true, Location = new Point(14, 12), ForeColor = mint, Font = new Font("Segoe UI Semibold", 12F) };
+        var lv = new ListView { Location = new Point(14, 42), Size = new Size(410, 400), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv.Columns.Add("Operator", 160); lv.Columns.Add("Disc #", 70); lv.Columns.Add("Disc amount", 100); lv.Columns.Add("Voids", 70);
+        foreach (var g in sales.GroupBy(s => s.Operator))
+        {
+            var discSales = g.Where(s => s.Discount > 0).ToList();
+            var voids = g.Count(s => s.IsRefund);
+            lv.Items.Add(new ListViewItem([g.Key, discSales.Count.ToString(), discSales.Sum(s => s.Discount).ToString("C"), voids.ToString()]));
+        }
+        var lv2 = new ListView { Location = new Point(436, 42), Size = new Size(410, 400), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv2.Columns.Add("Product", 210); lv2.Columns.Add("Item disc #", 90); lv2.Columns.Add("Item disc amt", 100);
+        var itemDisc = sales.SelectMany(s => s.Items ?? []).Where(i => i.Discount > 0).GroupBy(i => i.Product).OrderByDescending(g => g.Sum(i => i.Discount)).Take(50);
+        foreach (var g in itemDisc)
+            lv2.Items.Add(new ListViewItem([g.Key, g.Count().ToString(), g.Sum(i => i.Discount).ToString("C")]));
+        var summary = new Label { Text = $"Discounted sales: {sales.Count(s => s.Discount > 0)}/{sales.Count}   •   Voids/refunds: {sales.Count(s => s.IsRefund)}   •   Discount total: {sales.Sum(s => s.Discount):C}", AutoSize = true, Location = new Point(14, 452), ForeColor = Color.Orange };
+        var close = ReportButton("Close", new Point(716, 486), new Size(130, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, lv, lv2, summary, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowOccupancyHeatmap()
+    {
+        if (!store.Features.OccupancyHeatmap) return;
+        using var f = ReportShell("Occupancy heatmap & dayparts", 760, 580);
+        var from = DateTime.Today.AddDays(-6);
+        var sales = store.Sales.Where(s => s.Time.Date >= from && !s.IsRefund).ToList();
+        var head = new Label { Text = "Orders per hour — last 7 days (brighter = busier)", AutoSize = true, Location = new Point(14, 12), ForeColor = mint, Font = new Font("Segoe UI Semibold", 12F) };
+        var lv = new ListView { Location = new Point(14, 42), Size = new Size(360, 470), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv.Columns.Add("Hour", 80); lv.Columns.Add("Orders", 90); lv.Columns.Add("Sales", 160);
+        foreach (var h in Enumerable.Range(6, 18))
+        {
+            var rows = sales.Where(s => s.Time.Hour == h).ToList();
+            var item = new ListViewItem([$"{h}h", rows.Count.ToString(), rows.Sum(s => s.Total).ToString("C")]);
+            var heat = Math.Min(255, 40 + rows.Count * 15);
+            if (rows.Count > 0) item.BackColor = Color.FromArgb(heat / 3, heat, heat / 3);
+            lv.Items.Add(item);
+        }
+        var lv2 = new ListView { Location = new Point(386, 42), Size = new Size(348, 470), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv2.Columns.Add("Daypart", 150); lv2.Columns.Add("Orders", 80); lv2.Columns.Add("Sales", 110);
+        (string Name, int Start, int End)[] parts = [("Morning (6-11)", 6, 11), ("Lunch (11-14)", 11, 14), ("Afternoon (14-17)", 14, 17), ("Dinner (17-21)", 17, 21), ("Night (21+)", 21, 24)];
+        foreach (var p in parts)
+        {
+            var rows = sales.Where(s => s.Time.Hour >= p.Start && s.Time.Hour < p.End).ToList();
+            var item = new ListViewItem([p.Name, rows.Count.ToString(), rows.Sum(s => s.Total).ToString("C")]);
+            var heat = Math.Min(255, 40 + rows.Count * 6);
+            if (rows.Count > 0) item.BackColor = Color.FromArgb(heat / 3, heat, heat / 3);
+            lv2.Items.Add(item);
+        }
+        var close = ReportButton("Close", new Point(604, 524), new Size(130, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, lv, lv2, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowMenuEngineering()
+    {
+        if (!store.Features.MenuEngineering) return;
+        using var f = ReportShell("Menu engineering matrix", 860, 560);
+        var sales = store.Sales.Where(s => !s.IsRefund).ToList();
+        var head = new Label { Text = "Popularity vs contribution — Stars / Plowhorses / Puzzles / Dogs", AutoSize = true, Location = new Point(14, 12), ForeColor = mint, Font = new Font("Segoe UI Semibold", 12F) };
+        var lv = new ListView { Location = new Point(14, 42), Size = new Size(640, 430), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, GridLines = true };
+        lv.Columns.AddRange([new ColumnHeader { Text = "Product", Width = 230 }, new ColumnHeader { Text = "Qty", Width = 60 }, new ColumnHeader { Text = "Revenue", Width = 110 }, new ColumnHeader { Text = "Share %", Width = 80 }, new ColumnHeader { Text = "Class", Width = 140 }]);
+        var items = sales.SelectMany(s => s.Items ?? []).GroupBy(i => i.Product).Select(g => new { Product = g.Key, Qty = g.Sum(i => i.Quantity), Rev = g.Sum(i => i.UnitPrice * i.Quantity - i.Discount) }).ToList();
+        if (items.Count == 0)
+        {
+            lv.Items.Add(new ListViewItem(["No item sales yet", "0", "0", "0", ""]));
+        }
+        else
+        {
+            var avgQty = items.Average(i => (double)i.Qty);
+            var avgRev = (double)items.Average(i => i.Rev);
+            var totalRev = items.Sum(i => i.Rev);
+            foreach (var i in items.OrderByDescending(i => i.Rev))
+            {
+                var cls = i.Qty >= avgQty && (double)i.Rev >= avgRev ? "Star ⭐" : i.Qty >= avgQty ? "Plowhorse" : (double)i.Rev >= avgRev ? "Puzzle" : "Dog";
+                var share = totalRev > 0 ? (double)i.Rev / (double)totalRev * 100 : 0;
+                var item = new ListViewItem([i.Product, i.Qty.ToString(), i.Rev.ToString("C"), share.ToString("0.0"), cls]);
+                if (cls.StartsWith("Star")) item.ForeColor = Color.FromArgb(130, 220, 150);
+                else if (cls == "Dog") item.ForeColor = Color.FromArgb(200, 120, 110);
+                lv.Items.Add(item);
+            }
+        }
+        var counts = new Label
+        {
+            Text = items.Count == 0 ? "" : $"⭐ Stars: {items.Count(i => i.Qty >= items.Average(x => (double)x.Qty) && (double)i.Rev >= items.Average(x => (double)x.Rev))}   •   items: {items.Count}   •   revenue: {items.Sum(i => i.Rev):C}",
+            AutoSize = true,
+            Location = new Point(14, 482),
+            ForeColor = Color.Orange
+        };
+        var close = ReportButton("Close", new Point(716, 486), new Size(130, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, lv, counts, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowAccountingExport()
+    {
+        if (!store.Features.AccountingExport) return;
+        using var f = ReportShell("Accounting export (QuickBooks / Xero)", 560, 320);
+        var title = new Label { Text = "Export sales journal as CSV", AutoSize = true, Location = new Point(20, 16), ForeColor = mint, Font = new Font("Segoe UI Semibold", 13F) };
+        var hint = new Label { Text = "Columns: Date, Time, Ref, Account, Name, Memo, Payment, Amount, Tip\nCompatible with QuickBooks / Xero import (Date, Account, Memo, Amount).", AutoSize = true, Location = new Point(20, 48), ForeColor = Color.FromArgb(143, 154, 171) };
+        var todayRb = new RadioButton { Text = "Today", Location = new Point(20, 106), AutoSize = true, ForeColor = Color.White, Checked = true };
+        var weekRb = new RadioButton { Text = "Last 7 days", Location = new Point(140, 106), AutoSize = true, ForeColor = Color.White };
+        var rowsLabel = new Label { Text = "", AutoSize = true, Location = new Point(20, 142), ForeColor = Color.Orange };
+        var export = ReportButton("Export CSV…", new Point(20, 184), new Size(170, 42), mint, background);
+        export.Click += (_, _) =>
+        {
+            var from = weekRb.Checked ? DateTime.Today.AddDays(-6) : DateTime.Today;
+            var rows = store.Sales.Where(s => s.Time.Date >= from).OrderBy(s => s.Time).ToList();
+            using var dlg = new SaveFileDialog { Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*", FileName = $"accounting-{DateTime.Now:yyyy-MM-dd}.csv" };
+            if (dlg.ShowDialog() != DialogResult.OK) return;
+            var sb = new StringBuilder("Date,Time,Ref,Account,Name,Memo,Payment,Amount,Tip\n");
+            foreach (var s in rows)
+                sb.AppendLine($"{s.Time:yyyy-MM-dd},{s.Time:HH:mm},{s.PaymentNumber},{(s.IsRefund ? "Sales Refund" : "Sales Income")},{s.CustomerName},{s.Table},{s.PaymentType},{(s.IsRefund ? -s.Total : s.Total).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)},{s.Tip.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}");
+            File.WriteAllText(dlg.FileName, sb.ToString());
+            MessageBox.Show($"{rows.Count} rows exported:\n{dlg.FileName}", "Accounting export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        };
+        var close = ReportButton("Close", new Point(410, 240), new Size(130, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([title, hint, todayRb, weekRb, rowsLabel, export, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowAiInsights()
+    {
+        if (!store.Features.AiInsights) return;
+        using var f = ReportShell("AI insights", 760, 560);
+        var from = DateTime.Today.AddDays(-6);
+        var sales = store.Sales.Where(s => s.Time.Date >= from && !s.IsRefund).ToList();
+        var lines = new List<string>();
+        if (sales.Count == 0)
+        {
+            lines.Add("No sales data yet — insights appear once orders come in.");
+        }
+        else
+        {
+            var gross = sales.Sum(s => s.Total);
+            lines.Add($"PERFORMANCE — {sales.Count} sales, {gross:C} over the last 7 days, avg ticket {(gross / sales.Count):C}.");
+            var bestHour = sales.GroupBy(s => s.Time.Hour).OrderByDescending(g => g.Sum(s => s.Total)).First();
+            lines.Add($"PEAK HOUR — {bestHour.Key}:00 generated {bestHour.Sum(s => s.Total):C} ({bestHour.Count()} sales). Consider extra staff around this hour.");
+            var items = sales.SelectMany(s => s.Items ?? []).GroupBy(i => i.Product);
+            if (items.Any())
+            {
+                var top = items.OrderByDescending(g => g.Sum(i => i.Quantity)).First();
+                lines.Add($"BEST SELLER — {top.Key}: {top.Sum(i => i.Quantity)} sold, {top.Sum(i => i.UnitPrice * i.Quantity - i.Discount):C} revenue.");
+                var slow = items.OrderBy(g => g.Sum(i => i.Quantity)).First();
+                if (slow.Key != top.Key) lines.Add($"SLOW MOVER — {slow.Key}: only {slow.Sum(i => i.Quantity)} sold. Consider a promo or removing it.");
+            }
+            var cash = sales.Where(s => s.PaymentType.StartsWith("Cash")).Sum(s => s.Total);
+            var card = sales.Where(s => s.PaymentType.StartsWith("Card")).Sum(s => s.Total);
+            if (gross > 0) lines.Add($"PAYMENT MIX — cash {cash / gross:P0}, card {card / gross:P0}. {(cash > card ? "Card adoption is low — offer contactless." : "Card-first is healthy for queue speed.")}");
+            var discSales = sales.Where(s => s.Discount > 0).ToList();
+            if (sales.Count > 0) lines.Add($"DISCOUNT RATE — {discSales.Count}/{sales.Count} sales discounted ({discSales.Sum(s => s.Discount):C} given). Watch margin if this grows.");
+            var refunds = store.Sales.Count(s => s.Time.Date >= from && s.IsRefund);
+            lines.Add($"REFUNDS — {refunds} in 7 days." + (refunds > sales.Count / 10.0 ? " High vs sales volume — review staff training." : " Within a healthy range."));
+            var daypart = sales.GroupBy(s => s.Time.Hour switch { < 11 => 0, < 14 => 1, < 17 => 2, < 21 => 3, _ => 4 }).OrderByDescending(g => g.Sum(s => s.Total)).First();
+            var dpName = daypart.Key switch { 0 => "morning", 1 => "lunch", 2 => "afternoon", 3 => "dinner", _ => "night" };
+            lines.Add($"BUSIEST DAYPART — {dpName} ({daypart.Sum(s => s.Total):C}). Staff and prep accordingly.");
+            var bestOp = sales.GroupBy(s => s.Operator).OrderByDescending(g => g.Sum(s => s.Total)).First();
+            lines.Add($"TOP SERVER — {bestOp.Key} with {bestOp.Sum(s => s.Total):C} across {bestOp.Count()} sales.");
+            if (store.Operators.Any(o => o.Wage > 0))
+            {
+                var wageCost = store.Shifts.Where(sh => sh.ClockIn >= from).Sum(sh => ((sh.ClockOut ?? DateTime.Now) - sh.ClockIn).TotalHours);
+                lines.Add($"LABOUR — {(decimal)wageCost:0.0} clocked hours in the period (wages not included in sales).");
+            }
+        }
+        var box = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Location = new Point(14, 44), Size = new Size(716, 420), BackColor = panelLight, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), BorderStyle = BorderStyle.FixedSingle, Text = string.Join("\r\n\r\n", lines.Select(l => "• " + l)) };
+        var head = new Label { Text = "Auto analysis of your sales", AutoSize = true, Location = new Point(14, 14), ForeColor = mint, Font = new Font("Segoe UI Semibold", 12F) };
+        var close = ReportButton("Close", new Point(600, 478), new Size(130, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, box, close]);
+        f.ShowDialog();
     }
 
     private void ShowCashDrawer()
@@ -7404,9 +7803,10 @@ internal sealed class SettingsForm : Form
     private readonly Panel catPanel;
     private Color _bg, _pl, _mint;
     private Action? _mOps, _mProd, _mFam, _mRooms, _showSales, _mCur, _mPrint, _endDay, _showNet, _showMod, _showCust, _showHappy, _showAudit, _showShift, _showCash, _showEmail, _showCourseNames, _showComboDeals, _showKiosk, _showCustDisp, _showFees, _showFind, _showSpecial, _showOfflineQ, _showVt;
+    private Action<string>? _report;
     private bool _canOps, _canProd, _canRooms, _canSales;
 
-    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null, Action? editFloorPlan = null, Action? showEmailSettings = null, Action? showCourseNames = null, Action? showComboDeals = null, Action? showKiosk = null, Action? showCustDisplay = null, Action? showFeeSettings = null, Action? showFindReceipt = null, Action? showSpecialOrders = null, Action? showOfflineQueue = null, Action? showVirtualTerminal = null)
+    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null, Action? editFloorPlan = null, Action? showEmailSettings = null, Action? showCourseNames = null, Action? showComboDeals = null, Action? showKiosk = null, Action? showCustDisplay = null, Action? showFeeSettings = null, Action? showFindReceipt = null, Action? showSpecialOrders = null, Action? showOfflineQueue = null, Action? showVirtualTerminal = null, Action<string>? reportAction = null)
     {
         this.features = features;
         this.saveFeatures = saveFeatures;
@@ -7426,6 +7826,7 @@ internal sealed class SettingsForm : Form
         _showSpecial = showSpecialOrders;
         _showOfflineQ = showOfflineQueue;
         _showVt = showVirtualTerminal;
+        _report = reportAction;
         Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(700, 600);
@@ -7517,7 +7918,7 @@ internal sealed class SettingsForm : Form
             btn.BackColor = newState ? onColor : offColor;
             var f = new FeatureSettings();
             foreach (var pi in typeof(FeatureSettings).GetProperties())
-                if (pi.CanWrite && pi.GetValue(features) is bool bv0) pi.SetValue(f, bv0);
+                if (pi.CanWrite && pi.GetValue(features) is not null) pi.SetValue(f, pi.GetValue(features));
             foreach (var kv in toggleButtons)
             {
                 var pi = typeof(FeatureSettings).GetProperty(kv.Key);
@@ -7563,6 +7964,20 @@ internal sealed class SettingsForm : Form
             case "reports":
                 AddBtn("Sales details", showSales, canSales);
                 AddBtn("End day (X / Z)", endDay);
+                AddToggle("LiveDashboard", "Live dashboard + hourly graph");
+                AddBtn("Live dashboard", () => _report?.Invoke("LiveDash"), features.LiveDashboard);
+                AddToggle("CloseOfDay", "Close-of-day screen (totals by method)");
+                AddBtn("Close-of-day screen", () => _report?.Invoke("CloseDay"), features.CloseOfDay);
+                AddToggle("DiscountVoidReport", "Discount & void frequency");
+                AddBtn("Discount & void frequency", () => _report?.Invoke("DiscVoid"), features.DiscountVoidReport);
+                AddToggle("OccupancyHeatmap", "Occupancy heatmap + dayparts");
+                AddBtn("Occupancy heatmap", () => _report?.Invoke("Heatmap"), features.OccupancyHeatmap);
+                AddToggle("MenuEngineering", "Menu engineering matrix");
+                AddBtn("Menu engineering matrix", () => _report?.Invoke("MenuEng"), features.MenuEngineering);
+                AddToggle("AccountingExport", "Accounting export (QuickBooks / Xero)");
+                AddBtn("Accounting export CSV", () => _report?.Invoke("AcctExport"), features.AccountingExport);
+                AddToggle("AiInsights", "AI insights (auto analysis)");
+                AddBtn("AI insights", () => _report?.Invoke("Insights"), features.AiInsights);
                 break;
             case "network":
                 AddBtn("Network settings", showNet);
@@ -7619,6 +8034,14 @@ internal sealed class SettingsForm : Form
                 AddToggle("AuditLog", "Audit log (track all actions)");
                 AddBtn("View audit log", showAudit!, features.AuditLog);
                 AddToggle("Scheduling", "Staff scheduling + tip pooling");
+                AddToggle("TrainingMode", "Training mode (sales not recorded)");
+                AddToggle("EmployeeDiscount", "Employee discount %");
+                AddBtn("Set employee discount %", () => _report?.Invoke("EmpPct"), features.EmployeeDiscount);
+                AddToggle("PinLogin", "PIN login (numeric login at startup)");
+                AddToggle("PayrollExport", "Payroll export (hours x wage CSV)");
+                AddBtn("Export payroll CSV", () => _report?.Invoke("Payroll"), features.PayrollExport);
+                AddToggle("ServerPerformance", "Server performance report");
+                AddBtn("Server performance", () => _report?.Invoke("ServerPerf"), features.ServerPerformance);
                 break;
             case "inventory":
                 AddToggle("StockManagement", "Ingredient stock / recipe deduction");
