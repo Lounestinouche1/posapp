@@ -21,14 +21,14 @@ internal static class Program
 
 internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "", bool Weighted = false);
 internal sealed record SoldLine(string Product, string Family, int Quantity, decimal UnitPrice, string Category = "General", string PrinterDestination = "", string Note = "", string Modifiers = "", decimal Discount = 0, string DiscountType = "", int Course = 0, int Seat = 0);
-internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0, string DeliveryAddress = "", decimal CashAmount = -1, decimal Tendered = 0, decimal Rounding = 0);
+    internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0, string DeliveryAddress = "", decimal CashAmount = -1, decimal Tendered = 0, decimal Rounding = 0, decimal ServiceFee = 0, decimal CashDiscountAmt = 0, decimal SurchargeAmt = 0);
 internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false, int FiredCourse = 0, string Source = "", string DeliveryAddress = "");
 internal sealed record Room(string Name, int TableCount);
     internal sealed record ProductFamily(string Name, string ImagePath = "", string PrinterDestination = "");
 internal sealed record OperatorAccount(string Name, List<string> Permissions, string Password = "", decimal Wage = 0);
 internal sealed record ModifierGroup(string Name, List<ModifierOption> Options);
 internal sealed record ModifierOption(string Name, decimal Price);
-internal sealed record Customer(string Name, string Phone = "", string Email = "", int Points = 0, decimal Balance = 0);
+    internal sealed record Customer(string Name, string Phone = "", string Email = "", int Points = 0, decimal Balance = 0, decimal TabDue = 0, decimal CreditLimit = 0);
 internal sealed record Ingredient(string Name, string Unit, decimal Stock, decimal MinStock, decimal Cost = 0, DateTime? Expiry = null);
 internal sealed record RecipeItem(string Ingredient, decimal Quantity);
 internal sealed record ShiftRecord(string Operator, DateTime ClockIn, DateTime? ClockOut = null, decimal OpeningBalance = 0, decimal ClosingBalance = 0);
@@ -39,7 +39,11 @@ internal sealed record RegisterSettings(string Currency, decimal TvaRate, bool P
 
 internal sealed record ZReportRecord(DateTime Time, int Transactions, decimal Gross, string Operator);
 internal sealed record GiftCard(string Code, decimal Balance, decimal Sold, DateTime Created);
-internal sealed record CashMovement(DateTime Time, decimal Amount, string Kind, string Reason, string Operator);
+    internal sealed record CashMovement(DateTime Time, decimal Amount, string Kind, string Reason, string Operator);
+    internal sealed record FeeSettings(decimal ServicePct = 0, decimal CashDiscPct = 0, decimal SurchargePct = 0, bool TerminalOffline = false);
+    internal sealed record SpecialOrder(int Id, DateTime Time, string Customer, string Table, decimal Total, decimal Paid, string Status, int PaymentNum);
+    internal sealed record OfflinePayment(DateTime Time, int PaymentNumber, decimal Amount, string Table, string Operator, string Status);
+    internal sealed record VtInvoice(int Id, DateTime Time, string Name, string Phone, decimal Amount, string Note, string Status);
 internal sealed record Reservation(string Name, string Phone, int PartySize, DateTime When, string Room, string Table, string Status);
 internal sealed record ScheduleEntry(string Operator, DateTime Date, TimeSpan Start, TimeSpan End);
 internal sealed record Supplier(string Name, string Phone = "", string Email = "");
@@ -250,6 +254,15 @@ internal sealed class FeatureSettings
     public bool BarcodeLabels { get; set; } = false;
     public bool WeightedItems { get; set; } = false;
     public bool ProductVariants { get; set; } = false;
+    public bool ServiceCharge { get; set; } = false;
+    public bool CashDiscount { get; set; } = false;
+    public bool CardSurcharge { get; set; } = false;
+    public bool ChargeTabs { get; set; } = false;
+    public bool Layaway { get; set; } = false;
+    public bool ReceiptSearch { get; set; } = false;
+    public bool OfflinePayments { get; set; } = false;
+    public bool VirtualTerminal { get; set; } = false;
+    public bool EGiftEmail { get; set; } = false;
 }
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -370,6 +383,10 @@ internal sealed class PosStore
     public event Action? GuestAlertRaised;
     public List<GiftCard> GiftCards { get; private set; } = [];
     public List<CashMovement> CashMovements { get; private set; } = [];
+    public FeeSettings FeeSettings { get; private set; } = new();
+    public List<SpecialOrder> SpecialOrders { get; private set; } = [];
+    public List<OfflinePayment> OfflinePayments { get; private set; } = [];
+    public List<VtInvoice> VtInvoices { get; private set; } = [];
     public List<Reservation> Reservations { get; private set; } = [];
     public List<ScheduleEntry> Schedule { get; private set; } = [];
     public List<Supplier> Suppliers { get; private set; } = [];
@@ -384,6 +401,10 @@ internal sealed class PosStore
     public EmailSettings EmailSettings { get; private set; } = new("", 587, "", "", "", true);
     private string giftCardsFile => Path.Combine(dataFolder, "gift-cards.json");
     private string cashMovementsFile => Path.Combine(dataFolder, "cash-movements.json");
+    private string feeSettingsFile => Path.Combine(dataFolder, "payment-fees.json");
+    private string specialOrdersFile => Path.Combine(dataFolder, "special-orders.json");
+    private string offlinePaymentsFile => Path.Combine(dataFolder, "offline-payments.json");
+    private string vtInvoicesFile => Path.Combine(dataFolder, "vt-invoices.json");
     private string reservationsFile => Path.Combine(dataFolder, "reservations.json");
     private string scheduleFile => Path.Combine(dataFolder, "schedule.json");
     private string suppliersFile => Path.Combine(dataFolder, "suppliers.json");
@@ -502,6 +523,14 @@ internal sealed class PosStore
             GiftCards = JsonSerializer.Deserialize<List<GiftCard>>(File.ReadAllText(giftCardsFile), JsonOptions) ?? GiftCards;
         if (File.Exists(cashMovementsFile))
             CashMovements = JsonSerializer.Deserialize<List<CashMovement>>(File.ReadAllText(cashMovementsFile), JsonOptions) ?? CashMovements;
+        if (File.Exists(feeSettingsFile))
+            FeeSettings = JsonSerializer.Deserialize<FeeSettings>(File.ReadAllText(feeSettingsFile), JsonOptions) ?? FeeSettings;
+        if (File.Exists(specialOrdersFile))
+            SpecialOrders = JsonSerializer.Deserialize<List<SpecialOrder>>(File.ReadAllText(specialOrdersFile), JsonOptions) ?? SpecialOrders;
+        if (File.Exists(offlinePaymentsFile))
+            OfflinePayments = JsonSerializer.Deserialize<List<OfflinePayment>>(File.ReadAllText(offlinePaymentsFile), JsonOptions) ?? OfflinePayments;
+        if (File.Exists(vtInvoicesFile))
+            VtInvoices = JsonSerializer.Deserialize<List<VtInvoice>>(File.ReadAllText(vtInvoicesFile), JsonOptions) ?? VtInvoices;
         if (File.Exists(reservationsFile))
             Reservations = JsonSerializer.Deserialize<List<Reservation>>(File.ReadAllText(reservationsFile), JsonOptions) ?? Reservations;
         if (File.Exists(scheduleFile))
@@ -646,6 +675,10 @@ internal sealed class PosStore
     public void SaveEightySix(List<string> items) { EightySix = items; suppressWatcher = true; File.WriteAllText(eightySixFile, JsonSerializer.Serialize(items, JsonOptions)); suppressWatcher = false; }
     public void SaveGiftCards(List<GiftCard> cards) { GiftCards = cards; suppressWatcher = true; File.WriteAllText(giftCardsFile, JsonSerializer.Serialize(cards, JsonOptions)); suppressWatcher = false; }
     public void SaveCashMovements(List<CashMovement> moves) { CashMovements = moves; suppressWatcher = true; File.WriteAllText(cashMovementsFile, JsonSerializer.Serialize(moves, JsonOptions)); suppressWatcher = false; }
+    public void SaveFees(FeeSettings fees) { FeeSettings = fees; suppressWatcher = true; File.WriteAllText(feeSettingsFile, JsonSerializer.Serialize(fees, JsonOptions)); suppressWatcher = false; }
+    public void SaveSpecialOrders(List<SpecialOrder> orders) { SpecialOrders = orders; suppressWatcher = true; File.WriteAllText(specialOrdersFile, JsonSerializer.Serialize(orders, JsonOptions)); suppressWatcher = false; }
+    public void SaveOfflinePayments(List<OfflinePayment> pays) { OfflinePayments = pays; suppressWatcher = true; File.WriteAllText(offlinePaymentsFile, JsonSerializer.Serialize(pays, JsonOptions)); suppressWatcher = false; }
+    public void SaveVtInvoices(List<VtInvoice> invs) { VtInvoices = invs; suppressWatcher = true; File.WriteAllText(vtInvoicesFile, JsonSerializer.Serialize(invs, JsonOptions)); suppressWatcher = false; }
     public void SaveReservations(List<Reservation> res) { Reservations = res; suppressWatcher = true; File.WriteAllText(reservationsFile, JsonSerializer.Serialize(res, JsonOptions)); suppressWatcher = false; }
     public void SaveSchedule(List<ScheduleEntry> entries) { Schedule = entries; suppressWatcher = true; File.WriteAllText(scheduleFile, JsonSerializer.Serialize(entries, JsonOptions)); suppressWatcher = false; }
     public void SaveSuppliers(List<Supplier> sups) { Suppliers = sups; suppressWatcher = true; File.WriteAllText(suppliersFile, JsonSerializer.Serialize(sups, JsonOptions)); suppressWatcher = false; }
@@ -1215,7 +1248,11 @@ internal sealed class PosForm : Form
         reprintButton.BackColor = Color.FromArgb(60, 110, 100);
         reprintButton.ForeColor = Color.White;
         reprintButton.Font = new Font("Segoe UI", 8F);
-        reprintButton.Click += (_, _) => { if (lastReceipt is {} r) PrintPaymentReceipt(r.Sale, r.Lines, r.DiscountPercent, r.Room, r.Table); };
+        reprintButton.Click += (_, _) =>
+        {
+            if (store.Features.ReceiptSearch) { ShowFindReceipt(lastReceipt?.Sale.Time ?? DateTime.Today); return; }
+            if (lastReceipt is {} r) PrintPaymentReceipt(r.Sale, r.Lines, r.DiscountPercent, r.Room, r.Table);
+        };
         summary.Controls.AddRange([totalCaption, totalLabel, orderButton, noteButton, payButton, splitBillButton, transferButton, mergeButton, discountButton, fireButton, delayFireButton, repeatButton, parkButton, dealsButton, reprintButton]);
         orderPanel.Controls.Add(basketList);
         orderPanel.Controls.Add(summary);
@@ -2673,6 +2710,12 @@ internal sealed class PosForm : Form
         var showRedeem = store.Features.Loyalty;
         var showAddress = orderType == "Delivery";
         var extraRows = (showAddress ? 1 : 0) + (showGift ? 2 : 0) + (showRedeem ? 1 : 0);
+        var feeCfg = store.FeeSettings;
+        var svcPct = store.Features.ServiceCharge ? feeCfg.ServicePct : 0m;
+        var cashDiscPct = store.Features.CashDiscount ? feeCfg.CashDiscPct : 0m;
+        var cardSurchPct = store.Features.CardSurcharge ? feeCfg.SurchargePct : 0m;
+        var anyFees = svcPct > 0 || cashDiscPct > 0 || cardSurchPct > 0;
+        if (anyFees) extraRows += 1;
 
         using var payForm = new Form { Text = "Payment", Size = new Size(420, 440 + 44 * extraRows + 72), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
         var yPos = 15;
@@ -2683,15 +2726,30 @@ internal sealed class PosForm : Form
 
         var discountValue = new Label { Text = basketDiscountPercent > 0 ? $"-{discount:C} ({basketDiscountPercent:0.#}%)" : "None", AutoSize = true, ForeColor = basketDiscountPercent > 0 ? Color.Orange : Color.FromArgb(143, 154, 171) };
         var tipInput = new NumericUpDown { Minimum = 0, Maximum = 10000, Value = 0, Size = new Size(120, 30), BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 4) };
+        var feeValue = new Label { AutoSize = true, ForeColor = Color.FromArgb(245, 180, 80), Location = new Point(150, 8) };
 
         var paymentCombo = new ComboBox { Size = new Size(140, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White, Location = new Point(0, 4) };
-        paymentCombo.Items.AddRange(["Cash", "Card", "Transfer", "Mobile"]); paymentCombo.SelectedIndex = 0;
+        var methodItems = new List<string> { "Cash", "Card", "Transfer", "Mobile" };
+        if (store.Features.ChargeTabs) methodItems.Add("Tab");
+        if (store.Features.Layaway) methodItems.Add("Deposit");
+        paymentCombo.Items.AddRange([.. methodItems]);
+        paymentCombo.SelectedIndex = 0;
         var splitBtn = new Button { Text = "Split…", Location = new Point(146, 4), Size = new Size(70, 30), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(70, 90, 130), ForeColor = Color.White };
         splitBtn.FlatAppearance.BorderSize = 0;
         var paymentPanel = new Panel { Location = new Point(150, 4), Size = new Size(216, 30) };
         paymentPanel.Controls.AddRange([paymentCombo, splitBtn]);
         var splitTenders = (List<(string Method, decimal Amount)>?)null;
         decimal tenderedValue = 0;
+        decimal depositAmt = 0;
+
+        void CalcFees(string method, out decimal svc, out decimal cd, out decimal su)
+        {
+            svc = svcPct > 0 ? Math.Round((totalBeforeDiscount - discount) * svcPct / 100m, 2) : 0m;
+            var withSvc = totalBeforeDiscount - discount + svc;
+            cd = cashDiscPct > 0 && method == "Cash" ? Math.Round(withSvc * cashDiscPct / 100m, 2) : 0m;
+            su = cardSurchPct > 0 && method == "Card" ? Math.Round(withSvc * cardSurchPct / 100m, 2) : 0m;
+        }
+        string CurrentMethod() => splitTenders != null ? "Split" : paymentCombo.Text;
 
         var customerCombo = new ComboBox { Size = new Size(150, 30), DropDownStyle = ComboBoxStyle.DropDown, BackColor = panelLight, ForeColor = Color.White, Location = new Point(150, 4) };
         customerCombo.Items.Add("(none)");
@@ -2705,6 +2763,7 @@ internal sealed class PosForm : Form
             MakeRow("Payment:", paymentPanel),
             MakeRow("Customer:", customerCombo)
         };
+        if (anyFees) rows.Insert(2, MakeRow("Fees:", feeValue));
 
         var addressInput = new TextBox { BackColor = panelLight, ForeColor = Color.White, Size = new Size(216, 30), Text = deliveryAddress };
         if (showAddress) rows.Add(MakeRow("Address:", addressInput));
@@ -2765,10 +2824,12 @@ internal sealed class PosForm : Form
         var tenderedInput = new NumericUpDown { Minimum = 0, Maximum = 100000000, Value = 0, DecimalPlaces = 2, Increment = 10, Size = new Size(95, 30), BackColor = panelLight, ForeColor = Color.White, Location = new Point(110, 2) };
         var changeLabel = new Label { Location = new Point(110, 36), Size = new Size(256, 26), Font = new Font("Segoe UI Semibold", 11F), ForeColor = Color.FromArgb(126, 240, 199), TextAlign = ContentAlignment.MiddleLeft };
         Panel? tenderPanel = null;
+        Button? payOk = null;
 
         decimal LiveDue()
         {
-            var d = totalBeforeDiscount - discount + tipInput.Value - appliedGiftBalance;
+            CalcFees(CurrentMethod(), out var svcF, out var cdF, out var suF);
+            var d = totalBeforeDiscount - discount + svcF - cdF + suF + tipInput.Value - appliedGiftBalance;
             if (showGift && creditCheck.Enabled && creditCheck.Checked)
                 d -= customerCombo.Text == "(none)" ? 0 : store.Customers.FirstOrDefault(x => x.Name == customerCombo.Text)?.Balance ?? 0;
             if (showRedeem && redeemInput.Enabled) d -= redeemInput.Value / 10m;
@@ -2782,8 +2843,11 @@ internal sealed class PosForm : Form
         void UpdateChange()
         {
             if (changeLabel == null) return;
+            CalcFees(CurrentMethod(), out var svcF, out var cdF, out var suF);
+            if (anyFees) feeValue.Text = (svcF > 0 ? $"service +{svcF:C}  " : "") + (cdF > 0 ? $"cash disc -{cdF:C}  " : "") + (suF > 0 ? $"card +{suF:C}" : "");
             var d = Math.Max(0, RoundCash(LiveDue()));
             var t = tenderedInput.Value;
+            if (payOk != null) payOk.Text = $"Accept payment  {d:C}";
             if (t <= 0) { changeLabel.Text = ""; return; }
             changeLabel.Text = t < d ? $"Short: {d - t:C}" : $"CHANGE:  {t - d:C}";
             changeLabel.ForeColor = t >= d ? Color.FromArgb(126, 240, 199) : Color.Orange;
@@ -2845,8 +2909,9 @@ internal sealed class PosForm : Form
         UpdateChange();
 
         payForm.Controls.AddRange([.. rows]);
-        var payOk = new Button { Text = $"Accept payment  {totalBeforeDiscount - discount:C}", Location = new Point(20, yPos), Size = new Size(370, 48), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
+        payOk = new Button { Text = $"Accept payment  {totalBeforeDiscount - discount:C}", Location = new Point(20, yPos), Size = new Size(370, 48), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 12F) };
         payOk.FlatAppearance.BorderSize = 0;
+        UpdateChange();
         payOk.Click += (_, _) =>
         {
             var due = LiveDue();
@@ -2869,6 +2934,25 @@ internal sealed class PosForm : Form
             {
                 MessageBox.Show($"Cash received ({tenderedInput.Value:C}) is less than the amount due ({cashDue:C}).", "Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
+            }
+            var selCust = customerCombo.Text == "(none)" ? null : store.Customers.FirstOrDefault(x => x.Name == customerCombo.Text);
+            if (paymentCombo.Text == "Tab" && selCust == null)
+            {
+                MessageBox.Show("Select a customer before charging to a tab.", "Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (paymentCombo.Text == "Tab" && selCust != null && selCust.CreditLimit > 0 && selCust.TabDue + due > selCust.CreditLimit)
+            {
+                MessageBox.Show($"{selCust.Name}'s credit limit is {selCust.CreditLimit:C}.\nCurrent tab due: {selCust.TabDue:C} — this payment would exceed it.", "Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (paymentCombo.Text == "Deposit")
+            {
+                if (due <= 0) { MessageBox.Show("Nothing due on this order.", "Deposit", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                var dv = PromptAmount("Deposit", $"Amount due: {due:C}\nEnter the deposit collected now (balance due on pickup, cash):");
+                if (dv is null) return;
+                if (dv.Value <= 0 || dv.Value > due + 0.005m) { MessageBox.Show($"Deposit must be between 0 and {due:C}.", "Deposit", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                depositAmt = dv.Value;
             }
             tenderedValue = tenderedInput.Value;
             payForm.DialogResult = DialogResult.OK;
@@ -2904,7 +2988,9 @@ internal sealed class PosForm : Form
             var multiplier = orderType == "Takeaway" ? 0.9m : 0.85m;
             totalBeforeDiscount = basket.Sum(item => item.Product.Price * item.Count) * multiplier;
         }
-        var finalTotal = totalBeforeDiscount - discount + tip;
+        var methodForFees = splitTenders != null ? "Split" : paymentType;
+        CalcFees(methodForFees, out var svcFee, out var cashDiscFee, out var surchFee);
+        var finalTotal = totalBeforeDiscount - discount + svcFee - cashDiscFee + surchFee + tip;
 
         var due = finalTotal;
         decimal giftApplied = 0, creditApplied = 0, redeemAmount = 0;
@@ -2938,6 +3024,7 @@ internal sealed class PosForm : Form
         if (creditApplied > 0) payParts.Add("Store credit");
         if (redeemAmount > 0) payParts.Add($"Points ({redeemPts})");
         decimal cashAmt;
+        decimal depositRemaining = 0;
         if (splitTenders is { Count: > 0 })
         {
             cashAmt = splitTenders.Where(t => t.Method == "Cash").Sum(t => t.Amount);
@@ -2946,14 +3033,55 @@ internal sealed class PosForm : Form
         }
         else
         {
-            cashAmt = due > 0 && paymentType == "Cash" ? due : 0;
-            if (due > 0) payParts.Add(paymentType);
+            if (paymentType == "Deposit")
+            {
+                depositRemaining = Math.Max(0, due - depositAmt);
+                cashAmt = depositAmt;
+                payParts.Add(depositRemaining > 0 ? $"Deposit {depositAmt:C}" : "Deposit");
+            }
+            else
+            {
+                cashAmt = due > 0 && paymentType == "Cash" ? due : 0;
+                if (due > 0) payParts.Add(paymentType);
+            }
         }
         var finalPaymentType = payParts.Count > 0 ? string.Join(" + ", payParts) : paymentType;
         var tenderedOut = splitTenders == null && paymentType == "Cash" && cashAmt > 0 ? tenderedValue : 0m;
 
-        var sale = new Sale(DateTime.Now, finalTotal, selectedTable, currentOperator.Name, lines, paymentNum, billNum, tip, finalPaymentType, customerName, orderType, discount, DeliveryAddress: deliveryAddress, CashAmount: cashAmt, Tendered: tenderedOut, Rounding: roundingOut);
+        var offlineQueued = false;
+        if (store.Features.OfflinePayments && store.FeeSettings.TerminalOffline && due > 0)
+        {
+            if (splitTenders is { Count: > 0 })
+            {
+                foreach (var part in splitTenders.Where(t => t.Method == "Card"))
+                {
+                    store.OfflinePayments.Add(new OfflinePayment(DateTime.Now, paymentNum, part.Amount, selectedTable, currentOperator.Name, "Pending"));
+                    offlineQueued = true;
+                }
+            }
+            else if (paymentType == "Card")
+            {
+                store.OfflinePayments.Add(new OfflinePayment(DateTime.Now, paymentNum, due, selectedTable, currentOperator.Name, "Pending"));
+                offlineQueued = true;
+            }
+            if (offlineQueued)
+            {
+                store.SaveOfflinePayments(store.OfflinePayments);
+                finalPaymentType += " (offline)";
+                if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Offline payment queued", $"{paymentNum} {due:C} — terminal offline");
+            }
+        }
+
+        var saleTotal = paymentType == "Deposit" ? finalTotal - depositRemaining : finalTotal;
+        var sale = new Sale(DateTime.Now, saleTotal, selectedTable, currentOperator.Name, lines, paymentNum, billNum, tip, finalPaymentType, customerName, orderType, discount, DeliveryAddress: deliveryAddress, CashAmount: cashAmt, Tendered: tenderedOut, Rounding: roundingOut, ServiceFee: svcFee, CashDiscountAmt: cashDiscFee, SurchargeAmt: surchFee);
         store.AddSale(sale);
+        if (paymentType == "Deposit" && depositRemaining > 0)
+        {
+            var soId = store.SpecialOrders.Count > 0 ? store.SpecialOrders.Max(s => s.Id) + 1 : 1;
+            store.SpecialOrders.Add(new SpecialOrder(soId, DateTime.Now, customerName, selectedTable, finalTotal, saleTotal, "Open", paymentNum));
+            store.SaveSpecialOrders(store.SpecialOrders);
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Deposit taken", $"special order #{soId} — {depositAmt:C} paid, {depositRemaining:C} due");
+        }
         lastReceipt = (sale, lines, basketDiscountPercent, selectedRoom, selectedTable);
         if (giftApplied > 0)
         {
@@ -2969,13 +3097,19 @@ internal sealed class PosForm : Form
             var cIdx = store.Customers.IndexOf(cust);
             if (cIdx >= 0)
             {
-                var earned = store.Features.Loyalty ? (int)due : 0;
-                store.Customers[cIdx] = cust with { Balance = cust.Balance - creditApplied, Points = cust.Points - redeemPts + earned };
+                var earned = store.Features.Loyalty && paymentType != "Tab" ? (int)(paymentType == "Deposit" ? saleTotal : due) : 0;
+                store.Customers[cIdx] = cust with
+                {
+                    Balance = cust.Balance - creditApplied,
+                    Points = cust.Points - redeemPts + earned,
+                    TabDue = cust.TabDue + (paymentType == "Tab" ? due : 0)
+                };
                 store.SaveCustomers(store.Customers);
+                if (paymentType == "Tab" && due > 0 && store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Tab charge", $"{cust.Name} +{due:C} (due {cust.TabDue + due:C})");
             }
         }
         if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Payment", $"{finalTotal:C} ({finalPaymentType}) {orderType} discount={discount:C} tip={tip:C}" + (giftApplied > 0 ? $" gift=-{giftApplied:C}" : "") + (creditApplied > 0 ? $" credit=-{creditApplied:C}" : "") + (redeemAmount > 0 ? $" points={redeemPts}" : ""));
-        TrySendEmailReceipt(customerName, finalPaymentType, lines, finalTotal, discount, tip, paymentNum, orderType);
+        TrySendEmailReceipt(customerName, finalPaymentType, lines, finalTotal, discount, tip, paymentNum, orderType, serviceFee: svcFee, cashDisc: cashDiscFee, surcharge: surchFee);
         if (store.Features.StockManagement && store.Recipes.Count > 0)
         {
             var alerts = new List<StockAlert>();
@@ -3604,7 +3738,8 @@ internal sealed class PosForm : Form
                 UpdateOrderButtons();
             },
             ShowModifierManager, ShowCustomerManager, ShowHappyHourManager, ShowAuditLogViewer, ShowShiftReport, ShowCashDrawer,
-            () => { floorPlanEdit = true; ShowRooms(); }, ShowEmailSettings, ManageCourseNames, ManageComboDeals, LaunchKiosk, ShowCustomerDisplay);
+            () => { floorPlanEdit = true; ShowRooms(); }, ShowEmailSettings, ManageCourseNames, ManageComboDeals, LaunchKiosk, ShowCustomerDisplay,
+            ShowFeeSettings, () => ShowFindReceipt(), ShowSpecialOrders, ShowOfflineQueue, ShowVirtualTerminal);
         settingsForm.TopLevel = false;
         settingsForm.FormBorderStyle = FormBorderStyle.None;
         settingsForm.Dock = DockStyle.Fill;
@@ -4386,12 +4521,22 @@ internal sealed class PosForm : Form
                 MessageBox.Show($"Counted: {v.Value:C}\nExpected: {expected:C}\n{(diff >= 0 ? "Over:" : "Short:")} {Math.Abs(diff):C}", "Cash-up result", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 Rebuild();
             };
-            var kickBtn = FlatBtn("Test drawer open", 20, 458, 255, 36, panelLight);
+            var kickBtn = FlatBtn("Test drawer open", 20, 458, 168, 36, panelLight);
             kickBtn.Click += (_, _) => TryOpenDrawerKick();
-            var closeBtn = FlatBtn("Close", 285, 458, 255, 36, panelLight);
+            var noSaleBtn = FlatBtn("No sale (open & log)", 196, 458, 168, 36, Color.FromArgb(120, 90, 50));
+            noSaleBtn.Click += (_, _) =>
+            {
+                var reason = PromptText("No sale", "Reason (optional, e.g. 'cashier change'):");
+                if (reason is null) return;
+                TryOpenDrawerKick();
+                AddCashMovement(0, "No sale", string.IsNullOrWhiteSpace(reason) ? "Drawer opened without a sale" : reason);
+                if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "No sale", string.IsNullOrWhiteSpace(reason) ? "drawer opened" : reason);
+                Rebuild();
+            };
+            var closeBtn = FlatBtn("Close", 372, 458, 168, 36, panelLight);
             closeBtn.Click += (_, _) => form.DialogResult = DialogResult.OK;
 
-            form.Controls.AddRange([info, lv, floatBtn, paidInBtn, paidOutBtn, countBtn, kickBtn, closeBtn]);
+            form.Controls.AddRange([info, lv, floatBtn, paidInBtn, paidOutBtn, countBtn, kickBtn, noSaleBtn, closeBtn]);
         }
 
         Rebuild();
@@ -4425,6 +4570,307 @@ internal sealed class PosForm : Form
         f.AcceptButton = ok;
         f.CancelButton = cancel;
         return f.ShowDialog() == DialogResult.OK ? input.Value : null;
+    }
+
+    private void ShowFeeSettings()
+    {
+        using var f = new Form { Text = "Fees & terminal", Size = new Size(430, 320), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var fees = store.FeeSettings;
+        var svc = new NumericUpDown { Minimum = 0, Maximum = 50, DecimalPlaces = 1, Value = Math.Min(50, fees.ServicePct), Location = new Point(200, 20), Size = new Size(120, 30), BackColor = panelLight, ForeColor = Color.White };
+        var cd = new NumericUpDown { Minimum = 0, Maximum = 50, DecimalPlaces = 1, Value = Math.Min(50, fees.CashDiscPct), Location = new Point(200, 62), Size = new Size(120, 30), BackColor = panelLight, ForeColor = Color.White };
+        var su = new NumericUpDown { Minimum = 0, Maximum = 50, DecimalPlaces = 1, Value = Math.Min(50, fees.SurchargePct), Location = new Point(200, 104), Size = new Size(120, 30), BackColor = panelLight, ForeColor = Color.White };
+        var offline = new CheckBox { Text = "Card terminal offline (queue card payments)", AutoSize = true, Location = new Point(20, 150), ForeColor = Color.White, Visible = store.Features.OfflinePayments, Checked = fees.TerminalOffline };
+        var hint = new Label { Text = "Service charge adds % to the total. Cash discount subtracts % when paid in cash. Card surcharge adds % when paid by card.", AutoSize = false, Size = new Size(390, 56), Location = new Point(20, 178), ForeColor = Color.FromArgb(143, 154, 171) };
+        var l1 = new Label { Text = "Service charge %:", AutoSize = true, Location = new Point(20, 24) };
+        var l2 = new Label { Text = "Cash discount %:", AutoSize = true, Location = new Point(20, 66) };
+        var l3 = new Label { Text = "Card surcharge %:", AutoSize = true, Location = new Point(20, 108) };
+        var save = new Button { Text = "Save", Location = new Point(20, 240), Size = new Size(140, 38), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+        var cancel = new Button { Text = "Cancel", Location = new Point(172, 240), Size = new Size(120, 38), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        save.FlatAppearance.BorderSize = 0; cancel.FlatAppearance.BorderSize = 0;
+        save.Click += (_, _) =>
+        {
+            store.SaveFees(new FeeSettings(svc.Value, cd.Value, su.Value, offline.Checked));
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Payment fees", $"service {svc.Value}% cash disc {cd.Value}% surcharge {su.Value}% offline={offline.Checked}");
+            f.DialogResult = DialogResult.OK;
+        };
+        cancel.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+        f.Controls.AddRange([l1, svc, l2, cd, l3, su, offline, hint, save, cancel]);
+        f.AcceptButton = save;
+        f.CancelButton = cancel;
+        f.ShowDialog();
+    }
+
+    private void ShowFindReceipt(DateTime? preselect = null)
+    {
+        using var f = new Form { Text = "Find receipt", Size = new Size(780, 560), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.Sizable, MaximizeBox = false, MinimizeBox = false };
+        var date = new DateTimePicker { Location = new Point(14, 12), Size = new Size(150, 26), Format = DateTimePickerFormat.Short, Value = (preselect ?? DateTime.Today).Date, BackColor = panelLight, ForeColor = Color.White };
+        var search = new TextBox { Location = new Point(176, 12), Size = new Size(300, 26), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = "Search: #, table, customer, type..." };
+        var findBtn = new Button { Text = "Find", Location = new Point(486, 10), Size = new Size(90, 30), BackColor = Color.FromArgb(55, 120, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        findBtn.FlatAppearance.BorderSize = 0;
+        var lv = new ListView { Location = new Point(14, 48), Size = new Size(738, 380), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false, GridLines = true };
+        lv.Columns.AddRange([new ColumnHeader { Text = "Time", Width = 130 }, new ColumnHeader { Text = "Pay #", Width = 60 }, new ColumnHeader { Text = "Bill #", Width = 60 }, new ColumnHeader { Text = "Table", Width = 120 }, new ColumnHeader { Text = "Customer", Width = 130 }, new ColumnHeader { Text = "Type", Width = 170 }, new ColumnHeader { Text = "Total", Width = 90 }]);
+        void RefreshList()
+        {
+            lv.Items.Clear();
+            var q = search.Text.Trim();
+            foreach (var s in store.Sales.Where(s => s.Time.Date == date.Value.Date)
+                .Where(s => q.Length == 0
+                    || s.PaymentNumber.ToString().Contains(q, StringComparison.OrdinalIgnoreCase)
+                    || s.BillNumber.ToString().Contains(q, StringComparison.OrdinalIgnoreCase)
+                    || (s.Table ?? "").Contains(q, StringComparison.OrdinalIgnoreCase)
+                    || (s.CustomerName ?? "").Contains(q, StringComparison.OrdinalIgnoreCase)
+                    || (s.PaymentType ?? "").Contains(q, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(s => s.Time))
+            {
+                lv.Items.Add(new ListViewItem([s.Time.ToString("HH:mm:ss"), s.PaymentNumber.ToString(), s.BillNumber.ToString(), s.Table ?? "", s.CustomerName ?? "", s.PaymentType ?? "", s.Total.ToString("C")]) { Tag = s });
+            }
+            if (lv.Items.Count == 0 && preselect is { } p && p.Date == date.Value.Date)
+            {
+                var last = store.Sales.LastOrDefault(s => s.Time.Date == p.Date);
+                if (last != null && lv.Items.Count == 0)
+                    foreach (var s in store.Sales.Where(s => s.Time.Date == p.Date).OrderByDescending(s => s.Time).Take(1))
+                        lv.Items.Add(new ListViewItem([s.Time.ToString("HH:mm:ss"), s.PaymentNumber.ToString(), s.BillNumber.ToString(), s.Table ?? "", s.CustomerName ?? "", s.PaymentType ?? "", s.Total.ToString("C")]) { Tag = s });
+            }
+        }
+        findBtn.Click += (_, _) => RefreshList();
+        search.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { RefreshList(); e.SuppressKeyPress = true; } };
+        date.ValueChanged += (_, _) => RefreshList();
+        RefreshList();
+        var reprintBtn = new Button { Text = "Reprint", Location = new Point(14, 442), Size = new Size(150, 40), BackColor = Color.FromArgb(60, 110, 100), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        var reopenBtn = new Button { Text = "Reopen check", Location = new Point(176, 442), Size = new Size(170, 40), BackColor = Color.FromArgb(70, 90, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        var closeBtn = new Button { Text = "Close", Location = new Point(602, 442), Size = new Size(150, 40), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        reprintBtn.FlatAppearance.BorderSize = 0; reopenBtn.FlatAppearance.BorderSize = 0; closeBtn.FlatAppearance.BorderSize = 0;
+        reprintBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0) { MessageBox.Show("Select a receipt first.", "Reprint", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            if (lv.SelectedItems[0].Tag is not Sale s) return;
+            PrintPaymentReceipt(s, s.Items ?? [], 0, "", s.Table ?? "");
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Receipt reprint", $"payment #{s.PaymentNumber} {s.Total:C}");
+        };
+        reopenBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0) { MessageBox.Show("Select a receipt first.", "Reopen", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            if (lv.SelectedItems[0].Tag is not Sale s) return;
+            var items = s.Items ?? [];
+            if (items.Count == 0) { MessageBox.Show("This sale has no line items to reopen.", "Reopen", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (basket.Count > 0 && MessageBox.Show($"Replace the current basket ({basket.Count} line(s)) with this check?", "Reopen", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (hasOpenOrder)
+            {
+                MessageBox.Show("Finish or park the open order on this table before reopening a closed check.", "Reopen", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            basket.Clear();
+            foreach (var item in items)
+            {
+                var product = products.FirstOrDefault(p => p.Name == item.Product);
+                if (product == null) continue;
+                var idx = basket.FindIndex(b => b.Product == product && b.Note == item.Note && b.Modifiers == item.Modifiers);
+                if (idx >= 0) basket[idx] = (product, basket[idx].Count + item.Quantity, basket[idx].Course, basket[idx].Note, item.Seat, JoinMods(basket[idx].Modifiers, item.Modifiers));
+                else basket.Add((product, item.Quantity, item.Course, item.Note, item.Seat, item.Modifiers));
+            }
+            hasOpenOrder = false;
+            RenderBasket();
+            UpdateOrderButtons();
+            orderLabel.Text = OrderContextText();
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Check reopened", $"payment #{s.PaymentNumber} into basket");
+            f.DialogResult = DialogResult.OK;
+        };
+        closeBtn.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+        f.Controls.AddRange([date, search, findBtn, lv, reprintBtn, reopenBtn, closeBtn]);
+        f.AcceptButton = findBtn;
+        f.ShowDialog();
+    }
+
+    private void ShowSpecialOrders()
+    {
+        if (!store.Features.Layaway) return;
+        using var f = new Form { Text = "Special orders & deposits", Size = new Size(760, 520), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var lv = new ListView { Location = new Point(14, 12), Size = new Size(716, 360), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false, GridLines = true };
+        lv.Columns.AddRange([new ColumnHeader { Text = "#", Width = 50 }, new ColumnHeader { Text = "Created", Width = 130 }, new ColumnHeader { Text = "Customer", Width = 140 }, new ColumnHeader { Text = "Table", Width = 100 }, new ColumnHeader { Text = "Total", Width = 90 }, new ColumnHeader { Text = "Paid", Width = 90 }, new ColumnHeader { Text = "Due", Width = 90 }, new ColumnHeader { Text = "Status", Width = 90 }]);
+        void RefreshList()
+        {
+            lv.Items.Clear();
+            foreach (var o in store.SpecialOrders.OrderByDescending(o => o.Time))
+            {
+                var item = new ListViewItem([o.Id.ToString(), o.Time.ToString("dd/MM HH:mm"), o.Customer, o.Table, o.Total.ToString("C"), o.Paid.ToString("C"), (o.Total - o.Paid).ToString("C"), o.Status]) { Tag = o };
+                if (o.Status == "Delivered") item.ForeColor = Color.FromArgb(130, 200, 150);
+                else if (o.Status == "Cancelled") item.ForeColor = Color.FromArgb(150, 160, 175);
+                lv.Items.Add(item);
+            }
+        }
+        RefreshList();
+        void Save() => store.SaveSpecialOrders(store.SpecialOrders);
+        var collectBtn = new Button { Text = "Collect balance", Location = new Point(14, 384), Size = new Size(170, 40), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        var cancelBtn = new Button { Text = "Cancel order", Location = new Point(196, 384), Size = new Size(150, 40), BackColor = Color.FromArgb(180, 70, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        var closeBtn = new Button { Text = "Close", Location = new Point(596, 384), Size = new Size(134, 40), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        collectBtn.FlatAppearance.BorderSize = 0; cancelBtn.FlatAppearance.BorderSize = 0; closeBtn.FlatAppearance.BorderSize = 0;
+        collectBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0 || lv.SelectedItems[0].Tag is not SpecialOrder o) { MessageBox.Show("Select a special order first.", "Collect", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            if (o.Status != "Open") { MessageBox.Show($"This order is {o.Status}.", "Collect", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            var due = o.Total - o.Paid;
+            if (due <= 0) return;
+            using var pf = new Form { Text = "Collect balance", Size = new Size(400, 250), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+            var cap = new Label { Text = $"Order #{o.Id} — balance due: {due:C}", AutoSize = true, Location = new Point(20, 16) };
+            var amt = new NumericUpDown { Minimum = 0.01m, Maximum = 1000000, DecimalPlaces = 2, Value = Math.Min(1000000, due), Location = new Point(20, 50), Size = new Size(170, 30), BackColor = panelLight, ForeColor = Color.White };
+            var methodLabel = new Label { Text = "Paid by:", AutoSize = true, Location = new Point(20, 94) };
+            var method = new ComboBox { Location = new Point(20, 118), Size = new Size(170, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+            method.Items.AddRange(["Cash", "Card", "Transfer", "Mobile"]);
+            method.SelectedIndex = 0;
+            var ok = new Button { Text = "Collect", Location = new Point(20, 162), Size = new Size(130, 38), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+            var cancel2 = new Button { Text = "Cancel", Location = new Point(162, 162), Size = new Size(110, 38), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            ok.FlatAppearance.BorderSize = 0; cancel2.FlatAppearance.BorderSize = 0;
+            ok.Click += (_, _) => pf.DialogResult = DialogResult.OK;
+            cancel2.Click += (_, _) => pf.DialogResult = DialogResult.Cancel;
+            pf.Controls.AddRange([cap, amt, methodLabel, method, ok, cancel2]);
+            pf.AcceptButton = ok;
+            if (pf.ShowDialog() != DialogResult.OK) return;
+            var oi = store.SpecialOrders.FindIndex(x => x.Id == o.Id);
+            if (oi < 0) return;
+            var paid = amt.Value;
+            store.SpecialOrders[oi] = store.SpecialOrders[oi] with { Paid = store.SpecialOrders[oi].Paid + paid, Status = store.SpecialOrders[oi].Total - store.SpecialOrders[oi].Paid - paid <= 0.005m ? "Delivered" : "Open" };
+            Save();
+            store.AddSale(new Sale(DateTime.Now, paid, o.Table, currentOperator.Name, [], store.NextPaymentNumber(), o.PaymentNum, 0, $"{method.Text} (special #{o.Id})", o.Customer, "Special", 0, CashAmount: method.Text == "Cash" ? paid : 0));
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Special order balance", $"#{o.Id} +{paid:C} via {method.Text} → {store.SpecialOrders[oi].Status}");
+            RefreshList();
+        };
+        cancelBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0 || lv.SelectedItems[0].Tag is not SpecialOrder o) { MessageBox.Show("Select a special order first.", "Cancel", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            if (o.Status != "Open") { MessageBox.Show($"This order is {o.Status}.", "Cancel", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (MessageBox.Show($"Cancel special order #{o.Id}?\nDeposit of {o.Paid:C} is kept (refund separately if needed).", "Cancel order", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            var oi = store.SpecialOrders.FindIndex(x => x.Id == o.Id);
+            if (oi >= 0) store.SpecialOrders[oi] = store.SpecialOrders[oi] with { Status = "Cancelled" };
+            Save();
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Special order cancelled", $"#{o.Id}");
+            RefreshList();
+        };
+        closeBtn.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([lv, collectBtn, cancelBtn, closeBtn]);
+        f.ShowDialog();
+    }
+
+    private void ShowOfflineQueue()
+    {
+        if (!store.Features.OfflinePayments) return;
+        using var f = new Form { Text = "Offline payment queue", Size = new Size(680, 480), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var status = new Label { Text = store.FeeSettings.TerminalOffline ? "Terminal mode: OFFLINE — card payments are being queued." : "Terminal mode: ONLINE.", AutoSize = true, Location = new Point(14, 14), ForeColor = store.FeeSettings.TerminalOffline ? Color.Orange : Color.FromArgb(130, 200, 150) };
+        var lv = new ListView { Location = new Point(14, 44), Size = new Size(636, 300), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false, GridLines = true };
+        lv.Columns.AddRange([new ColumnHeader { Text = "Time", Width = 130 }, new ColumnHeader { Text = "Pay #", Width = 60 }, new ColumnHeader { Text = "Table", Width = 110 }, new ColumnHeader { Text = "Operator", Width = 110 }, new ColumnHeader { Text = "Amount", Width = 100 }, new ColumnHeader { Text = "Status", Width = 90 }]);
+        void RefreshList()
+        {
+            lv.Items.Clear();
+            foreach (var p in store.OfflinePayments.OrderByDescending(p => p.Time))
+            {
+                var item = new ListViewItem([p.Time.ToString("dd/MM HH:mm"), p.PaymentNumber.ToString(), p.Table, p.Operator, p.Amount.ToString("C"), p.Status]) { Tag = p };
+                if (p.Status == "Pending") item.ForeColor = Color.Orange;
+                lv.Items.Add(item);
+            }
+        }
+        RefreshList();
+        var settleBtn = new Button { Text = "Terminal back online — settle all", Location = new Point(14, 356), Size = new Size(250, 40), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        var closeBtn = new Button { Text = "Close", Location = new Point(516, 356), Size = new Size(134, 40), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        settleBtn.FlatAppearance.BorderSize = 0; closeBtn.FlatAppearance.BorderSize = 0;
+        settleBtn.Click += (_, _) =>
+        {
+            var pending = store.OfflinePayments.Where(p => p.Status == "Pending").ToList();
+            if (pending.Count == 0) { MessageBox.Show("No pending offline payments.", "Offline queue", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            foreach (var p in pending)
+            {
+                var i = store.OfflinePayments.FindIndex(x => x.PaymentNumber == p.PaymentNumber && x.Time == p.Time);
+                if (i >= 0) store.OfflinePayments[i] = store.OfflinePayments[i] with { Status = "Cleared" };
+            }
+            store.SaveOfflinePayments(store.OfflinePayments);
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Offline payments settled", $"{pending.Count} payment(s), {pending.Sum(p => p.Amount):C}");
+            MessageBox.Show($"{pending.Count} offline payment(s) settled ({pending.Sum(p => p.Amount):C}).\n{pending.Sum(p => p.Amount):C} should be on the card terminal batch.", "Offline queue", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            RefreshList();
+        };
+        closeBtn.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([status, lv, settleBtn, closeBtn]);
+        f.ShowDialog();
+    }
+
+    private void ShowVirtualTerminal()
+    {
+        if (!store.Features.VirtualTerminal) return;
+        using var f = new Form { Text = "Virtual terminal (phone orders)", Size = new Size(760, 540), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var amtLabel = new Label { Text = "Amount:", AutoSize = true, Location = new Point(14, 16) };
+        var amt = new NumericUpDown { Minimum = 0.01m, Maximum = 1000000, DecimalPlaces = 2, Location = new Point(80, 12), Size = new Size(120, 30), BackColor = panelLight, ForeColor = Color.White };
+        var nameLabel = new Label { Text = "Name:", AutoSize = true, Location = new Point(214, 16) };
+        var nameBox = new TextBox { Location = new Point(258, 12), Size = new Size(150, 26), BackColor = panelLight, ForeColor = Color.White };
+        var phoneLabel = new Label { Text = "Phone:", AutoSize = true, Location = new Point(420, 16) };
+        var phoneBox = new TextBox { Location = new Point(468, 12), Size = new Size(130, 26), BackColor = panelLight, ForeColor = Color.White };
+        var noteBox = new TextBox { Location = new Point(80, 48), Size = new Size(518, 26), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = "Note (optional)" };
+        var createBtn = new Button { Text = "Create invoice link", Location = new Point(612, 12), Size = new Size(134, 62), BackColor = Color.FromArgb(60, 130, 90), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5F) };
+        createBtn.FlatAppearance.BorderSize = 0;
+        var lv = new ListView { Location = new Point(14, 88), Size = new Size(732, 340), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false, GridLines = true };
+        lv.Columns.AddRange([new ColumnHeader { Text = "#", Width = 50 }, new ColumnHeader { Text = "Created", Width = 130 }, new ColumnHeader { Text = "Name", Width = 130 }, new ColumnHeader { Text = "Phone", Width = 110 }, new ColumnHeader { Text = "Amount", Width = 90 }, new ColumnHeader { Text = "Status", Width = 80 }, new ColumnHeader { Text = "Note", Width = 110 }]);
+        string LinkFor(int id) => $"http://{TcpPrintServer.LocalIp}:8080/vt/{id}";
+        void RefreshList()
+        {
+            lv.Items.Clear();
+            foreach (var inv in store.VtInvoices.OrderByDescending(v => v.Time))
+            {
+                var item = new ListViewItem([inv.Id.ToString(), inv.Time.ToString("dd/MM HH:mm"), inv.Name, inv.Phone, inv.Amount.ToString("C"), inv.Status, inv.Note]) { Tag = inv };
+                if (inv.Status == "Paid") item.ForeColor = Color.FromArgb(130, 200, 150);
+                lv.Items.Add(item);
+            }
+        }
+        RefreshList();
+        createBtn.Click += (_, _) =>
+        {
+            if (amt.Value <= 0) { MessageBox.Show("Enter an amount.", "Virtual terminal", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (string.IsNullOrWhiteSpace(nameBox.Text)) { MessageBox.Show("Enter the customer's name.", "Virtual terminal", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            var id = store.VtInvoices.Count > 0 ? store.VtInvoices.Max(v => v.Id) + 1 : 1;
+            store.VtInvoices.Add(new VtInvoice(id, DateTime.Now, nameBox.Text.Trim(), phoneBox.Text.Trim(), amt.Value, noteBox.Text.Trim(), "Pending"));
+            store.SaveVtInvoices(store.VtInvoices);
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "VT invoice", $"#{id} {amt.Value:C} for {nameBox.Text.Trim()}");
+            var link = LinkFor(id);
+            try { Clipboard.SetText(link); } catch { }
+            MessageBox.Show($"Invoice created.\n\nLink (copied to clipboard):\n{link}\n\nThe customer opens it on their phone and pays online.", "Virtual terminal", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            amt.Value = 0.01m; noteBox.Text = "";
+            RefreshList();
+        };
+        var openBtn = new Button { Text = "Copy link", Location = new Point(14, 440), Size = new Size(130, 40), BackColor = Color.FromArgb(55, 120, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        var markBtn = new Button { Text = "Mark paid", Location = new Point(156, 440), Size = new Size(140, 40), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        var delBtn = new Button { Text = "Delete", Location = new Point(308, 440), Size = new Size(120, 40), BackColor = Color.FromArgb(180, 70, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        var closeBtn = new Button { Text = "Close", Location = new Point(616, 440), Size = new Size(130, 40), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 10F) };
+        foreach (var b in new[] { openBtn, markBtn, delBtn, closeBtn }) b.FlatAppearance.BorderSize = 0;
+        void MarkPaid(VtInvoice inv)
+        {
+            if (inv.Status == "Paid") return;
+            var i = store.VtInvoices.FindIndex(v => v.Id == inv.Id);
+            if (i >= 0) store.VtInvoices[i] = store.VtInvoices[i] with { Status = "Paid" };
+            store.SaveVtInvoices(store.VtInvoices);
+            store.AddSale(new Sale(DateTime.Now, inv.Amount, "VT", currentOperator.Name, [], store.NextPaymentNumber(), 0, 0, $"VT #{inv.Id} {inv.Name}", inv.Name, "Phone order", 0));
+            if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "VT paid", $"#{inv.Id} {inv.Amount:C} {inv.Name}");
+            RefreshList();
+        }
+        openBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0 || lv.SelectedItems[0].Tag is not VtInvoice inv) { MessageBox.Show("Select an invoice first.", "Virtual terminal", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            var link = LinkFor(inv.Id);
+            try { Clipboard.SetText(link); } catch { }
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(link) { UseShellExecute = true }); } catch { }
+        };
+        markBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0 || lv.SelectedItems[0].Tag is not VtInvoice inv) { MessageBox.Show("Select an invoice first.", "Virtual terminal", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            if (inv.Status == "Paid") { MessageBox.Show("Already paid.", "Virtual terminal", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            MarkPaid(inv);
+        };
+        delBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0 || lv.SelectedItems[0].Tag is not VtInvoice inv) { MessageBox.Show("Select an invoice first.", "Virtual terminal", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            if (inv.Status == "Paid") { MessageBox.Show("Paid invoices cannot be deleted.", "Virtual terminal", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (MessageBox.Show($"Delete pending invoice #{inv.Id} ({inv.Amount:C})?", "Virtual terminal", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            store.VtInvoices.RemoveAll(v => v.Id == inv.Id);
+            store.SaveVtInvoices(store.VtInvoices);
+            RefreshList();
+        };
+        closeBtn.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([amtLabel, amt, nameLabel, nameBox, phoneLabel, phoneBox, noteBox, createBtn, lv, openBtn, markBtn, delBtn, closeBtn]);
+        f.ShowDialog();
     }
 
     private void TryOpenDrawerKick()
@@ -4514,18 +4960,21 @@ internal sealed class PosForm : Form
         var topUpBtn = B("Add funds", Color.FromArgb(200, 140, 60));
         sellBtn.Click += (_, _) =>
         {
-            using var f = new Form { Text = "Sell gift card", Size = new Size(360, 250), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+            using var f = new Form { Text = "Sell gift card", Size = new Size(360, store.Features.EGiftEmail ? 312 : 250), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
             var cap = new Label { Text = "Card value:", AutoSize = true, Location = new Point(20, 18) };
             var amount = new NumericUpDown { Minimum = 1, Maximum = 100000, Value = 25, Location = new Point(20, 45), Size = new Size(160, 30), BackColor = panelLight, ForeColor = Color.White, DecimalPlaces = 2 };
             var payLabel = new Label { Text = "Paid by:", AutoSize = true, Location = new Point(20, 88) };
             var pay = new ComboBox { Location = new Point(20, 113), Size = new Size(160, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
             pay.Items.AddRange(["Cash", "Card"]); pay.SelectedIndex = 0;
-            var ok = new Button { Text = "Sell", Location = new Point(20, 158), Size = new Size(120, 38), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
-            var cancel = new Button { Text = "Cancel", Location = new Point(150, 158), Size = new Size(120, 38), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var emailLabel = new Label { Text = "E-gift to:", AutoSize = true, Location = new Point(20, 156), Visible = store.Features.EGiftEmail };
+            var emailBox = new TextBox { Location = new Point(20, 181), Size = new Size(250, 26), BackColor = panelLight, ForeColor = Color.White, Visible = store.Features.EGiftEmail, PlaceholderText = "recipient@email.com (optional)" };
+            var ok = new Button { Text = "Sell", Location = new Point(20, 216), Size = new Size(120, 38), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+            var cancel = new Button { Text = "Cancel", Location = new Point(150, 216), Size = new Size(120, 38), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            if (!store.Features.EGiftEmail) { ok.Location = new Point(20, 158); cancel.Location = new Point(150, 158); }
             ok.FlatAppearance.BorderSize = 0; cancel.FlatAppearance.BorderSize = 0;
             ok.Click += (_, _) => f.DialogResult = DialogResult.OK;
             cancel.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
-            f.Controls.AddRange([cap, amount, payLabel, pay, ok, cancel]);
+            f.Controls.AddRange(store.Features.EGiftEmail ? [cap, amount, payLabel, pay, emailLabel, emailBox, ok, cancel] : [cap, amount, payLabel, pay, ok, cancel]);
             f.AcceptButton = ok;
             if (f.ShowDialog() != DialogResult.OK) return;
             var code = NewGiftCardCode();
@@ -4533,7 +4982,14 @@ internal sealed class PosForm : Form
             store.SaveGiftCards(store.GiftCards);
             store.AddSale(new Sale(DateTime.Now, amount.Value, "Gift card", currentOperator.Name, [], store.NextPaymentNumber(), 0, 0, $"Gift card sold ({pay.Text})", "", "Takeaway", 0, CashAmount: pay.Text == "Cash" ? amount.Value : 0));
             if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Gift card sold", $"{code} for {amount.Value:C} ({pay.Text})");
-            MessageBox.Show($"Gift card created\n\nCode: {code}\nValue: {amount.Value:C}", "Gift card sold", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            var emailSent = false;
+            if (store.Features.EGiftEmail && !string.IsNullOrWhiteSpace(emailBox.Text) && emailBox.Text.Contains('@'))
+            {
+                emailSent = SendMailWithAttachment(emailBox.Text.Trim(), $"Your gift card — {amount.Value:C}",
+                    $"Your gift card code is {code}\nValue: {amount.Value:C}\nUse it at the counter anytime.", "");
+                if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "E-gift sent", $"{code} → {emailBox.Text.Trim()} ok={emailSent}");
+            }
+            MessageBox.Show($"Gift card created\n\nCode: {code}\nValue: {amount.Value:C}" + (store.Features.EGiftEmail && emailBox.Text.Contains('@') ? (emailSent ? $"\n\nE-gift emailed to {emailBox.Text.Trim()}" : $"\n\nEmail failed — check SMTP settings (Settings > Receipts).") : ""), "Gift card sold", MessageBoxButtons.OK, MessageBoxIcon.Information);
             Rebuild();
         };
         checkBtn.Click += (_, _) =>
@@ -5504,7 +5960,7 @@ internal sealed class PosForm : Form
         }
     }
 
-    private void TrySendEmailReceipt(string customerName, string paymentType, List<SoldLine> lines, decimal finalTotal, decimal discount, decimal tip, int paymentNum, string orderType)
+    private void TrySendEmailReceipt(string customerName, string paymentType, List<SoldLine> lines, decimal finalTotal, decimal discount, decimal tip, int paymentNum, string orderType, decimal serviceFee = 0, decimal cashDisc = 0, decimal surcharge = 0)
     {
         if (!store.Features.EmailReceipts) return;
         var es = store.EmailSettings;
@@ -5512,17 +5968,21 @@ internal sealed class PosForm : Form
         if (string.IsNullOrWhiteSpace(customerName)) return;
         var cust = store.Customers.FirstOrDefault(c => c.Name == customerName);
         if (cust == null || string.IsNullOrWhiteSpace(cust.Email)) return;
+        var feeLine = (serviceFee > 0 || cashDisc > 0 || surcharge > 0)
+            ? "Fees: " + string.Join("  ", new[] { serviceFee > 0 ? $"service +{serviceFee:C}" : "", cashDisc > 0 ? $"cash discount -{cashDisc:C}" : "", surcharge > 0 ? $"card surcharge +{surcharge:C}" : "" }.Where(s => s.Length > 0)) + Environment.NewLine
+            : "";
         var body = new System.Text.StringBuilder()
             .AppendLine("Thank you for your visit!")
             .AppendLine($"Date: {DateTime.Now:dd/MM/yyyy HH:mm}")
-            .AppendLine($"Operator: {currentOperator.Name}  •  Table: {selectedTable}  •  {orderType}")
-            .AppendLine($"Payment #{paymentNum}  •  {paymentType}")
+            .AppendLine($"Operator: {currentOperator.Name}   Table: {selectedTable}   {orderType}")
+            .AppendLine($"Payment #{paymentNum}   {paymentType}")
             .AppendLine("---")
             .ToString()
             + string.Join(Environment.NewLine, lines.Select(l => $"{l.Quantity} x {l.Product}  {(l.UnitPrice * l.Quantity):C}"))
             + Environment.NewLine
             + $"Discount: -{discount:C}   Tip: {tip:C}"
             + Environment.NewLine
+            + feeLine
             + $"TOTAL: {finalTotal:C}";
         var to = cust.Email;
         var fromAddr = es.From;
@@ -5638,7 +6098,61 @@ internal sealed class PosForm : Form
         }
         if (method == "GET" && path == "/status")
             return HtmlResponse(BuildStatusPage(query));
+        if (method == "GET" && path.StartsWith("/vt/") && !path.EndsWith("/pay"))
+            return HtmlResponse(BuildVtPage(path[4..]));
+        if (method == "POST" && path.StartsWith("/vt/") && path.EndsWith("/pay"))
+        {
+            var idStr = path[4..^4].TrimEnd('/');
+            if (!int.TryParse(idStr, out var vtId)) return JsonResponse(new { ok = false, error = "Bad invoice id." });
+            var vtIdx = store.VtInvoices.FindIndex(v => v.Id == vtId && v.Status == "Pending");
+            if (vtIdx < 0) return JsonResponse(new { ok = false, error = "Invoice not found or already paid." });
+            var vtInv = store.VtInvoices[vtIdx];
+            store.VtInvoices[vtIdx] = vtInv with { Status = "Paid" };
+            store.SaveVtInvoices(store.VtInvoices);
+            store.AddSale(new Sale(DateTime.Now, vtInv.Amount, "VT", "Web", [], store.NextPaymentNumber(), 0, 0, $"VT #{vtInv.Id} {vtInv.Name}", vtInv.Name, "Phone order", 0));
+            if (store.Features.AuditLog) store.LogAudit("Web", "VT paid", $"#{vtInv.Id} {vtInv.Amount:C} {vtInv.Name}");
+            return JsonResponse(new { ok = true, amount = vtInv.Amount });
+        }
         return "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+    }
+
+    private string BuildVtPage(string idStr)
+    {
+        var inv = int.TryParse(idStr, out var vid) ? store.VtInvoices.FirstOrDefault(v => v.Id == vid) : null;
+        if (inv == null)
+            return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Invoice</title></head><body style=\"font-family:sans-serif;background:#141a24;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0\"><div style=\"text-align:center\"><h2>Invoice not found</h2><p>Ask the merchant for a new link.</p></div></body></html>";
+        var nameJson = JsonSerializer.Serialize(inv.Name);
+        var noteJson = JsonSerializer.Serialize(inv.Note);
+        return $$"""
+            <!doctype html>
+            <html lang="en">
+            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Payment {{inv.Id}}</title></head>
+            <body style="font-family:sans-serif;background:#141a24;color:#fff;margin:0;display:flex;align-items:center;justify-content:center;height:100vh">
+              <div style="background:#1d2634;padding:32px;border-radius:14px;max-width:420px;width:92%;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.45)">
+                <div style="font-size:14px;color:#8fa0b8;letter-spacing:.12em">VECTRON POS — PHONE ORDER</div>
+                <h2 style="margin:12px 0 4px">Invoice #{{inv.Id}}</h2>
+                <div id="who" style="color:#c8d4e6"></div>
+                <div style="font-size:44px;font-weight:700;color:#7ef0c6;margin:18px 0">{{inv.Amount.ToString("0.00")}} DA</div>
+                <button id="pay" style="background:#2fbf71;color:#fff;border:0;border-radius:10px;padding:16px 30px;font-size:18px;font-weight:600;cursor:pointer;width:100%">Pay now</button>
+                <div id="msg" style="margin-top:16px;min-height:24px;color:#7ef0c6;font-weight:600"></div>
+                <script>
+                  const WHO = {{nameJson}}, NOTE = {{noteJson}};
+                  document.getElementById('who').textContent = WHO + (NOTE ? ' — ' + NOTE : '');
+                  const btn = document.getElementById('pay'), msg = document.getElementById('msg');
+                  btn.onclick = async () => {
+                    btn.disabled = true; btn.textContent = 'Processing…';
+                    try {
+                      const r = await fetch('/vt/{{inv.Id}}/pay', { method: 'POST' });
+                      const j = await r.json();
+                      if (j.ok) { msg.textContent = 'Payment confirmed. Thank you!'; btn.textContent = 'Paid ✓'; btn.style.background = '#20875a'; }
+                      else { msg.style.color = '#ff8a7a'; msg.textContent = j.error || 'Payment failed.'; btn.disabled = false; btn.textContent = 'Pay now'; }
+                    } catch (e) { msg.style.color = '#ff8a7a'; msg.textContent = 'Network error — try again.'; btn.disabled = false; btn.textContent = 'Pay now'; }
+                  };
+                </script>
+              </div>
+            </body>
+            </html>
+            """;
     }
 
     private static string BuildStatusPage(string query)
@@ -6199,12 +6713,37 @@ internal sealed class PosForm : Form
 
     private void ShowCustomerManager()
     {
+        if (!store.Features.CustomerDatabase) return;
         var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15) };
-        var lv = new ListView { Dock = DockStyle.Fill, BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true };
-        lv.Columns.Add("Name", 120); lv.Columns.Add("Phone", 100); lv.Columns.Add("Email", 120); lv.Columns.Add("Points", 60);
-        foreach (var c in store.Customers) lv.Items.Add(new ListViewItem([c.Name, c.Phone, c.Email, c.Points.ToString()]));
-        var addBtn = new Button { Text = "Add customer", Dock = DockStyle.Bottom, Height = 36, BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
-        addBtn.FlatAppearance.BorderSize = 0;
+        var lv = new ListView { Dock = DockStyle.Fill, BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false };
+        lv.Columns.Add("Name", 120); lv.Columns.Add("Phone", 100); lv.Columns.Add("Email", 130); lv.Columns.Add("Points", 55);
+        if (store.Features.ChargeTabs) { lv.Columns.Add("Credit", 75); lv.Columns.Add("Tab due", 75); lv.Columns.Add("Limit", 65); }
+        void Rebuild()
+        {
+            lv.Items.Clear();
+            foreach (var c in store.Customers)
+            {
+                var cols = new List<string> { c.Name, c.Phone, c.Email, c.Points.ToString() };
+                if (store.Features.ChargeTabs) cols.AddRange([c.Balance.ToString("C"), c.TabDue.ToString("C"), c.CreditLimit > 0 ? c.CreditLimit.ToString("C") : "—"]);
+                var item = new ListViewItem([.. cols]);
+                if (store.Features.ChargeTabs && c.TabDue > 0) item.ForeColor = Color.Orange;
+                lv.Items.Add(item);
+            }
+        }
+        Rebuild();
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 46, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 6, 0, 0) };
+        Button B(string text, Color back)
+        {
+            var b = new Button { Text = text, Size = new Size(170, 36), BackColor = back, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 8, 0), Font = new Font("Segoe UI Semibold", 9.5F) };
+            b.FlatAppearance.BorderSize = 0;
+            return b;
+        }
+        var addBtn = B("Add customer", mint);
+        addBtn.ForeColor = background;
+        var limitBtn = B("Set credit limit", Color.FromArgb(55, 120, 130));
+        limitBtn.Visible = store.Features.ChargeTabs;
+        var payTabBtn = B("Pay tab", Color.FromArgb(60, 130, 90));
+        payTabBtn.Visible = store.Features.ChargeTabs;
         addBtn.Click += (_, _) =>
         {
             using var f = new Form { Text = "Add customer", Size = new Size(360, 220), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
@@ -6215,9 +6754,65 @@ internal sealed class PosForm : Form
             ok.FlatAppearance.BorderSize = 0;
             f.Controls.AddRange([new Label { Text = "Name", AutoSize = true, Location = new Point(20, 12) }, n, new Label { Text = "Phone", AutoSize = true, Location = new Point(20, 55) }, p, new Label { Text = "Email", AutoSize = true, Location = new Point(20, 95) }, e, ok]);
             ok.Click += (_, _) => { store.Customers.Add(new Customer(n.Text, p.Text, e.Text)); store.SaveCustomers(store.Customers); f.DialogResult = DialogResult.OK; };
-            if (f.ShowDialog() == DialogResult.OK) ShowCustomerManager();
+            if (f.ShowDialog() == DialogResult.OK) Rebuild();
         };
-        panel.Controls.Add(lv); panel.Controls.Add(addBtn);
+        limitBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0) { MessageBox.Show("Select a customer first.", "Credit limit", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            var name = lv.SelectedItems[0].Text;
+            var ci = store.Customers.FindIndex(c => c.Name == name);
+            if (ci < 0) return;
+            using var f = new Form { Text = $"Credit limit — {name}", Size = new Size(380, 220), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+            var cap = new Label { Text = $"Current: {(store.Customers[ci].CreditLimit > 0 ? store.Customers[ci].CreditLimit.ToString("C") : "no limit")}  •  tab due {store.Customers[ci].TabDue:C}", AutoSize = true, Location = new Point(20, 16) };
+            var input = new NumericUpDown { Minimum = 0, Maximum = 1000000, DecimalPlaces = 2, Value = Math.Min(1000000, store.Customers[ci].CreditLimit), Location = new Point(20, 56), Size = new Size(170, 30), BackColor = panelLight, ForeColor = Color.White };
+            var hint = new Label { Text = "0 = no limit.", AutoSize = true, Location = new Point(20, 94), ForeColor = Color.FromArgb(143, 154, 171) };
+            var ok = new Button { Text = "Save", Location = new Point(20, 126), Size = new Size(110, 34), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+            var cancel = new Button { Text = "Cancel", Location = new Point(140, 126), Size = new Size(110, 34), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            ok.FlatAppearance.BorderSize = 0; cancel.FlatAppearance.BorderSize = 0;
+            ok.Click += (_, _) =>
+            {
+                store.Customers[ci] = store.Customers[ci] with { CreditLimit = input.Value };
+                store.SaveCustomers(store.Customers);
+                if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Credit limit", $"{name} → {input.Value:C}");
+                f.DialogResult = DialogResult.OK;
+            };
+            cancel.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+            f.Controls.AddRange([cap, input, hint, ok, cancel]);
+            if (f.ShowDialog() == DialogResult.OK) Rebuild();
+        };
+        payTabBtn.Click += (_, _) =>
+        {
+            if (lv.SelectedItems.Count == 0) { MessageBox.Show("Select a customer first.", "Pay tab", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            var name = lv.SelectedItems[0].Text;
+            var ci = store.Customers.FindIndex(c => c.Name == name);
+            if (ci < 0) return;
+            var due = store.Customers[ci].TabDue;
+            if (due <= 0) { MessageBox.Show($"{name} has no tab balance.", "Pay tab", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            using var f = new Form { Text = $"Pay tab — {name}", Size = new Size(400, 250), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+            var cap = new Label { Text = $"Tab due: {due:C}", AutoSize = true, Location = new Point(20, 16) };
+            var amt = new NumericUpDown { Minimum = 0.01m, Maximum = 1000000, DecimalPlaces = 2, Value = Math.Min(1000000, due), Location = new Point(20, 50), Size = new Size(170, 30), BackColor = panelLight, ForeColor = Color.White };
+            var methodLabel = new Label { Text = "Paid by:", AutoSize = true, Location = new Point(20, 94) };
+            var method = new ComboBox { Location = new Point(20, 118), Size = new Size(170, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
+            method.Items.AddRange(["Cash", "Card", "Transfer", "Mobile"]);
+            method.SelectedIndex = 0;
+            var ok = new Button { Text = "Pay", Location = new Point(20, 162), Size = new Size(120, 38), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
+            var cancel = new Button { Text = "Cancel", Location = new Point(150, 162), Size = new Size(110, 38), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            ok.FlatAppearance.BorderSize = 0; cancel.FlatAppearance.BorderSize = 0;
+            ok.Click += (_, _) =>
+            {
+                var paid = amt.Value;
+                store.Customers[ci] = store.Customers[ci] with { TabDue = Math.Max(0, store.Customers[ci].TabDue - paid) };
+                store.SaveCustomers(store.Customers);
+                store.AddSale(new Sale(DateTime.Now, paid, "Tab", currentOperator.Name, [], store.NextPaymentNumber(), 0, 0, $"Tab payment ({method.Text})", name, "Tab payment", 0, CashAmount: method.Text == "Cash" ? paid : 0));
+                if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Tab payment", $"{name} {paid:C} via {method.Text} — remaining {store.Customers[ci].TabDue:C}");
+                f.DialogResult = DialogResult.OK;
+            };
+            cancel.Click += (_, _) => f.DialogResult = DialogResult.Cancel;
+            f.Controls.AddRange([cap, amt, methodLabel, method, ok, cancel]);
+            if (f.ShowDialog() == DialogResult.OK) Rebuild();
+        };
+        buttons.Controls.AddRange(store.Features.ChargeTabs ? [addBtn, limitBtn, payTabBtn] : [addBtn]);
+        panel.Controls.Add(lv); panel.Controls.Add(buttons);
         ShowView(panel, "Customer Database", ShowSettings);
     }
 
@@ -6808,10 +7403,10 @@ internal sealed class SettingsForm : Form
     private readonly Panel contentPanel;
     private readonly Panel catPanel;
     private Color _bg, _pl, _mint;
-    private Action? _mOps, _mProd, _mFam, _mRooms, _showSales, _mCur, _mPrint, _endDay, _showNet, _showMod, _showCust, _showHappy, _showAudit, _showShift, _showCash, _showEmail, _showCourseNames, _showComboDeals, _showKiosk, _showCustDisp;
+    private Action? _mOps, _mProd, _mFam, _mRooms, _showSales, _mCur, _mPrint, _endDay, _showNet, _showMod, _showCust, _showHappy, _showAudit, _showShift, _showCash, _showEmail, _showCourseNames, _showComboDeals, _showKiosk, _showCustDisp, _showFees, _showFind, _showSpecial, _showOfflineQ, _showVt;
     private bool _canOps, _canProd, _canRooms, _canSales;
 
-    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null, Action? editFloorPlan = null, Action? showEmailSettings = null, Action? showCourseNames = null, Action? showComboDeals = null, Action? showKiosk = null, Action? showCustDisplay = null)
+    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null, Action? editFloorPlan = null, Action? showEmailSettings = null, Action? showCourseNames = null, Action? showComboDeals = null, Action? showKiosk = null, Action? showCustDisplay = null, Action? showFeeSettings = null, Action? showFindReceipt = null, Action? showSpecialOrders = null, Action? showOfflineQueue = null, Action? showVirtualTerminal = null)
     {
         this.features = features;
         this.saveFeatures = saveFeatures;
@@ -6826,6 +7421,11 @@ internal sealed class SettingsForm : Form
         _showComboDeals = showComboDeals;
         _showKiosk = showKiosk;
         _showCustDisp = showCustDisplay;
+        _showFees = showFeeSettings;
+        _showFind = showFindReceipt;
+        _showSpecial = showSpecialOrders;
+        _showOfflineQ = showOfflineQueue;
+        _showVt = showVirtualTerminal;
         Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(700, 600);
@@ -6999,6 +7599,18 @@ internal sealed class SettingsForm : Form
                 AddBtn("Open cash drawer", showCash!, features.CashDrawer);
                 AddToggle("CashRounding", "Round cash payments to nearest 5");
                 AddToggle("GiftCards", "Gift cards & store credit");
+                AddToggle("EGiftEmail", "E-gift card email delivery");
+                AddToggle("ServiceCharge", "Service charge %");
+                AddToggle("CashDiscount", "Cash discount % (cash pays less)");
+                AddToggle("CardSurcharge", "Card surcharge %");
+                AddBtn("Fees & terminal settings", _showFees!, features.ServiceCharge || features.CashDiscount || features.CardSurcharge || features.OfflinePayments);
+                AddToggle("ChargeTabs", "Tabs / charge accounts with credit limit");
+                AddToggle("Layaway", "Deposits & special orders (layaway)");
+                AddBtn("Special orders / deposits", _showSpecial!, features.Layaway);
+                AddToggle("OfflinePayments", "Offline card payments (queue while terminal down)");
+                AddBtn("Offline payment queue", _showOfflineQ!, features.OfflinePayments);
+                AddToggle("VirtualTerminal", "Virtual terminal (phone orders, invoice links)");
+                AddBtn("Virtual terminal", _showVt!, features.VirtualTerminal);
                 break;
             case "staff":
                 AddToggle("ClockInOut", "Clock in / out");
@@ -7039,6 +7651,8 @@ internal sealed class SettingsForm : Form
             case "receipts":
                 AddToggle("EmailReceipts", "Email / SMS receipts");
                 AddBtn("Email / SMTP settings", _showEmail!, features.EmailReceipts);
+                AddToggle("ReceiptSearch", "Find, reprint & reopen any past receipt");
+                AddBtn("Find past receipts", _showFind!, features.ReceiptSearch);
                 AddToggle("MultiLanguage", "Multi-language (FR / AR / EN)");
                 break;
         }
