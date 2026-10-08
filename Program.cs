@@ -21,7 +21,7 @@ internal static class Program
 
 internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "", bool Weighted = false);
 internal sealed record SoldLine(string Product, string Family, int Quantity, decimal UnitPrice, string Category = "General", string PrinterDestination = "", string Note = "", string Modifiers = "", decimal Discount = 0, string DiscountType = "", int Course = 0, int Seat = 0);
-    internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0, string DeliveryAddress = "", decimal CashAmount = -1, decimal Tendered = 0, decimal Rounding = 0, decimal ServiceFee = 0, decimal CashDiscountAmt = 0, decimal SurchargeAmt = 0, string Branch = "");
+    internal sealed record Sale(DateTime Time, decimal Total, string Table, string Operator = "Unknown", List<SoldLine>? Items = null, int PaymentNumber = 0, int BillNumber = 0, decimal Tip = 0, string PaymentType = "Cash", string CustomerName = "", string OrderType = "Dine-in", decimal Discount = 0, bool IsRefund = false, int RefundOf = 0, string DeliveryAddress = "", decimal CashAmount = -1, decimal Tendered = 0, decimal Rounding = 0, decimal ServiceFee = 0, decimal CashDiscountAmt = 0, decimal SurchargeAmt = 0, string Branch = "", string Device = "");
 internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false, int FiredCourse = 0, string Source = "", string DeliveryAddress = "");
 internal sealed record Room(string Name, int TableCount);
     internal sealed record ProductFamily(string Name, string ImagePath = "", string PrinterDestination = "");
@@ -287,6 +287,12 @@ internal sealed class FeatureSettings
     public int KdsPrepMinutes { get; set; } = 15;
     public List<string> Branches { get; set; } = [];
     public string CurrentBranch { get; set; } = "";
+    public bool CloudSync { get; set; } = false;
+    public string CloudSyncUrl { get; set; } = "";
+    public string CloudSyncKey { get; set; } = "";
+    public int CloudSyncMinutes { get; set; } = 5;
+    public string CloudSyncDevice { get; set; } = "";
+    public string CloudSyncLast { get; set; } = "";
 }
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -590,6 +596,9 @@ internal sealed class PosStore
             ParkedOrders = JsonSerializer.Deserialize<List<ParkedOrder>>(File.ReadAllText(parkedOrdersFile), JsonOptions) ?? ParkedOrders;
         if (File.Exists(comboDealsFile))
             ComboDeals = JsonSerializer.Deserialize<List<ComboDeal>>(File.ReadAllText(comboDealsFile), JsonOptions) ?? ComboDeals;
+        SyncQueue = File.Exists(syncQueueFile)
+            ? JsonSerializer.Deserialize<List<Sale>>(File.ReadAllText(syncQueueFile), JsonOptions) ?? []
+            : [];
         if (File.Exists(countersFile))
         {
             var counters = JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(countersFile), JsonOptions);
@@ -625,11 +634,38 @@ internal sealed class PosStore
     {
         if (Features.MultiBranch && !string.IsNullOrWhiteSpace(Features.CurrentBranch))
             sale = sale with { Branch = Features.CurrentBranch };
+        if (!string.IsNullOrWhiteSpace(Features.CloudSyncDevice))
+            sale = sale with { Device = Features.CloudSyncDevice };
         Sales.Add(sale);
         suppressWatcher = true;
         File.WriteAllText(file, JsonSerializer.Serialize(Sales, JsonOptions));
         suppressWatcher = false;
         FireWebhook(sale);
+        EnqueueSync(sale);
+    }
+
+    public bool HasSale(Sale sale) => Sales.Any(s => s.PaymentNumber == sale.PaymentNumber && s.Time == sale.Time && s.Total == sale.Total);
+
+    public void SaveSales()
+    {
+        suppressWatcher = true;
+        File.WriteAllText(file, JsonSerializer.Serialize(Sales, JsonOptions));
+        suppressWatcher = false;
+    }
+
+    public void EnqueueSync(Sale sale)
+    {
+        if (!Features.CloudSync) return;
+        SyncQueue.Add(sale);
+        if (SyncQueue.Count > 2000) SyncQueue.RemoveRange(0, SyncQueue.Count - 2000);
+        SaveSyncQueue();
+    }
+
+    public void SaveSyncQueue()
+    {
+        suppressWatcher = true;
+        try { File.WriteAllText(syncQueueFile, JsonSerializer.Serialize(SyncQueue, JsonOptions)); } catch { }
+        suppressWatcher = false;
     }
 
     private void FireWebhook(Sale sale)
@@ -671,6 +707,8 @@ internal sealed class PosStore
     internal sealed class PrepRecord { public DateTime Time { get; set; } public int Minutes { get; set; } }
     private string prepFile => Path.Combine(dataFolder, "prep-times.json");
     public List<PrepRecord> PrepTimes { get; private set; } = [];
+    private string syncQueueFile => Path.Combine(dataFolder, "sync-queue.json");
+    public List<Sale> SyncQueue { get; private set; } = [];
 
     public void AddPrepTime(int minutes)
     {
@@ -1059,8 +1097,9 @@ internal sealed class PosForm : Form
         RenderProducts();
         RenderBasket();
         TicketLayout.CourseNames = store.CourseNames.ToArray();
-        if ((store.Features.QROrdering || store.Features.ApiEnabled) && !isOrderPc) StartQrServer();
+        if ((store.Features.QROrdering || store.Features.ApiEnabled || store.Features.CloudSync) && !isOrderPc) StartQrServer();
         StartBackupScheduler();
+        StartCloudSyncScheduler();
 
         store.DataChanged += OnDataChanged;
         store.GuestAlertRaised += OnGuestAlertRaised;
@@ -3842,8 +3881,8 @@ internal sealed class PosForm : Form
                 seatBar.Visible = features.SeatOrdering;
                 orderHeader.Height = features.SeatOrdering ? 116 : 102;
                 RenderSeatBar();
-                if ((features.QROrdering || features.ApiEnabled) && !isOrderPc) StartQrServer();
-                else if (!features.QROrdering && !features.ApiEnabled) StopQrServer();
+                if ((features.QROrdering || features.ApiEnabled || features.CloudSync) && !isOrderPc) StartQrServer();
+                else if (!features.QROrdering && !features.ApiEnabled && !features.CloudSync) StopQrServer();
                 quickSaleBtn.Visible = features.QuickSaleMode;
                 barcodeBox!.Visible = features.BarcodeScanning || features.QuickSaleMode;
                 trainingBar.Visible = features.TrainingMode;
@@ -4592,6 +4631,7 @@ internal sealed class PosForm : Form
             case "Branches": ShowBranchesDialog(); break;
             case "GuestUrl": ShowGuestUrlDialog(); break;
             case "PrepAnalytics": ShowPrepAnalytics(); break;
+            case "CloudSync": ShowCloudSyncDialog(); break;
         }
     }
 
@@ -4945,6 +4985,152 @@ internal sealed class PosForm : Form
         t.Start();
     }
 
+    private bool syncRunning;
+    private DateTime lastCloudSync = DateTime.MinValue;
+
+    private void StartCloudSyncScheduler()
+    {
+        var t = new System.Windows.Forms.Timer { Interval = 60 * 1000 };
+        t.Tick += (_, _) =>
+        {
+            try
+            {
+                if (!store.Features.CloudSync) return;
+                var mins = Math.Clamp(store.Features.CloudSyncMinutes, 1, 1440);
+                if ((DateTime.Now - lastCloudSync).TotalMinutes < mins) return;
+                RunCloudSync(false);
+            }
+            catch { }
+        };
+        t.Start();
+    }
+
+    private void RunCloudSync(bool showResult)
+    {
+        if (syncRunning || IsDisposed || !IsHandleCreated) return;
+        var url = store.Features.CloudSyncUrl.Trim().TrimEnd('/');
+        if (url.Length == 0)
+        {
+            if (showResult)
+                MessageBox.Show("Set the cloud sync server URL first\n(Settings > Network > Cloud sync settings).", "Cloud sync", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (string.IsNullOrEmpty(store.Features.CloudSyncDevice))
+        {
+            store.Features.CloudSyncDevice = Environment.MachineName;
+            store.SaveFeatures(store.Features);
+        }
+        var key = string.IsNullOrEmpty(store.Features.CloudSyncKey) ? store.Features.ApiKey : store.Features.CloudSyncKey;
+        var device = store.Features.CloudSyncDevice;
+        var since = store.Features.CloudSyncLast;
+        var queued = store.SyncQueue.ToList();
+        syncRunning = true;
+        lastCloudSync = DateTime.Now;
+        _ = Task.Run(async () =>
+        {
+            string status = "";
+            int pushed = 0, added = 0;
+            bool pushedOk = true;
+            string serverTime = "";
+            var pulled = new List<Sale>();
+            try
+            {
+                using var hc = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                if (queued.Count > 0)
+                {
+                    var payload = JsonSerializer.Serialize(new { key, device, sales = queued });
+                    var resp = await hc.PostAsync($"{url}/sync/sales", new System.Net.Http.StringContent(payload, Encoding.UTF8, "application/json"));
+                    var text = await resp.Content.ReadAsStringAsync();
+                    using var pdoc = JsonDocument.Parse(text);
+                    var proot = pdoc.RootElement;
+                    if (proot.TryGetProperty("ok", out var okp) && okp.ValueKind == JsonValueKind.True)
+                    {
+                        pushed = queued.Count;
+                        status = $"Pushed {pushed} sale(s).";
+                    }
+                    else
+                    {
+                        pushedOk = false;
+                        status = "Push failed: " + (proot.TryGetProperty("error", out var ep) ? ep.GetString() : $"HTTP {(int)resp.StatusCode}");
+                    }
+                }
+                else
+                {
+                    status = "Nothing to push.";
+                }
+                if (pushedOk)
+                {
+                    var g = await hc.GetAsync($"{url}/sync/sales?since={Uri.EscapeDataString(since)}&device={Uri.EscapeDataString(device)}&key={Uri.EscapeDataString(key)}");
+                    var gtext = await g.Content.ReadAsStringAsync();
+                    using var gdoc = JsonDocument.Parse(gtext);
+                    var groot = gdoc.RootElement;
+                    if (groot.TryGetProperty("ok", out var gok) && gok.ValueKind == JsonValueKind.True)
+                    {
+                        if (groot.TryGetProperty("server_time", out var st)) serverTime = st.GetString() ?? "";
+                        if (groot.TryGetProperty("sales", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var el in arr.EnumerateArray())
+                            {
+                                try
+                                {
+                                    var s = JsonSerializer.Deserialize<Sale>(el.GetRawText());
+                                    if (s == null || s.Device == device) continue;
+                                    pulled.Add(s);
+                                }
+                                catch { }
+                            }
+                        }
+                        status += $" Fetched {pulled.Count} remote sale(s).";
+                    }
+                    else
+                    {
+                        status += " Pull failed: " + (groot.TryGetProperty("error", out var gep) ? gep.GetString() : $"HTTP {(int)g.StatusCode}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                status = "Sync error: " + ex.Message;
+            }
+            try
+            {
+                BeginInvoke((Action)(() =>
+                {
+                    try
+                    {
+                        foreach (var s in pulled)
+                        {
+                            if (store.HasSale(s)) continue;
+                            store.Sales.Add(s);
+                            added++;
+                        }
+                        if (added > 0)
+                        {
+                            store.Sales.Sort((a, b) => a.Time.CompareTo(b.Time));
+                            store.SaveSales();
+                        }
+                        if (pushedOk && queued.Count > 0)
+                        {
+                            var pushedSet = new HashSet<Sale>(queued);
+                            store.SyncQueue.RemoveAll(pushedSet.Contains);
+                            store.SaveSyncQueue();
+                        }
+                        if (!string.IsNullOrEmpty(serverTime) && serverTime != store.Features.CloudSyncLast)
+                        {
+                            store.Features.CloudSyncLast = serverTime;
+                            store.SaveFeatures(store.Features);
+                        }
+                        if (added > 0) status += $" Added {added} new sale(s) locally.";
+                    }
+                    finally { syncRunning = false; }
+                    if (showResult)
+                        MessageBox.Show(status, "Cloud sync", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }));
+            }
+            catch { syncRunning = false; }
+        });
+    }
+
     private void ShowBackupDialog()
     {
         if (!store.Features.CloudBackup) return;
@@ -5055,6 +5241,55 @@ internal sealed class PosForm : Form
         var close = ReportButton("Close", new Point(480, 396), new Size(125, 40), panelLight, Color.White);
         close.Click += (_, _) => f.DialogResult = DialogResult.OK;
         f.Controls.AddRange([head, ep, keyLbl, keyTxt, gen, hookLbl, hookTxt, test, hookHint, save, close]);
+        f.ShowDialog();
+    }
+
+    private void ShowCloudSyncDialog()
+    {
+        if (!store.Features.CloudSync) return;
+        using var f = ReportShell("Cloud sync", 640, 430);
+        var head = new Label { Text = "Sync server URL (base address, e.g. http://hq.example.com:8080):", AutoSize = true, Location = new Point(20, 14), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
+        var urlTxt = new TextBox { Text = store.Features.CloudSyncUrl, Location = new Point(20, 44), Size = new Size(580, 30), BackColor = panelLight, ForeColor = Color.White };
+        var keyLbl = new Label { Text = "Shared key (leave empty to reuse the API key):", AutoSize = true, Location = new Point(20, 86), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
+        var keyTxt = new TextBox { Text = store.Features.CloudSyncKey, Location = new Point(20, 116), Size = new Size(300, 30), BackColor = panelLight, ForeColor = Color.White };
+        var minLbl = new Label { Text = "Sync every (minutes):", AutoSize = true, Location = new Point(350, 86), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
+        var minNum = new NumericUpDown { Minimum = 1, Maximum = 1440, Value = Math.Clamp(store.Features.CloudSyncMinutes, 1, 1440), Location = new Point(350, 116), Size = new Size(110, 30), BackColor = panelLight, ForeColor = Color.White };
+        var status = new Label
+        {
+            Text = $"Device: {(store.Features.CloudSyncDevice.Length == 0 ? Environment.MachineName : store.Features.CloudSyncDevice)}\n" +
+                   $"Sales waiting to push: {store.SyncQueue.Count}\n" +
+                   $"Last sync: {(store.Features.CloudSyncLast.Length == 0 ? "never" : store.Features.CloudSyncLast)}",
+            Location = new Point(20, 160), Size = new Size(580, 74), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9.5F)
+        };
+        var hint = new Label
+        {
+            Text = "This till pushes every completed sale to the server and pulls sales from\nother devices. Duplicates are detected automatically by payment + time.",
+            Location = new Point(20, 244), Size = new Size(580, 46), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F)
+        };
+        void SaveSettings()
+        {
+            store.Features.CloudSyncUrl = urlTxt.Text.Trim().TrimEnd('/');
+            store.Features.CloudSyncKey = keyTxt.Text.Trim();
+            store.Features.CloudSyncMinutes = (int)minNum.Value;
+            if (string.IsNullOrEmpty(store.Features.CloudSyncDevice))
+                store.Features.CloudSyncDevice = Environment.MachineName;
+            store.SaveFeatures(store.Features);
+        }
+        var save = ReportButton("Save settings", new Point(20, 306), new Size(150, 40), mint, background);
+        save.Click += (_, _) =>
+        {
+            SaveSettings();
+            MessageBox.Show("Cloud sync settings saved.", "Cloud sync", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        };
+        var now = ReportButton("Sync now", new Point(184, 306), new Size(140, 40), mint, background);
+        now.Click += (_, _) =>
+        {
+            SaveSettings();
+            RunCloudSync(true);
+        };
+        var close = ReportButton("Close", new Point(338, 306), new Size(120, 40), panelLight, Color.White);
+        close.Click += (_, _) => f.DialogResult = DialogResult.OK;
+        f.Controls.AddRange([head, urlTxt, keyLbl, keyTxt, minLbl, minNum, status, hint, save, now, close]);
         f.ShowDialog();
     }
 
@@ -6917,6 +7152,73 @@ internal sealed class PosForm : Form
                 }).ToList()
             });
         }
+        if (path == "/sync/sales")
+        {
+            static string QVs(string q, string k)
+            {
+                foreach (var pair in q.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var kv = pair.Split('=', 2);
+                    if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
+                }
+                return "";
+            }
+            if (!store.Features.CloudSync && !store.Features.ApiEnabled)
+                return JsonResponse(new { ok = false, error = "Cloud sync is disabled (Settings > Network)." });
+            var expectKey = !string.IsNullOrEmpty(store.Features.CloudSyncKey) ? store.Features.CloudSyncKey : store.Features.ApiKey;
+            if (method == "GET")
+            {
+                if (!string.IsNullOrEmpty(expectKey) && QVs(query, "key") != expectKey)
+                    return JsonResponse(new { ok = false, error = "Missing or invalid ?key=." });
+                var requester = QVs(query, "device");
+                DateTime.TryParse(QVs(query, "since"), null, System.Globalization.DateTimeStyles.RoundtripKind, out var since);
+                var q = store.Sales.Where(s => s.Time > since).AsEnumerable();
+                if (!string.IsNullOrEmpty(requester)) q = q.Where(s => s.Device != requester);
+                var picked = q.OrderBy(s => s.Time).Take(500).ToList();
+                return JsonResponse(new { ok = true, server_time = DateTime.Now.ToString("o"), sales = picked });
+            }
+            if (method == "POST")
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(body);
+                    var root = doc.RootElement;
+                    var pkey = root.TryGetProperty("key", out var kp) ? kp.GetString() ?? "" : "";
+                    if (!string.IsNullOrEmpty(expectKey) && pkey != expectKey)
+                        return JsonResponse(new { ok = false, error = "Missing or invalid key." });
+                    var pdevice = root.TryGetProperty("device", out var dp) ? dp.GetString() ?? "" : "";
+                    var added = 0;
+                    if (root.TryGetProperty("sales", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in arr.EnumerateArray())
+                        {
+                            try
+                            {
+                                var incoming = JsonSerializer.Deserialize<Sale>(el.GetRawText());
+                                if (incoming == null) continue;
+                                if (store.HasSale(incoming)) continue;
+                                if (string.IsNullOrEmpty(incoming.Device) && !string.IsNullOrEmpty(pdevice))
+                                    incoming = incoming with { Device = pdevice };
+                                store.Sales.Add(incoming);
+                                added++;
+                            }
+                            catch { }
+                        }
+                        if (added > 0)
+                        {
+                            store.Sales.Sort((a, b) => a.Time.CompareTo(b.Time));
+                            store.SaveSales();
+                        }
+                    }
+                    return JsonResponse(new { ok = true, added });
+                }
+                catch (Exception ex)
+                {
+                    return JsonResponse(new { ok = false, error = ex.Message });
+                }
+            }
+            return JsonResponse(new { ok = false, error = "Use GET or POST /sync/sales." });
+        }
         if (method == "POST" && path == "/api/order")
             return HandleQrOrder(body);
         if (method == "GET" && path == "/api/call")
@@ -8443,6 +8745,8 @@ internal sealed class SettingsForm : Form
                 AddBtn("Backup & restore", () => _report?.Invoke("Backup"), features.CloudBackup);
                 AddToggle("ApiEnabled", "REST API for external systems (POS → ERP / BI)");
                 AddBtn("API key & webhooks", () => _report?.Invoke("ApiCfg"), features.ApiEnabled);
+                AddToggle("CloudSync", "Cloud sync (share sales with a head-office server)");
+                AddBtn("Cloud sync settings", () => _report?.Invoke("CloudSync"), features.CloudSync);
                 break;
             case "ordering":
                 AddToggle("SplitBill", "Split bill (by seat or item)");
