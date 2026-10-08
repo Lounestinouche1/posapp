@@ -3891,7 +3891,7 @@ internal sealed class PosForm : Form
             },
             ShowModifierManager, ShowCustomerManager, ShowHappyHourManager, ShowAuditLogViewer, ShowShiftReport, ShowCashDrawer,
             () => { floorPlanEdit = true; ShowRooms(); }, ShowEmailSettings, ManageCourseNames, ManageComboDeals, LaunchKiosk, ShowCustomerDisplay,
-            ShowFeeSettings, () => ShowFindReceipt(), ShowSpecialOrders, ShowOfflineQueue, ShowVirtualTerminal, DispatchReport);
+            ShowFeeSettings, () => ShowFindReceipt(), ShowSpecialOrders, ShowOfflineQueue, ShowVirtualTerminal, DispatchReport, ShowOrder);
         settingsForm.TopLevel = false;
         settingsForm.FormBorderStyle = FormBorderStyle.None;
         settingsForm.Dock = DockStyle.Fill;
@@ -8563,9 +8563,10 @@ internal sealed class SettingsForm : Form
     private Color _bg, _pl, _mint;
     private Action? _mOps, _mProd, _mFam, _mRooms, _showSales, _mCur, _mPrint, _endDay, _showNet, _showMod, _showCust, _showHappy, _showAudit, _showShift, _showCash, _showEmail, _showCourseNames, _showComboDeals, _showKiosk, _showCustDisp, _showFees, _showFind, _showSpecial, _showOfflineQ, _showVt;
     private Action<string>? _report;
+    private Action? _onDone;
     private bool _canOps, _canProd, _canRooms, _canSales;
 
-    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null, Action? editFloorPlan = null, Action? showEmailSettings = null, Action? showCourseNames = null, Action? showComboDeals = null, Action? showKiosk = null, Action? showCustDisplay = null, Action? showFeeSettings = null, Action? showFindReceipt = null, Action? showSpecialOrders = null, Action? showOfflineQueue = null, Action? showVirtualTerminal = null, Action<string>? reportAction = null)
+    public SettingsForm(Color background, Color panelLight, Color mint, Action manageOperators, Action manageProducts, Action manageFamilies, Action manageRooms, Action showSales, Action manageCurrency, Action managePrinters, Action endDay, Action showNetwork, bool canManageOperators, bool canManageProducts, bool canManageRooms, bool canViewSales, FeatureSettings features, Action<FeatureSettings> saveFeatures, Action? showModifierManager = null, Action? showCustomerManager = null, Action? showHappyHourManager = null, Action? showAuditLog = null, Action? showShiftReport = null, Action? showCashDrawer = null, Action? editFloorPlan = null, Action? showEmailSettings = null, Action? showCourseNames = null, Action? showComboDeals = null, Action? showKiosk = null, Action? showCustDisplay = null, Action? showFeeSettings = null, Action? showFindReceipt = null, Action? showSpecialOrders = null, Action? showOfflineQueue = null, Action? showVirtualTerminal = null, Action<string>? reportAction = null, Action? onDone = null)
     {
         this.features = features;
         this.saveFeatures = saveFeatures;
@@ -8586,6 +8587,7 @@ internal sealed class SettingsForm : Form
         _showOfflineQ = showOfflineQueue;
         _showVt = showVirtualTerminal;
         _report = reportAction;
+        _onDone = onDone;
         Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(700, 600);
@@ -8626,7 +8628,11 @@ internal sealed class SettingsForm : Form
         var bottomPanel = new Panel { Dock = DockStyle.Bottom, Height = 90, BackColor = Color.FromArgb(18, 24, 36) };
         var closeBtn = new Button { Text = "Done", Size = new Size(176, 38), Location = new Point(12, 8), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
         closeBtn.FlatAppearance.BorderSize = 0;
-        closeBtn.Click += (_, _) => { DialogResult = DialogResult.OK; };
+        closeBtn.Click += (_, _) =>
+        {
+            if (_onDone != null) _onDone();
+            else DialogResult = DialogResult.OK;
+        };
         var exitBtn = new Button { Text = "Exit app", Size = new Size(176, 36), Location = new Point(12, 50), BackColor = Color.FromArgb(160, 40, 40), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         exitBtn.FlatAppearance.BorderSize = 0;
         exitBtn.Click += (_, _) => Application.Exit();
