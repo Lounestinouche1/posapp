@@ -293,6 +293,8 @@ internal sealed class FeatureSettings
     public int CloudSyncMinutes { get; set; } = 5;
     public string CloudSyncDevice { get; set; } = "";
     public string CloudSyncLast { get; set; } = "";
+    public bool CloudSyncPull { get; set; } = false;
+    public string CloudSyncLastBackup { get; set; } = "";
 }
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -4076,6 +4078,8 @@ internal sealed class PosForm : Form
             store.RecordZReport(data.Transactions, data.Gross, currentOperator.Name);
             if (store.Features.AuditLog) store.LogAudit(currentOperator.Name, "Z report", $"{action}: {detail}");
             MessageBox.Show($"Z report {action} — day closed.\n{detail}", "Z report", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (store.Features.CloudSync && !string.IsNullOrWhiteSpace(store.Features.CloudSyncUrl))
+                UploadBackupToHome(true);
         }
         else
         {
@@ -4932,6 +4936,17 @@ internal sealed class PosForm : Form
         f.ShowDialog();
     }
 
+    private byte[]? BuildDatabaseZip()
+    {
+        var jsons = Directory.GetFiles(store.DataFolder, "*.json");
+        if (jsons.Length == 0) return null;
+        using var ms = new MemoryStream();
+        using (var archive = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, true))
+            foreach (var file in jsons)
+                System.IO.Compression.ZipFileExtensions.CreateEntryFromFile(archive, file, Path.GetFileName(file), System.IO.Compression.CompressionLevel.Optimal);
+        return ms.ToArray();
+    }
+
     private bool RunBackup(bool silent)
     {
         try
@@ -4943,20 +4958,16 @@ internal sealed class PosForm : Form
                 return false;
             }
             Directory.CreateDirectory(dest);
-            var src = store.DataFolder;
-            var jsons = Directory.GetFiles(src, "*.json");
-            if (jsons.Length == 0)
+            var bytes = BuildDatabaseZip();
+            if (bytes == null)
             {
                 if (!silent) MessageBox.Show("No database files found to back up.", "Cloud backup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
             var zip = Path.Combine(dest, $"vectron-backup-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
             if (File.Exists(zip)) File.Delete(zip);
-            using (var zipStream = File.Create(zip))
-            using (var archive = new System.IO.Compression.ZipArchive(zipStream, System.IO.Compression.ZipArchiveMode.Create))
-                foreach (var file in jsons)
-                    System.IO.Compression.ZipFileExtensions.CreateEntryFromFile(archive, file, Path.GetFileName(file), System.IO.Compression.CompressionLevel.Optimal);
-            if (!silent) MessageBox.Show($"Backup created:\n{zip}\n\n{jsons.Length} database file(s) zipped.", "Cloud backup", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            File.WriteAllBytes(zip, bytes);
+            if (!silent) MessageBox.Show($"Backup created:\n{zip}\n\n{bytes.Length / 1024} KB zipped.", "Cloud backup", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return true;
         }
         catch (Exception ex)
@@ -5023,6 +5034,7 @@ internal sealed class PosForm : Form
         var key = string.IsNullOrEmpty(store.Features.CloudSyncKey) ? store.Features.ApiKey : store.Features.CloudSyncKey;
         var device = store.Features.CloudSyncDevice;
         var since = store.Features.CloudSyncLast;
+        var doPull = store.Features.CloudSyncPull;
         var queued = store.SyncQueue.ToList();
         syncRunning = true;
         lastCloudSync = DateTime.Now;
@@ -5058,7 +5070,7 @@ internal sealed class PosForm : Form
                 {
                     status = "Nothing to push.";
                 }
-                if (pushedOk)
+                if (pushedOk && doPull)
                 {
                     var g = await hc.GetAsync($"{url}/sync/sales?since={Uri.EscapeDataString(since)}&device={Uri.EscapeDataString(device)}&key={Uri.EscapeDataString(key)}");
                     var gtext = await g.Content.ReadAsStringAsync();
@@ -5128,6 +5140,240 @@ internal sealed class PosForm : Form
                 }));
             }
             catch { syncRunning = false; }
+        });
+    }
+
+    private bool uploadRunning;
+    private bool restoreRunning;
+
+    private void UploadBackupToHome(bool showResult)
+    {
+        if (uploadRunning || IsDisposed || !IsHandleCreated) return;
+        var url = store.Features.CloudSyncUrl.Trim().TrimEnd('/');
+        if (url.Length == 0)
+        {
+            if (showResult)
+                MessageBox.Show("Set the cloud sync server URL first\n(Settings > Network > Cloud sync settings).", "Database backup", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (string.IsNullOrEmpty(store.Features.CloudSyncDevice))
+        {
+            store.Features.CloudSyncDevice = Environment.MachineName;
+            store.SaveFeatures(store.Features);
+        }
+        var key = string.IsNullOrEmpty(store.Features.CloudSyncKey) ? store.Features.ApiKey : store.Features.CloudSyncKey;
+        var device = store.Features.CloudSyncDevice;
+        uploadRunning = true;
+        _ = Task.Run(async () =>
+        {
+            string status;
+            var ok = false;
+            try
+            {
+                var zip = BuildDatabaseZip();
+                if (zip == null)
+                {
+                    status = "No database files found to back up.";
+                }
+                else
+                {
+                    using var hc = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(180) };
+                    var payload = JsonSerializer.Serialize(new { key, store = device, data = Convert.ToBase64String(zip) });
+                    var resp = await hc.PostAsync($"{url}/sync/backup", new System.Net.Http.StringContent(payload, Encoding.UTF8, "application/json"));
+                    var text = await resp.Content.ReadAsStringAsync();
+                    using var pdoc = JsonDocument.Parse(text);
+                    var proot = pdoc.RootElement;
+                    if (proot.TryGetProperty("ok", out var okp) && okp.ValueKind == JsonValueKind.True)
+                    {
+                        ok = true;
+                        status = $"Database backup uploaded to home ({zip.Length / 1024} KB).";
+                    }
+                    else
+                    {
+                        status = "Backup upload failed: " + (proot.TryGetProperty("error", out var ep) ? ep.GetString() : $"HTTP {(int)resp.StatusCode}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                status = "Backup upload failed: " + ex.Message;
+            }
+            try
+            {
+                BeginInvoke((Action)(() =>
+                {
+                    try
+                    {
+                        if (ok)
+                        {
+                            store.Features.CloudSyncLastBackup = DateTime.Now.ToString("o");
+                            store.SaveFeatures(store.Features);
+                        }
+                    }
+                    finally { uploadRunning = false; }
+                    if (showResult)
+                        MessageBox.Show(status, "Database backup", MessageBoxButtons.OK, ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+                }));
+            }
+            catch { uploadRunning = false; }
+        });
+    }
+
+    private void RunManualPull()
+    {
+        if (syncRunning || uploadRunning || IsDisposed || !IsHandleCreated)
+        {
+            MessageBox.Show("Another sync operation is already running.", "Cloud sync", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var url = store.Features.CloudSyncUrl.Trim().TrimEnd('/');
+        if (url.Length == 0)
+        {
+            MessageBox.Show("Set the cloud sync server URL first\n(Settings > Network > Cloud sync settings).", "Cloud sync", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (string.IsNullOrEmpty(store.Features.CloudSyncDevice))
+        {
+            store.Features.CloudSyncDevice = Environment.MachineName;
+            store.SaveFeatures(store.Features);
+        }
+        var key = string.IsNullOrEmpty(store.Features.CloudSyncKey) ? store.Features.ApiKey : store.Features.CloudSyncKey;
+        var device = store.Features.CloudSyncDevice;
+        syncRunning = true;
+        _ = Task.Run(async () =>
+        {
+            List<Sale>? pulled = null;
+            string error = "";
+            try
+            {
+                using var hc = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+                var g = await hc.GetAsync($"{url}/sync/sales?since=&device={Uri.EscapeDataString(device)}&key={Uri.EscapeDataString(key)}&scope=mine");
+                if (!g.IsSuccessStatusCode) throw new Exception($"server returned HTTP {(int)g.StatusCode}");
+                var gtext = await g.Content.ReadAsStringAsync();
+                if (gtext.Length == 0) throw new Exception("empty response from server");
+                pulled = [];
+                using var gdoc = JsonDocument.Parse(gtext);
+                var groot = gdoc.RootElement;
+                if (groot.TryGetProperty("error", out var gep))
+                {
+                    error = gep.GetString() ?? "unknown error";
+                    pulled = null;
+                }
+                else if (groot.TryGetProperty("sales", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var el in arr.EnumerateArray())
+                    {
+                        try
+                        {
+                            var s = JsonSerializer.Deserialize<Sale>(el.GetRawText());
+                            if (s == null || s.Device != device) continue;
+                            pulled.Add(s);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                pulled = null;
+            }
+            try
+            {
+                BeginInvoke((Action)(() =>
+                {
+                    var added = 0;
+                    try
+                    {
+                        if (pulled != null)
+                        {
+                            foreach (var s in pulled)
+                            {
+                                if (store.HasSale(s)) continue;
+                                store.Sales.Add(s);
+                                added++;
+                            }
+                            if (added > 0)
+                            {
+                                store.Sales.Sort((a, b) => a.Time.CompareTo(b.Time));
+                                store.SaveSales();
+                            }
+                        }
+                    }
+                    finally { syncRunning = false; }
+                    if (pulled != null)
+                        MessageBox.Show($"Pulled {pulled.Count} sale(s) from home.\n{added} new sale(s) added to this POS.", "Pull sales history", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    else
+                        MessageBox.Show("Pull failed: " + error, "Pull sales history", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }));
+            }
+            catch { syncRunning = false; }
+        });
+    }
+
+    private void RestoreFromHome()
+    {
+        if (syncRunning || uploadRunning || restoreRunning)
+        {
+            MessageBox.Show("Another sync operation is already running.", "Restore", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var url = store.Features.CloudSyncUrl.Trim().TrimEnd('/');
+        if (url.Length == 0)
+        {
+            MessageBox.Show("Set the cloud sync server URL first.", "Restore", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (string.IsNullOrEmpty(store.Features.CloudSyncDevice))
+        {
+            store.Features.CloudSyncDevice = Environment.MachineName;
+            store.SaveFeatures(store.Features);
+        }
+        var key = string.IsNullOrEmpty(store.Features.CloudSyncKey) ? store.Features.ApiKey : store.Features.CloudSyncKey;
+        var device = store.Features.CloudSyncDevice;
+        var msg = $"Restore this POS from the backup stored at home?\n\nStore: {device}\n\nThis REPLACES this computer's entire database\n(products, settings, sales, shifts) with the copy uploaded from home.\n\nRun it on the MAIN PC, with the order PCs closed.\n\nContinue?";
+        if (MessageBox.Show(msg, "Restore from home", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        restoreRunning = true;
+        _ = Task.Run(async () =>
+        {
+            string? error = null;
+            try
+            {
+                using var hc = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(180) };
+                var g = await hc.GetAsync($"{url}/sync/backup?store={Uri.EscapeDataString(device)}&key={Uri.EscapeDataString(key)}");
+                if (!g.IsSuccessStatusCode) throw new Exception($"server returned HTTP {(int)g.StatusCode}");
+                var gtext = await g.Content.ReadAsStringAsync();
+                if (gtext.Length == 0) throw new Exception("empty response from server");
+                using var gdoc = JsonDocument.Parse(gtext);
+                var groot = gdoc.RootElement;
+                if (!groot.TryGetProperty("ok", out var gok) || gok.ValueKind != JsonValueKind.True)
+                    throw new Exception(groot.TryGetProperty("error", out var gep) ? gep.GetString() : "no backup available");
+                var dataB64 = groot.GetProperty("data").GetString() ?? "";
+                var bytes = Convert.FromBase64String(dataB64);
+                var temp = Path.Combine(Path.GetTempPath(), $"vectron-restore-{Guid.NewGuid():N}.zip");
+                File.WriteAllBytes(temp, bytes);
+                System.IO.Compression.ZipFile.ExtractToDirectory(temp, store.DataFolder, true);
+                try { File.Delete(temp); } catch { }
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+            }
+            try
+            {
+                BeginInvoke((Action)(() =>
+                {
+                    restoreRunning = false;
+                    if (error != null)
+                    {
+                        MessageBox.Show("Restore failed:\n" + error, "Restore from home", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                    MessageBox.Show("Backup restored.\nThe application will now restart to load the restored data.", "Restore from home", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Application.Restart();
+                }));
+            }
+            catch { restoreRunning = false; }
         });
     }
 
@@ -5247,49 +5493,73 @@ internal sealed class PosForm : Form
     private void ShowCloudSyncDialog()
     {
         if (!store.Features.CloudSync) return;
-        using var f = ReportShell("Cloud sync", 640, 430);
+        using var f = ReportShell("Cloud sync", 640, 530);
         var head = new Label { Text = "Sync server URL (base address, e.g. http://hq.example.com:8080):", AutoSize = true, Location = new Point(20, 14), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
         var urlTxt = new TextBox { Text = store.Features.CloudSyncUrl, Location = new Point(20, 44), Size = new Size(580, 30), BackColor = panelLight, ForeColor = Color.White };
         var keyLbl = new Label { Text = "Shared key (leave empty to reuse the API key):", AutoSize = true, Location = new Point(20, 86), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
         var keyTxt = new TextBox { Text = store.Features.CloudSyncKey, Location = new Point(20, 116), Size = new Size(300, 30), BackColor = panelLight, ForeColor = Color.White };
         var minLbl = new Label { Text = "Sync every (minutes):", AutoSize = true, Location = new Point(350, 86), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
         var minNum = new NumericUpDown { Minimum = 1, Maximum = 1440, Value = Math.Clamp(store.Features.CloudSyncMinutes, 1, 1440), Location = new Point(350, 116), Size = new Size(110, 30), BackColor = panelLight, ForeColor = Color.White };
+        var storeLbl = new Label { Text = "Store ID (this PC, e.g. RESTO-1 — used for backups and restore):", AutoSize = true, Location = new Point(20, 158), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
+        var storeTxt = new TextBox { Text = store.Features.CloudSyncDevice, Location = new Point(20, 184), Size = new Size(300, 30), BackColor = panelLight, ForeColor = Color.White };
+        var pullChk = new CheckBox { Text = "Pull other stores' sales automatically (off = push only)", Checked = store.Features.CloudSyncPull, AutoSize = true, Location = new Point(20, 224), ForeColor = Color.White };
         var status = new Label
         {
-            Text = $"Device: {(store.Features.CloudSyncDevice.Length == 0 ? Environment.MachineName : store.Features.CloudSyncDevice)}\n" +
+            Text = $"Store ID: {(store.Features.CloudSyncDevice.Length == 0 ? Environment.MachineName : store.Features.CloudSyncDevice)}\n" +
                    $"Sales waiting to push: {store.SyncQueue.Count}\n" +
-                   $"Last sync: {(store.Features.CloudSyncLast.Length == 0 ? "never" : store.Features.CloudSyncLast)}",
-            Location = new Point(20, 160), Size = new Size(580, 74), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9.5F)
+                   $"Last sync: {(store.Features.CloudSyncLast.Length == 0 ? "never" : store.Features.CloudSyncLast)}\n" +
+                   $"Last backup upload: {(store.Features.CloudSyncLastBackup.Length == 0 ? "never" : store.Features.CloudSyncLastBackup)}",
+            Location = new Point(20, 256), Size = new Size(580, 90), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9.5F)
         };
         var hint = new Label
         {
-            Text = "This till pushes every completed sale to the server and pulls sales from\nother devices. Duplicates are detected automatically by payment + time.",
-            Location = new Point(20, 244), Size = new Size(580, 46), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F)
+            Text = "This till pushes every completed sale to the server (push only) and uploads its\ndaily database backup on End Day. Pull sales history only restores THIS store.",
+            Location = new Point(20, 352), Size = new Size(580, 44), ForeColor = Color.FromArgb(143, 154, 171), Font = new Font("Segoe UI", 9F)
         };
         void SaveSettings()
         {
             store.Features.CloudSyncUrl = urlTxt.Text.Trim().TrimEnd('/');
             store.Features.CloudSyncKey = keyTxt.Text.Trim();
             store.Features.CloudSyncMinutes = (int)minNum.Value;
+            store.Features.CloudSyncDevice = storeTxt.Text.Trim();
             if (string.IsNullOrEmpty(store.Features.CloudSyncDevice))
                 store.Features.CloudSyncDevice = Environment.MachineName;
+            store.Features.CloudSyncPull = pullChk.Checked;
             store.SaveFeatures(store.Features);
         }
-        var save = ReportButton("Save settings", new Point(20, 306), new Size(150, 40), mint, background);
+        var save = ReportButton("Save settings", new Point(20, 406), new Size(150, 40), mint, background);
         save.Click += (_, _) =>
         {
             SaveSettings();
             MessageBox.Show("Cloud sync settings saved.", "Cloud sync", MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
-        var now = ReportButton("Sync now", new Point(184, 306), new Size(140, 40), mint, background);
+        var now = ReportButton("Sync now", new Point(184, 406), new Size(140, 40), mint, background);
         now.Click += (_, _) =>
         {
             SaveSettings();
             RunCloudSync(true);
         };
-        var close = ReportButton("Close", new Point(338, 306), new Size(120, 40), panelLight, Color.White);
+        var upload = ReportButton("Upload backup now", new Point(338, 406), new Size(170, 40), mint, background);
+        upload.Click += (_, _) =>
+        {
+            SaveSettings();
+            UploadBackupToHome(true);
+        };
+        var close = ReportButton("Close", new Point(520, 406), new Size(100, 40), panelLight, Color.White);
         close.Click += (_, _) => f.DialogResult = DialogResult.OK;
-        f.Controls.AddRange([head, urlTxt, keyLbl, keyTxt, minLbl, minNum, status, hint, save, now, close]);
+        var pull = ReportButton("Pull sales history", new Point(20, 456), new Size(180, 40), Color.FromArgb(55, 120, 130), Color.White);
+        pull.Click += (_, _) =>
+        {
+            SaveSettings();
+            RunManualPull();
+        };
+        var restore = ReportButton("Restore from home\u2026", new Point(214, 456), new Size(210, 40), Color.FromArgb(170, 120, 50), Color.White);
+        restore.Click += (_, _) =>
+        {
+            SaveSettings();
+            RestoreFromHome();
+        };
+        f.Controls.AddRange([head, urlTxt, keyLbl, keyTxt, minLbl, minNum, storeLbl, storeTxt, pullChk, status, hint, save, now, upload, close, pull, restore]);
         f.ShowDialog();
     }
 
@@ -7172,7 +7442,15 @@ internal sealed class PosForm : Form
                     return JsonResponse(new { ok = false, error = "Missing or invalid ?key=." });
                 var requester = QVs(query, "device");
                 DateTime.TryParse(QVs(query, "since"), null, System.Globalization.DateTimeStyles.RoundtripKind, out var since);
+                var scope = QVs(query, "scope");
                 var q = store.Sales.Where(s => s.Time > since).AsEnumerable();
+                if (scope == "mine")
+                {
+                    if (string.IsNullOrEmpty(requester))
+                        return JsonResponse(new { ok = false, error = "Missing ?device= when using scope=mine." });
+                    q = q.Where(s => s.Device == requester);
+                    return JsonResponse(new { ok = true, server_time = DateTime.Now.ToString("o"), sales = q.OrderBy(s => s.Time).Take(10000).ToList() });
+                }
                 if (!string.IsNullOrEmpty(requester)) q = q.Where(s => s.Device != requester);
                 var picked = q.OrderBy(s => s.Time).Take(500).ToList();
                 return JsonResponse(new { ok = true, server_time = DateTime.Now.ToString("o"), sales = picked });
@@ -7218,6 +7496,73 @@ internal sealed class PosForm : Form
                 }
             }
             return JsonResponse(new { ok = false, error = "Use GET or POST /sync/sales." });
+        }
+        if (path == "/sync/backup")
+        {
+            static string QVb(string q, string k)
+            {
+                foreach (var pair in q.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var kv = pair.Split('=', 2);
+                    if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
+                }
+                return "";
+            }
+            static bool ValidStore(string s)
+            {
+                if (s.Length < 1 || s.Length > 64) return false;
+                foreach (var c in s)
+                    if (!char.IsLetterOrDigit(c) && c != '-' && c != '_') return false;
+                return true;
+            }
+            if (!store.Features.CloudSync && !store.Features.ApiEnabled)
+                return JsonResponse(new { ok = false, error = "Cloud sync is disabled (Settings > Network)." });
+            var expectKey = !string.IsNullOrEmpty(store.Features.CloudSyncKey) ? store.Features.CloudSyncKey : store.Features.ApiKey;
+            if (method == "GET")
+            {
+                if (!string.IsNullOrEmpty(expectKey) && QVb(query, "key") != expectKey)
+                    return JsonResponse(new { ok = false, error = "Missing or invalid ?key=." });
+                var storeId = QVb(query, "store");
+                if (!ValidStore(storeId))
+                    return JsonResponse(new { ok = false, error = "Invalid store id." });
+                var dir = Path.Combine(store.DataFolder, "stores", storeId);
+                var latest = Directory.Exists(dir) ? Directory.GetFiles(dir, "backup-*.zip").OrderByDescending(f => f).FirstOrDefault() : null;
+                if (latest == null)
+                    return JsonResponse(new { ok = false, error = $"No backup found for store {storeId}." });
+                var fileBytes = File.ReadAllBytes(latest);
+                return JsonResponse(new { ok = true, store = storeId, file = Path.GetFileName(latest), data = Convert.ToBase64String(fileBytes) });
+            }
+            if (method == "POST")
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(body);
+                    var root = doc.RootElement;
+                    var pkey = root.TryGetProperty("key", out var kp) ? kp.GetString() ?? "" : "";
+                    if (!string.IsNullOrEmpty(expectKey) && pkey != expectKey)
+                        return JsonResponse(new { ok = false, error = "Missing or invalid key." });
+                    var storeId = root.TryGetProperty("store", out var sp) ? sp.GetString() ?? "" : "";
+                    if (!ValidStore(storeId))
+                        return JsonResponse(new { ok = false, error = "Invalid store id (letters, digits, - and _ only)." });
+                    var dataB64 = root.TryGetProperty("data", out var datp) ? datp.GetString() ?? "" : "";
+                    if (dataB64.Length == 0)
+                        return JsonResponse(new { ok = false, error = "No backup data." });
+                    var upBytes = Convert.FromBase64String(dataB64);
+                    var dir = Path.Combine(store.DataFolder, "stores", storeId);
+                    Directory.CreateDirectory(dir);
+                    var fileName = $"backup-{DateTime.Now:yyyyMMdd-HHmmss}.zip";
+                    File.WriteAllBytes(Path.Combine(dir, fileName), upBytes);
+                    var all = Directory.GetFiles(dir, "backup-*.zip").OrderBy(f => f).ToList();
+                    for (var i = 0; i < all.Count - 14; i++)
+                        try { File.Delete(all[i]); } catch { }
+                    return JsonResponse(new { ok = true, file = fileName, size = upBytes.Length });
+                }
+                catch (Exception ex)
+                {
+                    return JsonResponse(new { ok = false, error = ex.Message });
+                }
+            }
+            return JsonResponse(new { ok = false, error = "Use GET or POST /sync/backup." });
         }
         if (method == "POST" && path == "/api/order")
             return HandleQrOrder(body);
@@ -11095,10 +11440,10 @@ internal sealed class QrOrderServer : IDisposable
         {
             try
             {
-                client.ReceiveTimeout = 5000;
-                client.SendTimeout = 5000;
+                client.ReceiveTimeout = 60000;
+                client.SendTimeout = 60000;
                 var stream = client.GetStream();
-                stream.ReadTimeout = 5000;
+                stream.ReadTimeout = 60000;
                 var request = ReadRequest(stream);
                 if (request == null) return;
                 var response = handle(request.Value.Method, request.Value.Path, request.Value.Body)
