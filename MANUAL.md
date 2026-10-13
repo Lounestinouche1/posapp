@@ -299,4 +299,310 @@ Settings is organised into categories (left column):
 
 ---
 
+---
+
+# Part 2 — Complete Setup Guide (Step by Step)
+
+*For restaurant managers: configure the app from zero to fully operational in 10 steps.*
+
+> **How to open Settings:** from the main order screen, tap **Settings** in the left sidebar.  
+> **Colour code on toggles:** 🟢 **Green = ON** · 🔴 **Red = OFF** · ⬛ **Dark grey = action button** (opens a dialog or runs a command).
+
+![Order screen](docs/images/01-order-screen.png)
+
+---
+
+## Step 1 — Multi-screen setup (Main PC + Order PCs)
+
+*Do this first if you have more than one terminal.*
+
+Your restaurant has one **Main PC** (hosts the database) and any number of **Order PCs** (take orders, send to kitchen).
+
+### On the Main PC
+1. Open **Settings → Network settings**.
+2. Select **Main PC (server) — hosts the database**.
+3. Press **Save**.
+4. Note the computer name shown at the bottom-left of the screen (e.g. `MAIN PC`) and its IP address.
+
+![Network settings](docs/images/10-network-settings.png)
+
+### On each Order PC
+1. Install and launch Vectron POS on the second PC.
+2. At the network screen (or **Settings → Network settings**), select **Order PC (client) — connects to main PC**.
+3. In **Network path**, type the Main PC's shared folder, for example:
+   ```
+   \\MAIN-PC\client database
+   ```
+   Replace `MAIN-PC` with your Main PC's actual computer name.
+4. Press **Save**. The app restarts and connects to the Main PC.
+
+### Before you start
+- Both PCs must be on the **same network** (same router / Wi-Fi).
+- Windows file sharing (SMB) must be enabled on the Main PC.
+- The status at bottom-left of the Main PC shows `MAIN PC`; Order PCs show `ORDER PC`.
+
+---
+
+## Step 2 — Create your operators (staff logins)
+
+Every person who uses the till gets their own **operator** with a PIN and a role.
+
+1. Open **Settings → Management → Manage operators**.
+2. You will see the default operators (Manager, Cashier). Click **New operator**.
+3. Fill in:
+   - **Operator name** — e.g. `Sara`, `Ahmed`, `Waiter 1`
+   - **Password (PIN)** — a 4-digit PIN (e.g. `1111`). Leave empty for no PIN.
+   - **Hourly wage** — used for labour-cost reports and payroll export (optional).
+4. Tick the **Permissions** this person should have:
+   | Permission | Meaning |
+   |---|---|
+   | **Take payments** | Can process sales and take money |
+   | **Discounts** | Can apply discounts / comps |
+   | **Refunds** | Can refund past sales |
+   | **View sales** | Can open sales reports |
+   | **Manage products** | Can edit the product catalog |
+   | **Manage rooms** | Can edit rooms / tables / floor plan |
+5. Press **Save changes**.
+6. Repeat for each staff member.
+
+![Manage operators](docs/images/04-manage-operators.png)
+
+### Recommended setup
+| Role | Permissions |
+|---|---|
+| **Manager** | All boxes ticked |
+| **Cashier** | Take payments ✅ · View sales ✅ · rest ❌ |
+| **Waiter** | Take payments ✅ · rest ❌ |
+| **Kitchen** | No login needed — use Kitchen Display instead |
+
+> **Tip:** give every waiter their own operator so sales and tips are tracked per person.
+
+---
+
+## Step 3 — Set currency and tax (TVA)
+
+1. Open **Settings → Management → Currency and TVA**.
+2. **Currency** — pick your currency from the list (EUR €, USD $, MAD, etc.).
+3. **TVA rate (%)** — enter your standard tax rate (e.g. `20` for 20 %, `10` for Morocco's 10 %).
+4. **Prices already include TVA** — tick this if the menu prices you enter are *tax-inclusive* (normal in restaurants). Leave unticked if prices are *before tax*.
+5. Press **Save**.
+
+![Currency and TVA](docs/images/09-currency-tva.png)
+
+> All receipts and reports will now show the correct currency and tax.
+
+---
+
+## Step 4 — Create your families (menu categories)
+
+**Families** are the tabs shown at the top of the order screen (Popular, Mains, Drinks…).
+
+1. Open **Settings → Management → Manage families**.
+2. You'll see default families (General, Food, Drinks, Desserts). To add your own:
+   - Click **New family**.
+   - **Family name** — e.g. `Starters`, `Pizzas`, `Hot drinks`, `Shakes`.
+   - **Family image** *(optional)* — click **Import** and choose a picture. The tile on the order screen will show it.
+   - **Print family to** — choose which printer receives this family's items (e.g. `Kitchen` for food, `Bar` for drinks). This is how kitchen tickets get routed automatically.
+3. Press **Save changes**.
+4. To assign existing products to this family: select a product in the list on the right, pick the family from the dropdown, press **Save changes**.
+
+![Manage families](docs/images/05-manage-families.png)
+
+### Example family layout
+| Family | Printed to |
+|---|---|
+| Starters | Kitchen |
+| Mains | Kitchen |
+| Desserts | Kitchen |
+| Hot drinks | Bar |
+| Cold drinks | Bar |
+| Beers & wine | Bar |
+
+---
+
+## Step 5 — Create your products
+
+1. Open **Settings → Management → Manage products**.
+2. Click **New product**.
+3. Fill in:
+   - **Name** — e.g. `Margherita`, `Chicken Caesar`, `Cappuccino`
+   - **Category** — pick the tab where it appears (Popular, Mains, Drinks…)
+   - **Price** — sale price (tax rules from Step 3 apply automatically)
+   - **Color** *(optional)* — tile colour on the order screen (click to pick)
+   - **Image** *(optional)* — click **Import** to add a photo
+   - **Barcode** — scan or type the product's barcode (for barcode scanning)
+   - **Priced per kg** — tick only for weight-priced items (cheese, meat, candy)
+4. Press **Save changes**.
+5. Repeat for every product.
+
+![Manage products](docs/images/06-manage-products.png)
+
+### Shortcuts
+- **Import CSV** — bulk-import products from a spreadsheet (Name, Price, Category, Barcode columns).
+- **Export CSV** — back up your catalog.
+- **Variants…** — add size/color variants (e.g. Small / Medium / Large).
+- **Print barcode labels** — print Code-39 shelf labels for your products.
+
+> **Tip:** create families first (Step 4), then products — each product picks its family during creation.
+
+---
+
+## Step 6 — Set up rooms and tables
+
+1. Open **Settings → Management → Room management**.
+2. Default rooms (Main dining, Terrace, Private room) are listed. To edit:
+   - **Rename** a room by typing in its text box.
+   - **Table count** — set how many tables each room has (e.g. Main dining = 20).
+3. Click **+ Add room** to create more (e.g. `Bar area`, `Garden`).
+4. Press **Save changes**.
+
+![Room management](docs/images/07-room-management.png)
+
+### Arrange tables on the floor plan
+1. Go to **Rooms** in the left sidebar.
+2. Tap a **room tab** at the top.
+3. Each table is a tile — **drag** tiles to match your real layout.
+4. Tap a table to open its order; the tile turns 🔴 **Taken** when occupied and returns to ⬪ **Available** when the bill is paid.
+
+![Rooms view](docs/images/12-rooms.png)
+
+---
+
+## Step 7 — Configure printers (Printer routing)
+
+*This is the most important technical step — tickets must reach the right printer.*
+
+1. Open **Settings → Management → Printer routing**.
+2. You'll see default destinations: **Bill**, **Payment**, **Kitchen**, **Refund**, **Cancel**.
+3. For each destination:
+   - **Destination name** — keep or rename (e.g. `Kitchen 1`, `Bar`, `Receipt`).
+   - **Windows printer** — pick the physical printer installed on this PC (e.g. `EPSON TM-T20`, `VLPT2`).
+   - **Ticket template → Header** — first line printed (e.g. `KITCHEN ORDER`, `RECEIPT`).
+   - **Ticket template → Footer** — last line (e.g. `Thank you!`).
+   - **Activate cutter after last line** — tick if the printer has a paper cutter.
+4. Click **New destination** to add more (e.g. `Bar printer`, `Grill station`).
+5. Press **Save changes**.
+
+![Printer routing](docs/images/08-printer-routing.png)
+
+### Typical restaurant routing
+| Destination | Printer | Purpose |
+|---|---|---|
+| **Bill** | Receipt printer (counter) | Customer bill |
+| **Payment** | Receipt printer (counter) | Paid receipt |
+| **Kitchen** | Kitchen printer | Food orders |
+| **Bar** *(new)* | Bar printer | Drink orders |
+| **Refund** | Receipt printer | Refund receipts |
+
+### Test your printers
+1. Print a Windows test page for each printer (Windows Settings → Printers).
+2. In Vectron POS, take a test order and verify the kitchen ticket appears on the kitchen printer.
+3. The bottom-left status should show **Print server: Running on :910**.
+
+> **Edit ticket layout** — click this button to fine-tune what's printed (logo, room/table, seat, discount lines…).
+
+---
+
+## Step 8 — Enable payment & pricing features
+
+Open **Settings → Payment Pricing**. Toggle features on/off (🟢 green = ON):
+
+| Feature | What it does |
+|---|---|
+| **Discounts (% or fixed amount)** | Staff can discount lines / tickets |
+| **Voids / comp meals** | Void before payment, comp items for VIPs |
+| **Happy hour / timed pricing** | Automatic discounts at set times |
+| **Tip management** | Add tips at payment; shown on shift report |
+| **Multi-rate (dine-in / takeaway / delivery)** | Different prices per order type |
+| **Cash drawer management** | Drawer kick on cash payment + no-sale log |
+| **Round cash payments to nearest 5** | Round to 0.05 (handy in cash-heavy markets) |
+| **Gift cards / store credit** | Sell & redeem gift cards |
+| **Service charge %** | Auto-add service charge on dine-in |
+| **Cash discount %** | Cash pays slightly less |
+| **Card surcharge %** | Card pays slightly more |
+| **Fees / terminal settings** | Per-method fee rules |
+
+![Payment Pricing](docs/images/13-payment-pricing.png)
+
+> Toggle OFF anything you don't use — it disappears from the UI and keeps the screen clean for staff.
+
+---
+
+## Step 9 — Staff settings
+
+Open **Settings → Staff**:
+
+| Feature | Recommended | Notes |
+|---|---|---|
+| **Clock in / out** | 🟢 ON | Staff clock in at login, out at end of shift |
+| **Shift reports** | 🟢 ON | Hours + sales per operator |
+| **Audit log** | 🟢 ON | Tracks who voided/refunded what |
+| **Staff scheduling + tip pooling** | optional | Rota + shared tips |
+| **Training mode** | 🔴 OFF for live | Practice without recording sales |
+| **Employee discount %** | 🟢 ON | Set the % (e.g. 20) — applies to staff purchases |
+| **PIN login** | 🟢 ON | Numeric PIN at startup |
+| **Payroll export (CSV)** | 🟢 ON | Hours × wage → accounting |
+| **Server performance** | 🟢 ON | Health dashboard |
+
+![Staff settings](docs/images/14-staff.png)
+
+---
+
+## Step 10 — Optional features & final checks
+
+Open each remaining Settings category and switch on what you need:
+
+### Ordering & Table
+- Table transfer, split bill, hold/fire courses, park/recall orders, seat ordering.
+
+### Inventory & Stock
+- Stock tracking, low-stock alerts, stocktakes, waste tracking, purchase orders, suppliers, barcode labels.
+
+### Customers
+- Customer database, loyalty points, gift cards, happy hour.
+
+### Operations
+- Delivery orders, multi-branch, refunds, QR self-ordering, kiosk mode, customer display.
+
+### Receipts & Display
+- Email/SMS receipts, receipt search & reprint, multi-language (EN / FR / AR).
+
+### Final checklist before opening
+- [ ] Operators created with correct PINs and permissions
+- [ ] Currency and TVA set correctly
+- [ ] Families created and assigned to printers (Kitchen / Bar)
+- [ ] All products entered with correct prices
+- [ ] Rooms and tables configured; floor plan arranged
+- [ ] Printers tested (bill + kitchen at minimum)
+- [ ] Payment toggles match how you trade (cash discount? service charge?)
+- [ ] Clock-in enabled; training mode OFF
+- [ ] Multi-terminal tested (Order PC sees Main PC's data)
+- [ ] End-of-day: run a **Z report** to verify totals
+
+---
+
+## Quick reference — Settings map
+
+```
+Settings
+├── Management
+│   ├── Manage operators      ← staff logins + permissions
+│   ├── Manage families       ← menu categories + kitchen routing
+│   ├── Manage products       ← items, prices, barcodes
+│   ├── Room management       ← rooms + table counts
+│   ├── Printer routing       ← bill / kitchen / bar printers
+│   └── Currency and TVA      ← currency + tax rate
+├── Reports                   ← all sales / performance reports
+├── Network                   ← Main PC / Order PC, cloud sync
+├── Ordering Table            ← split, transfer, courses, floor plan
+├── Payment Pricing           ← discounts, tips, fees, rounding
+├── Staff                     ← clock, shifts, payroll, training
+├── Inventory Stock           ← stock, PO, suppliers, waste
+├── Customers                 ← database, loyalty, gift cards, happy hour
+├── Operations                ← branches, refunds, QR, kiosk, display
+└── Receipts Display          ← email, receipt search, language
+```
+
+---
+
 *Vectron POS — built for hospitality: fast floor service, honest reporting, three languages.*
