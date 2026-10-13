@@ -16,10 +16,17 @@
   <ItemGroup>
     <Compile Remove="publish/**" />
     <Compile Remove="publish_self_contained/**" />
+    <Compile Remove="LicenseGen/**" />
     <EmbeddedResource Remove="publish/**" />
     <EmbeddedResource Remove="publish_self_contained/**" />
+    <EmbeddedResource Remove="LicenseGen/**" />
     <None Remove="publish/**" />
     <None Remove="publish_self_contained/**" />
+    <None Remove="LicenseGen/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="10.0.0" />
   </ItemGroup>
 
 </Project>

@@ -15,6 +15,40 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
         OnScreenKeyboard.Register();
+
+        // ── License check ──
+        var licStatus = License.GetStatus();
+        if (licStatus.Status == License.Status.Expired)
+        {
+            // Block: show license screen, app cannot proceed past it until activated
+            var lf = new LicenseForm();
+            lf.ShowDialog();
+            // After dialog closes, re-check
+            licStatus = License.GetStatus();
+            if (licStatus.Status == License.Status.Expired || licStatus.Status == License.Status.Invalid)
+            {
+                MessageBox.Show(
+                    "Vectron POS license has expired.\nPlease contact your supplier to renew.\n\nThe application will now close.",
+                    "License Expired", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return; // exit app
+            }
+        }
+        else if (licStatus.Status == License.Status.NotActivated)
+        {
+            // First run: show activation screen once (user can dismiss)
+            var result = MessageBox.Show(
+                "No license activated.\n\n" +
+                "Send your request code to your supplier, then activate with the license key.\n\n" +
+                "Open the License screen now?",
+                "Activate License", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result == DialogResult.Yes)
+            {
+                var lf = new LicenseForm();
+                lf.ShowDialog();
+            }
+            // Allow continuing without license for evaluation / first setup
+        }
+
         Application.Run(new PosForm());
     }
 }
@@ -1038,6 +1072,7 @@ internal sealed class PosForm : Form
     private QrOrderServer? qrServer;
     private readonly Panel guestBar = new() { Dock = DockStyle.Top, Height = 40, Visible = false, BackColor = Color.FromArgb(190, 130, 40) };
     private readonly Panel trainingBar = new() { Dock = DockStyle.Top, Height = 34, Visible = false, BackColor = Color.FromArgb(180, 60, 60) };
+    private readonly Panel licenseBar = new() { Dock = DockStyle.Top, Height = 34, Visible = false, BackColor = Color.FromArgb(180, 140, 30) };
     private readonly Label trainingLabel = new();
     private readonly Label guestLabel = new() { Dock = DockStyle.Fill, ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI Semibold", 10F) };
     private readonly Button guestDismissBtn = new() { Text = Tr.T("Dismiss all"), Dock = DockStyle.Right, Width = 110, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(140, 60, 40), Font = new Font("Segoe UI", 9F) };
@@ -1448,6 +1483,20 @@ internal sealed class PosForm : Form
         trainingBar.Controls.Add(trainingLabel);
         trainingBar.Visible = store.Features.TrainingMode;
         menuPanel.Controls.Add(trainingBar);
+
+        // License grace-period warning bar
+        var licenseLabel = new Label { Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10F), TextAlign = ContentAlignment.MiddleLeft, Cursor = Cursors.Hand };
+        var licInfo = License.GetStatus();
+        if (licInfo.Status == License.Status.GracePeriod)
+        {
+            licenseLabel.Text = $"  ⚠ LICENSE EXPIRED — {licInfo.TimeRemaining?.Days ?? 0} day(s) grace remaining. Click to renew.";
+            licenseBar.Visible = true;
+        }
+        licenseBar.Controls.Add(licenseLabel);
+        licenseBar.Click += (_, _) => { var f = new LicenseForm(); f.ShowDialog(); };
+        licenseLabel.Click += (_, _) => { var f = new LicenseForm(); f.ShowDialog(); };
+        menuPanel.Controls.Add(licenseBar);
+
         workspacePanel.Controls.Add(menuPanel);
         workspacePanel.Controls.Add(orderPanel);
         workspacePanel.Resize += (_, _) => LayoutWorkspace(workspacePanel, menuPanel, orderPanel);
@@ -9028,6 +9077,7 @@ internal sealed class SettingsForm : Form
             }
             y += 44;
         }
+        AddBtn(Tr.T("License"), () => { var f = new LicenseForm(); f.ShowDialog(); });
         AddBtn(Tr.T("Manage operators"), _mOps!, _canOps);
         AddBtn(Tr.T("Manage products"), _mProd!, _canProd);
         AddBtn(Tr.T("Manage families"), _mFam!, _canProd);

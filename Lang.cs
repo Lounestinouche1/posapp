@@ -154,6 +154,7 @@ internal static class Tr
         ["Currency and TVA"] = "Devise et TVA",
         ["Sales details"] = "Détails des ventes",
         ["Network settings"] = "Paramètres réseau",
+        ["License"] = "Licence",
         ["Multi-language (FR / AR / EN)"] = "Multi-langue (FR / AR / EN)",
         // Language switcher
         ["Language:"] = "Langue :",
@@ -924,6 +925,7 @@ internal static class Tr
         ["Currency and TVA"] = "العملة والضريبة",
         ["Sales details"] = "تفاصيل المبيعات",
         ["Network settings"] = "إعدادات الشبكة",
+        ["License"] = "الترخيص",
         ["Multi-language (FR / AR / EN)"] = "متعدد اللغات (FR / AR / EN)",
         // Language switcher
         ["Language:"] = "اللغة:",

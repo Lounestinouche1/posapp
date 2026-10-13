@@ -581,6 +581,35 @@ Open each remaining Settings category and switch on what you need:
 
 ---
 
+## Licensing
+
+Each PC (Main PC + each Order PC) requires its own license. Licenses are issued by your supplier and bound to one machine.
+
+### How to activate
+1. Open **Settings → License**.
+2. Click **Copy** next to your **Request code** (e.g. `REQ-A396-5417-972A-66C2`).
+3. Send this request code to your supplier.
+4. Your supplier issues a license key (e.g. `VECT-AGIVW2YR-2Q32HFSU-...`) valid for 1 year, 2 years, etc.
+5. Paste the key into the **License key** field and click **Activate**.
+
+![License screen](docs/images/15-license-screen.png)
+
+### License status
+| Status | Meaning |
+|---|---|
+| ✅ **License active** | Valid — shows expiry date and days remaining |
+| ⚠️ **Grace period** | Expired but still working — warning banner shown, renew soon |
+| 🔴 **Expired** | Sales blocked — enter a new license key |
+| 🔴 **Invalid** | Key doesn't match this PC — contact supplier |
+
+### Important
+- A license key works on **one PC only** — it's bound to that machine's hardware.
+- If you replace a PC, contact your supplier for a new key.
+- **3-PC restaurant** = 3 licenses (1 per terminal).
+- Renewal: your supplier issues a new key with a new expiry date.
+
+---
+
 ## Quick reference — Settings map
 
 ```
