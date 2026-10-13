@@ -38,14 +38,14 @@ internal static class TicketLayout
     public static string Text(string component, PrinterDestination destination, string room, string table, string operatorName, List<SoldLine> lines, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "", decimal discountPercent = 0, decimal discountAmount = 0) => component switch
     {
         "Header" => destination.Header,
-        "Operator" => "Operator: " + operatorName,
-        "Room" => "Room: " + room,
-        "Table" => "Table: " + table,
+        "Operator" => Tr.T("Operator: ") + operatorName,
+        "Room" => Tr.T("Room: ") + room,
+        "Table" => Tr.T("Table: ") + table,
         "Date" => DateTime.Now.ToString("dd/MM/yyyy"),
         "Time" => DateTime.Now.ToString("HH:mm:ss"),
-        "OrderNumber" => orderNumber > 0 ? $"Order #: {orderNumber}" : "",
-        "BillNumber" => billNumber > 0 ? $"Bill #: {billNumber}" : "",
-        "PaymentNumber" => paymentNumber > 0 ? $"Payment #: {paymentNumber}" : "",
+        "OrderNumber" => orderNumber > 0 ? $"{Tr.T("Order #:")} {orderNumber}" : "",
+        "BillNumber" => billNumber > 0 ? $"{Tr.T("Bill #:")} {billNumber}" : "",
+        "PaymentNumber" => paymentNumber > 0 ? $"{Tr.T("Payment #:")} {paymentNumber}" : "",
         "Products" => string.Join(Environment.NewLine, lines.Select(line =>
         {
             var text = (line.Seat > 0 ? $"[S{line.Seat}] " : "") + CourseTag(line.Course) + $"{line.Quantity} x {line.Product}";
@@ -55,12 +55,12 @@ internal static class TicketLayout
         })),
         "Prices" => string.Join(Environment.NewLine, lines.Select(line => (line.UnitPrice * line.Quantity).ToString("C"))),
         "Items" => string.Join(Environment.NewLine, lines.Select(line => $"{(line.Seat > 0 ? $"[S{line.Seat}] " : "")}{CourseTag(line.Course)}{line.Quantity} x {line.Product}  {line.UnitPrice * line.Quantity:C}{(string.IsNullOrWhiteSpace(line.Modifiers) ? "" : $"  (+ {line.Modifiers})")}{(string.IsNullOrWhiteSpace(line.Note) ? "" : $"  ({line.Note})")}")),
-        "OrderType" => $"Order type: {orderType}",
-        "Total" => "TOTAL  " + lines.Sum(line => line.UnitPrice * line.Quantity).ToString("C"),
-        "Tendered" => Tendered > 0 ? $"TENDERED  {Tendered:C}   CHANGE  {Tendered - CashReceived:C}" : "",
-        "Rounded" => Rounding != 0 ? $"ROUNDING  {(Rounding > 0 ? "+" : "")}{Rounding:C}" : "",
-        "DiscountPercent" => discountPercent > 0 ? $"DISCOUNT  -{discountPercent:0.#}%" : discountAmount > 0 ? $"DISCOUNT  -{discountAmount:C}" : "",
-        "PriceAfterDiscount" => "AFTER DISCOUNT  " + (lines.Sum(line => line.UnitPrice * line.Quantity) - discountAmount).ToString("C"),
+        "OrderType" => $"{Tr.T("Order type:")} {orderType}",
+        "Total" => Tr.T("TOTAL") + "  " + lines.Sum(line => line.UnitPrice * line.Quantity).ToString("C"),
+        "Tendered" => Tendered > 0 ? $"{Tr.T("TENDERED")}  {Tendered:C}   {Tr.T("CHANGE")}  {Tendered - CashReceived:C}" : "",
+        "Rounded" => Rounding != 0 ? $"{Tr.T("ROUNDING")}  {(Rounding > 0 ? "+" : "")}{Rounding:C}" : "",
+        "DiscountPercent" => discountPercent > 0 ? $"{Tr.T("DISCOUNT")}  -{discountPercent:0.#}%" : discountAmount > 0 ? $"{Tr.T("DISCOUNT")}  -{discountAmount:C}" : "",
+        "PriceAfterDiscount" => Tr.T("AFTER DISCOUNT") + "  " + (lines.Sum(line => line.UnitPrice * line.Quantity) - discountAmount).ToString("C"),
         "Footer" => destination.Footer,
         "Separator" => "------------------------------",
         "Logo" => "",
@@ -112,13 +112,13 @@ internal sealed class TicketDesignerForm : Form
         
         // Style Panel (same panel for ALL components including Logo)
         stylePanel.Location = new Point(455, 80); stylePanel.Size = new Size(200, 400); stylePanel.BackColor = panelLight; stylePanel.Visible = false;
-        var styleTitle = new Label { Text = "Formatting", Font = new Font("Segoe UI Semibold", 12F), Location = new Point(15, 15), AutoSize = true };
+        var styleTitle = new Label { Text = Tr.T("Formatting"), Font = new Font("Segoe UI Semibold", 12F), Location = new Point(15, 15), AutoSize = true };
         
         fontSize.Location = new Point(15, 65); fontSize.Size = new Size(170, 30); fontSize.DropDownStyle = ComboBoxStyle.DropDownList;
         fontSize.BackColor = panelLight; fontSize.ForeColor = Color.White;
         foreach (var s in FontSizes) fontSize.Items.Add(s.Name);
-        bold.Text = "Bold"; bold.Location = new Point(15, 105); bold.AutoSize = true;
-        underline.Text = "Underline"; underline.Location = new Point(15, 135); underline.AutoSize = true;
+        bold.Text = Tr.T("Bold"); bold.Location = new Point(15, 105); bold.AutoSize = true;
+        underline.Text = Tr.T("Underline"); underline.Location = new Point(15, 135); underline.AutoSize = true;
         alignment.Location = new Point(15, 185); alignment.Size = new Size(170, 30); alignment.DropDownStyle = ComboBoxStyle.DropDownList;
         alignment.BackColor = panelLight; alignment.ForeColor = Color.White;
         alignment.Items.AddRange(["Left", "Center", "Right"]);
@@ -130,10 +130,10 @@ internal sealed class TicketDesignerForm : Form
         
         // Logo browse section (shown below formatting when Logo is selected)
         logoSection.Location = new Point(15, 225); logoSection.Size = new Size(170, 100); logoSection.Visible = false;
-        var logoLabel = new Label { Text = "Logo image", AutoSize = true, Location = new Point(0, 0) };
-        logoPathLabel.Text = string.IsNullOrEmpty(logoPath) ? "No logo set" : Path.GetFileName(logoPath);
+        var logoLabel = new Label { Text = Tr.T("Logo image"), AutoSize = true, Location = new Point(0, 0) };
+        logoPathLabel.Text = string.IsNullOrEmpty(logoPath) ? Tr.T("No logo set") : Path.GetFileName(logoPath);
         logoPathLabel.Location = new Point(0, 25); logoPathLabel.Size = new Size(170, 20); logoPathLabel.ForeColor = Color.Gray;
-        var browseBtn = new Button { Text = "Browse...", Location = new Point(0, 50), Size = new Size(80, 28), BackColor = Color.FromArgb(71, 214, 174), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var browseBtn = new Button { Text = Tr.T("Browse..."), Location = new Point(0, 50), Size = new Size(80, 28), BackColor = Color.FromArgb(71, 214, 174), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         browseBtn.Click += (_, _) =>
         {
             using var dlg = new OpenFileDialog { Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp|All files|*.*" };
@@ -144,11 +144,11 @@ internal sealed class TicketDesignerForm : Form
                 UpdatePreview();
             }
         };
-        var removeBtn = new Button { Text = "Remove", Location = new Point(85, 50), Size = new Size(80, 28), BackColor = Color.FromArgb(60, 60, 80), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-        removeBtn.Click += (_, _) => { logoPath = ""; logoPathLabel.Text = "No logo set"; UpdatePreview(); };
+        var removeBtn = new Button { Text = Tr.T("Remove"), Location = new Point(85, 50), Size = new Size(80, 28), BackColor = Color.FromArgb(60, 60, 80), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        removeBtn.Click += (_, _) => { logoPath = ""; logoPathLabel.Text = Tr.T("No logo set"); UpdatePreview(); };
         logoSection.Controls.AddRange([logoLabel, logoPathLabel, browseBtn, removeBtn]);
         
-        stylePanel.Controls.AddRange([styleTitle, new Label { Text = "Font size (logo height)", Location = new Point(15, 45), AutoSize = true }, fontSize, bold, underline, new Label { Text = "Alignment", Location = new Point(15, 165), AutoSize = true }, alignment, logoSection]);
+        stylePanel.Controls.AddRange([styleTitle, new Label { Text = Tr.T("Font size (logo height)"), Location = new Point(15, 45), AutoSize = true }, fontSize, bold, underline, new Label { Text = Tr.T("Alignment"), Location = new Point(15, 165), AutoSize = true }, alignment, logoSection]);
 
         layout.SelectedIndexChanged += (_, _) => LoadStyle();
         layout.MouseDown += (_, args) => { dragStart = args.Location; dragIndex = layout.IndexFromPoint(args.Location); };
