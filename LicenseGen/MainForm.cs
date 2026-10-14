@@ -4,7 +4,10 @@ public class MainForm : Form
 {
     // ── Controls ──
     private readonly TextBox _customerBox = new() { PlaceholderText = "e.g. Restaurant Le Olive" };
+    private readonly TextBox _phoneBox = new() { PlaceholderText = "e.g. +212 600 000 000" };
     private readonly TextBox _requestBox = new() { PlaceholderText = "REQ-XXXX-XXXX-XXXX-XXXX" };
+    private readonly TextBox _pcNameBox = new() { PlaceholderText = "e.g. Main PC, Order PC 1, Order PC 2" };
+    private readonly TextBox _notesBox = new() { PlaceholderText = "Optional notes (phone, address, ...)" };
     private readonly NumericUpDown _yearsBox = new() { Minimum = 1, Maximum = 20, Value = 1, Width = 80 };
     private readonly NumericUpDown _monthsBox = new() { Minimum = 0, Maximum = 11, Value = 0, Width = 80 };
     private readonly Label _expiryLabel = new() { AutoSize = true, ForeColor = Color.FromArgb(0, 180, 120), Font = new Font("Segoe UI", 10, FontStyle.Bold) };
@@ -14,6 +17,8 @@ public class MainForm : Form
     private readonly Button _copyReqBtn = new() { Text = "Copy", Height = 28, Width = 70 };
     private readonly ListView _historyList = new() { View = View.Details, FullRowSelect = true, Dock = DockStyle.Fill };
     private readonly Button _exportPubBtn = new() { Text = "Export Public Key", Height = 28, Width = 150 };
+    private readonly Button _importCsvBtn = new() { Text = "Import Client CSV", Height = 28, Width = 150 };
+    private readonly Button _openDbBtn = new() { Text = "Open Database Folder", Height = 28, Width = 170 };
     private readonly Label _statusLabel = new() { AutoSize = true, ForeColor = Color.Gray, Dock = DockStyle.Bottom, Padding = new Padding(8) };
 
     private DateTime _expiryUtc;
@@ -21,8 +26,8 @@ public class MainForm : Form
     public MainForm()
     {
         Text = "Vectron POS — License Generator";
-        Size = new Size(860, 680);
-        MinimumSize = new Size(700, 500);
+        Size = new Size(920, 780);
+        MinimumSize = new Size(740, 560);
         BackColor = Color.FromArgb(18, 24, 36);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9.5f);
@@ -39,7 +44,7 @@ public class MainForm : Form
         {
             Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 4,
         };
-        mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 200));  // input area
+        mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 296));  // input area
         mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));  // key output
         mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // history
         mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // status
@@ -48,8 +53,8 @@ public class MainForm : Form
         var inputPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(0) };
         inputPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
         inputPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        inputPanel.RowCount = 5;
-        for (int i = 0; i < 5; i++) inputPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        inputPanel.RowCount = 8;
+        for (int i = 0; i < 8; i++) inputPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
 
         void AddRow(int row, string label, Control control)
         {
@@ -60,17 +65,22 @@ public class MainForm : Form
         }
 
         AddRow(0, "Customer name:", _customerBox);
-        AddRow(1, "Request code:", _requestBox);
+        AddRow(1, "Phone:", _phoneBox);
+        AddRow(2, "PC name:", _pcNameBox);
+        AddRow(3, "Request code:", _requestBox);
 
-        // Duration row: years + months side by side
+        // Duration row
         var durPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
         durPanel.Controls.Add(_yearsBox);
         durPanel.Controls.Add(new Label { Text = "year(s)", ForeColor = Color.FromArgb(143, 154, 171), AutoSize = true, Padding = new Padding(4, 6, 12, 0) });
         durPanel.Controls.Add(_monthsBox);
         durPanel.Controls.Add(new Label { Text = "month(s) →", ForeColor = Color.FromArgb(143, 154, 171), AutoSize = true, Padding = new Padding(4, 6, 8, 0) });
         durPanel.Controls.Add(_expiryLabel);
-        inputPanel.Controls.Add(new Label { Text = "Duration:", ForeColor = Color.FromArgb(143, 154, 171), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight }, 0, 2);
-        inputPanel.Controls.Add(durPanel, 1, 2);
+        inputPanel.Controls.Add(new Label { Text = "Duration:", ForeColor = Color.FromArgb(143, 154, 171), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight }, 0, 4);
+        inputPanel.Controls.Add(durPanel, 1, 4);
+
+        // Notes row
+        AddRow(5, "Notes:", _notesBox);
 
         // Generate button row
         var genPanel = new FlowLayoutPanel { Dock = DockStyle.Fill };
@@ -79,22 +89,29 @@ public class MainForm : Form
         genPanel.Controls.Add(_generateBtn);
         _copyReqBtn.Click += (_, _) => { Clipboard.SetText(_requestBox.Text); _statusLabel.Text = "Request code copied."; };
         genPanel.Controls.Add(_copyReqBtn);
-        inputPanel.Controls.Add(new Label { Text = "", ForeColor = Color.Gray }, 0, 3);
-        inputPanel.Controls.Add(genPanel, 1, 3);
+        inputPanel.Controls.Add(new Label { Text = "", ForeColor = Color.Gray }, 0, 6);
+        inputPanel.Controls.Add(genPanel, 1, 6);
 
-        // Export public key row
-        var exportPanel = new FlowLayoutPanel { Dock = DockStyle.Fill };
+        // Tools row: Import CSV + Open DB folder + Export public key
+        var toolsPanel = new FlowLayoutPanel { Dock = DockStyle.Fill };
+        _importCsvBtn.Click += OnImportCsv;
+        _openDbBtn.Click += (_, _) =>
+        {
+            System.IO.Directory.CreateDirectory(LicenseCore.ClientsDir);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            { FileName = LicenseCore.ClientsDir, UseShellExecute = true });
+        };
         _exportPubBtn.Click += (_, _) =>
         {
             Clipboard.SetText(LicenseCore.PublicKeyB64);
             MessageBox.Show("Public key copied to clipboard.\n\nEmbed this in VectronPOS's License.cs (PublicKeyB64 constant).",
                 "Public Key", MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
-        exportPanel.Controls.Add(_exportPubBtn);
-        var pubInfo = new Label { Text = "  (for embedding in the POS app)", ForeColor = Color.Gray, AutoSize = true, Padding = new Padding(0, 6, 0, 0) };
-        exportPanel.Controls.Add(pubInfo);
-        inputPanel.Controls.Add(new Label { Text = "", ForeColor = Color.Gray }, 0, 4);
-        inputPanel.Controls.Add(exportPanel, 1, 4);
+        toolsPanel.Controls.Add(_importCsvBtn);
+        toolsPanel.Controls.Add(_openDbBtn);
+        toolsPanel.Controls.Add(_exportPubBtn);
+        inputPanel.Controls.Add(new Label { Text = "", ForeColor = Color.Gray }, 0, 7);
+        inputPanel.Controls.Add(toolsPanel, 1, 7);
 
         mainPanel.Controls.Add(inputPanel, 0, 0);
 
@@ -122,11 +139,13 @@ public class MainForm : Form
         historyPanel.Controls.Add(histTitle);
 
         _historyList.Dock = DockStyle.Fill;
-        _historyList.Columns.Add("Customer", 200);
-        _historyList.Columns.Add("Request code", 200);
-        _historyList.Columns.Add("Expires", 130);
-        _historyList.Columns.Add("Generated", 130);
-        _historyList.Columns.Add("Key (truncated)", 180);
+        _historyList.Columns.Add("Client", 150);
+        _historyList.Columns.Add("Phone", 120);
+        _historyList.Columns.Add("PC name", 95);
+        _historyList.Columns.Add("Request code", 165);
+        _historyList.Columns.Add("Expires", 95);
+        _historyList.Columns.Add("Generated", 110);
+        _historyList.Columns.Add("Key (truncated)", 160);
         _historyList.BackColor = Color.FromArgb(30, 38, 52);
         _historyList.ForeColor = Color.White;
         _historyList.FullRowSelect = true;
@@ -137,7 +156,6 @@ public class MainForm : Form
 
         Controls.Add(mainPanel);
 
-        // Duration change → update expiry label
         _yearsBox.ValueChanged += (_, _) => RefreshExpiry();
         _monthsBox.ValueChanged += (_, _) => RefreshExpiry();
     }
@@ -155,7 +173,10 @@ public class MainForm : Form
         try
         {
             var customer = _customerBox.Text.Trim();
+            var phone = _phoneBox.Text.Trim();
             var requestCode = _requestBox.Text.Trim();
+            var pcName = _pcNameBox.Text.Trim();
+            var notes = _notesBox.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(customer))
             { MessageBox.Show("Enter the customer name.", "Missing", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
@@ -172,12 +193,18 @@ public class MainForm : Form
             _keyBox.Text = key;
             _copyBtn.Enabled = true;
 
-            // Save to history
+            // Save to history (JSON)
             var info = new LicenseCore.LicenseInfo(customer, requestCode, _expiryUtc, DateTime.UtcNow, key);
             LicenseCore.AddToHistory(info);
+
+            // Save to CSV database (per-client + master)
+            var record = new LicenseCore.ClientRecord(
+                customer, phone, requestCode, pcName, _expiryUtc, DateTime.UtcNow, key, notes);
+            LicenseCore.SaveToCsv(record);
+
             LoadHistoryIntoList();
 
-            _statusLabel.Text = $"License generated for \"{customer}\" — expires {_expiryUtc:yyyy-MM-dd}. Send the key to your customer.";
+            _statusLabel.Text = $"License generated for \"{customer}\" — expires {_expiryUtc:yyyy-MM-dd}. Saved to CSV database ({LicenseCore.ClientsDir}).";
         }
         catch (Exception ex)
         {
@@ -185,31 +212,108 @@ public class MainForm : Form
         }
     }
 
+    private void OnImportCsv(object? sender, EventArgs e)
+    {
+        using var ofd = new OpenFileDialog
+        {
+            Title = "Import client CSV",
+            Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+            InitialDirectory = LicenseCore.ClientsDir,
+        };
+        if (ofd.ShowDialog() != DialogResult.OK) return;
+
+        var records = LicenseCore.LoadCsvFile(ofd.FileName);
+        if (records.Count == 0)
+        {
+            MessageBox.Show("No valid records found in this file.", "Import", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        // Show picker if multiple records
+        var rec = records[^1]; // default: most recent (last row)
+        if (records.Count > 1)
+        {
+            using var picker = new Form
+            {
+                Text = $"Select record ({records.Count} found)",
+                Size = new Size(700, 400),
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = Color.FromArgb(18, 24, 36),
+            };
+            var lv = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, BackColor = Color.FromArgb(30, 38, 52), ForeColor = Color.White };
+            lv.Columns.Add("Client Name", 150);
+            lv.Columns.Add("Phone", 130);
+            lv.Columns.Add("PC name", 100);
+            lv.Columns.Add("Request code", 160);
+            lv.Columns.Add("Expires", 100);
+            foreach (var r in records)
+            {
+                var item = new ListViewItem(new[] { r.CustomerName, r.Phone, r.PcName, r.RequestCode, r.ExpiryUtc.ToString("yyyy-MM-dd") });
+                item.Tag = r;
+                lv.Items.Add(item);
+            }
+            var okBtn = new Button { Text = "Select", Dock = DockStyle.Bottom, Height = 36, BackColor = Color.FromArgb(0, 180, 120), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            okBtn.Click += (_, _) => { picker.DialogResult = DialogResult.OK; };
+            lv.DoubleClick += (_, _) => { picker.DialogResult = DialogResult.OK; };
+            picker.Controls.Add(lv);
+            picker.Controls.Add(okBtn);
+            if (picker.ShowDialog() != DialogResult.OK) return;
+            if (lv.SelectedItems.Count == 0) return;
+            rec = (LicenseCore.ClientRecord)lv.SelectedItems[0].Tag!;
+        }
+
+        // Fill form
+        _customerBox.Text = rec.CustomerName;
+        _phoneBox.Text = rec.Phone;
+        _requestBox.Text = rec.RequestCode;
+        _pcNameBox.Text = rec.PcName;
+        _notesBox.Text = rec.Notes;
+
+        // Reset duration to 1 year (they can adjust)
+        _yearsBox.Value = 1;
+        _monthsBox.Value = 0;
+        RefreshExpiry();
+
+        _statusLabel.Text = $"Loaded \"{rec.CustomerName}\" ({rec.PcName}) from CSV. Adjust duration and click Generate to issue a renewal.";
+    }
+
     private void LoadHistoryIntoList()
     {
         _historyList.Items.Clear();
+        var csvCache = new Dictionary<string, List<LicenseCore.ClientRecord>>(StringComparer.OrdinalIgnoreCase);
         foreach (var h in LicenseCore.LoadHistory())
         {
+            if (!csvCache.TryGetValue(h.CustomerName, out var recs))
+            {
+                recs = LicenseCore.LoadClientCsv(h.CustomerName);
+                csvCache[h.CustomerName] = recs;
+            }
+            var match = recs.LastOrDefault(r => r.RequestCode == h.RequestCode);
             var truncatedKey = h.Key.Length > 30 ? h.Key[..30] + "…" : h.Key;
             var item = new ListViewItem(new[]
             {
-                h.CustomerName, h.RequestCode,
+                h.CustomerName,
+                match?.Phone ?? "",
+                match?.PcName ?? "",
+                h.RequestCode,
                 h.ExpiryUtc.ToString("yyyy-MM-dd"),
                 h.GeneratedAt.ToString("yyyy-MM-dd HH:mm"),
                 truncatedKey
             });
-            item.Tag = h.Key; // full key on double-click
+            item.Tag = h.Key;
             _historyList.Items.Add(item);
         }
 
-        // Double-click a history row → copy full key
-        _historyList.DoubleClick += (_, _) =>
+        _historyList.DoubleClick -= HistoryList_DoubleClick;
+        _historyList.DoubleClick += HistoryList_DoubleClick;
+    }
+
+    private void HistoryList_DoubleClick(object? sender, EventArgs e)
+    {
+        if (_historyList.SelectedItems.Count > 0 && _historyList.SelectedItems[0].Tag is string fullKey)
         {
-            if (_historyList.SelectedItems.Count > 0 && _historyList.SelectedItems[0].Tag is string fullKey)
-            {
-                Clipboard.SetText(fullKey);
-                _statusLabel.Text = "Full key from history copied.";
-            }
-        };
+            Clipboard.SetText(fullKey);
+            _statusLabel.Text = "Full key from history copied.";
+        }
     }
 }

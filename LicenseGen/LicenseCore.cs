@@ -254,4 +254,232 @@ public static class LicenseCore
         if (history.Count > 500) history.RemoveRange(500, history.Count - 500);
         SaveHistory(history);
     }
+
+    // ── CSV database ──
+    // Two outputs on every generation:
+    //   1. clients/<ClientName>.csv  — one file per client (all renewals stacked)
+    //   2. clients/_all-clients.csv  — master database, sorted by client name
+    // Files use ';' separator + UTF-8 BOM so Excel opens one column per field.
+    // Saved in a "clients" folder next to LicenseGen.exe (moves with the tool).
+    // Falls back to %APPDATA% if the exe folder is not writable (e.g. Program Files).
+
+    public static readonly string ClientsDir = ResolveClientsDir();
+
+    private static string ResolveClientsDir()
+    {
+        try
+        {
+            var local = Path.Combine(AppContext.BaseDirectory, "clients");
+            Directory.CreateDirectory(local);
+            // Write probe — ensure we actually have permission
+            var probe = Path.Combine(local, ".probe");
+            File.WriteAllText(probe, "ok");
+            File.Delete(probe);
+
+            // One-time migration: move old AppData database next to the exe
+            var oldDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "LicenseGen", "clients");
+            if (Directory.Exists(oldDir) &&
+                !Directory.EnumerateFiles(local, "*.csv").Any() &&
+                Directory.EnumerateFiles(oldDir, "*.csv").Any())
+            {
+                foreach (var f in Directory.EnumerateFiles(oldDir, "*.csv"))
+                    File.Copy(f, Path.Combine(local, Path.GetFileName(f)));
+            }
+            return local;
+        }
+        catch
+        {
+            var fallback = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "LicenseGen", "clients");
+            Directory.CreateDirectory(fallback);
+            return fallback;
+        }
+    }
+
+    private static readonly string MasterCsv = Path.Combine(ClientsDir, "_all-clients.csv");
+
+    private const string CsvHeader =
+        "Client Name;Phone;Request Code;PC Name;Expiry Date;Generated At;License Key;Notes";
+
+    private static readonly UTF8Encoding CsvEncoding = new(true); // UTF-8 with BOM (Excel-friendly)
+
+    /// <summary>A single row in the client database.</summary>
+    public record ClientRecord(
+        string CustomerName,
+        string Phone,
+        string RequestCode,
+        string PcName,
+        DateTime ExpiryUtc,
+        DateTime GeneratedAt,
+        string Key,
+        string Notes = "");
+
+    /// <summary>
+    /// Saves a new license record to both the per-client CSV and the master CSV.
+    /// Master file is re-sorted alphabetically by client name after each save.
+    /// </summary>
+    public static void SaveToCsv(ClientRecord record)
+    {
+        Directory.CreateDirectory(ClientsDir);
+
+        // 1. Per-client file (chronological)
+        var safeName = SanitizeFileName(record.CustomerName);
+        var clientFile = Path.Combine(ClientsDir, safeName + ".csv");
+        if (File.Exists(clientFile))
+        {
+            // Migrate legacy comma-separated files to new ';' + Phone format
+            var existingHeader = File.ReadLines(clientFile, CsvEncoding).FirstOrDefault() ?? "";
+            if (!existingHeader.Contains("Phone", StringComparison.OrdinalIgnoreCase))
+            {
+                var legacy = LoadCsvFile(clientFile);
+                var sb0 = new StringBuilder(CsvHeader + "\n");
+                foreach (var r in legacy) sb0.Append(CsvRow(r)).Append('\n');
+                File.WriteAllText(clientFile, sb0.ToString(), CsvEncoding);
+            }
+        }
+        else
+        {
+            File.WriteAllText(clientFile, CsvHeader + "\n", CsvEncoding);
+        }
+        File.AppendAllText(clientFile, CsvRow(record) + "\n", CsvEncoding);
+
+        // 2. Master database — reload all, add new row, sort, rewrite
+        var all = LoadMasterCsv();
+        all.RemoveAll(r =>
+            r.CustomerName == record.CustomerName &&
+            r.RequestCode == record.RequestCode &&
+            r.GeneratedAt == record.GeneratedAt &&
+            r.Key == record.Key);
+        all.Add(record);
+        var sorted = all
+            .OrderBy(r => r.CustomerName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.GeneratedAt)
+            .ToList();
+
+        var sb = new StringBuilder(CsvHeader + "\n");
+        foreach (var r in sorted) sb.Append(CsvRow(r)).Append('\n');
+        File.WriteAllText(MasterCsv, sb.ToString(), CsvEncoding);
+    }
+
+    /// <summary>
+    /// Loads a client's records from their CSV file.
+    /// Returns empty list if the file doesn't exist.
+    /// </summary>
+    public static List<ClientRecord> LoadClientCsv(string customerName)
+    {
+        var safeName = SanitizeFileName(customerName);
+        var file = Path.Combine(ClientsDir, safeName + ".csv");
+        return LoadCsvFile(file);
+    }
+
+    /// <summary>Loads the master database of all clients.</summary>
+    public static List<ClientRecord> LoadMasterCsv()
+    {
+        return LoadCsvFile(MasterCsv);
+    }
+
+    /// <summary>Loads any CSV file (for the Import button). Handles ';' and old ',' files.</summary>
+    public static List<ClientRecord> LoadCsvFile(string path)
+    {
+        var result = new List<ClientRecord>();
+        try
+        {
+            if (!File.Exists(path)) return result;
+            var lines = File.ReadAllLines(path, CsvEncoding);
+            if (lines.Length == 0) return result;
+
+            // Detect delimiter + format from header
+            var header = lines[0];
+            char delim = header.Contains(';') ? ';' : ',';
+            bool hasPhoneCol = header.Contains("Phone", StringComparison.OrdinalIgnoreCase);
+
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (string.IsNullOrWhiteSpace(lines[i])) continue;
+                var rec = ParseCsvLine(lines[i], delim, hasPhoneCol);
+                if (rec != null) result.Add(rec);
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    private static string CsvRow(ClientRecord r)
+    {
+        static string Esc(string s)
+        {
+            if (s.Contains(';') || s.Contains('"') || s.Contains('\n'))
+                return '"' + s.Replace("\"", "\"\"") + '"';
+            return s;
+        }
+        return string.Join(";",
+            Esc(r.CustomerName),
+            Esc(r.Phone),
+            Esc(r.RequestCode),
+            Esc(r.PcName),
+            r.ExpiryUtc.ToString("yyyy-MM-dd"),
+            r.GeneratedAt.ToString("yyyy-MM-dd HH:mm"),
+            Esc(r.Key),
+            Esc(r.Notes));
+    }
+
+    private static ClientRecord? ParseCsvLine(string line, char delim, bool hasPhoneCol)
+    {
+        try
+        {
+            var f = ParseCsvFields(line, delim);
+            if (!hasPhoneCol)
+            {
+                // Legacy format: Customer;Request;PC;Expiry;Generated;Key;Notes (7 cols, no phone)
+                if (f.Length < 6) return null;
+                return new ClientRecord(f[0], "", f[1], f[2],
+                    DateTime.Parse(f[3]), DateTime.Parse(f[4]), f[5],
+                    f.Length > 6 ? f[6] : "");
+            }
+            if (f.Length < 7) return null;
+            return new ClientRecord(f[0], f[1], f[2], f[3],
+                DateTime.Parse(f[4]), DateTime.Parse(f[5]), f[6],
+                f.Length > 7 ? f[7] : "");
+        }
+        catch { return null; }
+    }
+
+    private static string[] ParseCsvFields(string line, char delim)
+    {
+        var fields = new List<string>();
+        var cur = new StringBuilder();
+        bool inQuotes = false;
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < line.Length && line[i + 1] == '"') { cur.Append('"'); i++; }
+                    else inQuotes = false;
+                }
+                else cur.Append(c);
+            }
+            else
+            {
+                if (c == '"') inQuotes = true;
+                else if (c == delim) { fields.Add(cur.ToString()); cur.Clear(); }
+                else cur.Append(c);
+            }
+        }
+        fields.Add(cur.ToString());
+        return fields.ToArray();
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var clean = name.Trim();
+        foreach (var c in invalid) clean = clean.Replace(c, '_');
+        return clean;
+    }
 }
