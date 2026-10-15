@@ -1,5 +1,18 @@
 bin/
 obj/
-publish_self_contained/client database/**
-!publish_self_contained/client database/*.json
+publish_self_contained/client database/
+*.zip
+LicenseGen/publish/clients/
 
+# POS data files — never commit (customer data, PINs, keys)
+operators.json
+pos-data.json
+printer-destinations.json
+register-settings.json
+open-orders.json
+daily-counters.json
+families.json
+z-reports.json
+sync-queue.json
+feature-settings.json
+products.json

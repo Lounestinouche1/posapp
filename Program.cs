@@ -5055,6 +5055,15 @@ internal sealed class PosForm : Form
     private bool syncRunning;
     private DateTime lastCloudSync = DateTime.MinValue;
 
+    private static string NormalizeSyncUrl(string url)
+    {
+        url = url.Trim().TrimEnd('/');
+        if (url.Length > 0 && !url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                          && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            url = "http://" + url;
+        return url;
+    }
+
     private void StartCloudSyncScheduler()
     {
         var t = new System.Windows.Forms.Timer { Interval = 60 * 1000 };
@@ -5075,7 +5084,7 @@ internal sealed class PosForm : Form
     private void RunCloudSync(bool showResult)
     {
         if (syncRunning || IsDisposed || !IsHandleCreated) return;
-        var url = store.Features.CloudSyncUrl.Trim().TrimEnd('/');
+        var url = NormalizeSyncUrl(store.Features.CloudSyncUrl);
         if (url.Length == 0)
         {
             if (showResult)
@@ -5205,7 +5214,7 @@ internal sealed class PosForm : Form
     private void UploadBackupToHome(bool showResult)
     {
         if (uploadRunning || IsDisposed || !IsHandleCreated) return;
-        var url = store.Features.CloudSyncUrl.Trim().TrimEnd('/');
+        var url = NormalizeSyncUrl(store.Features.CloudSyncUrl);
         if (url.Length == 0)
         {
             if (showResult)
@@ -5282,7 +5291,7 @@ internal sealed class PosForm : Form
             MessageBox.Show(Tr.T("Another sync operation is already running."), Tr.T("Cloud sync"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        var url = store.Features.CloudSyncUrl.Trim().TrimEnd('/');
+        var url = NormalizeSyncUrl(store.Features.CloudSyncUrl);
         if (url.Length == 0)
         {
             MessageBox.Show(Tr.T("Set the cloud sync server URL first\n(Settings > Network > Cloud sync settings)."), Tr.T("Cloud sync"), MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -5374,7 +5383,7 @@ internal sealed class PosForm : Form
             MessageBox.Show(Tr.T("Another sync operation is already running."), Tr.T("Restore"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        var url = store.Features.CloudSyncUrl.Trim().TrimEnd('/');
+        var url = NormalizeSyncUrl(store.Features.CloudSyncUrl);
         if (url.Length == 0)
         {
             MessageBox.Show(Tr.T("Set the cloud sync server URL first."), Tr.T("Restore"), MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -5574,7 +5583,7 @@ internal sealed class PosForm : Form
         };
         void SaveSettings()
         {
-            store.Features.CloudSyncUrl = urlTxt.Text.Trim().TrimEnd('/');
+            store.Features.CloudSyncUrl = NormalizeSyncUrl(urlTxt.Text);
             store.Features.CloudSyncKey = keyTxt.Text.Trim();
             store.Features.CloudSyncMinutes = (int)minNum.Value;
             store.Features.CloudSyncDevice = storeTxt.Text.Trim();
