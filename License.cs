@@ -87,7 +87,7 @@ public static class License
 
         if (sb.Length == 0) sb.Append(Environment.MachineName);
 
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+        var hash = PosCrypto.Sha256(Encoding.UTF8.GetBytes(sb.ToString()));
         var fp = new byte[8];
         Array.Copy(hash, fp, 8);
         return fp;
@@ -96,8 +96,8 @@ public static class License
     public static string GetRequestCode()
     {
         var fp = ComputeFingerprint();
-        var hex = Convert.ToHexString(fp).ToUpperInvariant();
-        return $"REQ-{hex[..4]}-{hex[4..8]}-{hex[8..12]}-{hex[12..16]}";
+        var hex = PosHex.ToUpper(fp);
+        return $"REQ-{hex.Substring(0, 4)}-{hex.Substring(4, 4)}-{hex.Substring(8, 4)}-{hex.Substring(12, 4)}";
     }
 
     // ── Key parsing & verification ──

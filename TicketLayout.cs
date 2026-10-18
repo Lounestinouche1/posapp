@@ -231,7 +231,7 @@ internal sealed class TicketDesignerForm : Form
             componentToAdd = new TicketComponentStyle(name);
         }
 
-        targetIndex = Math.Clamp(targetIndex, 0, layout.Items.Count);
+        targetIndex = Math.Max(0, Math.Min(layout.Items.Count, targetIndex));
         layout.Items.Insert(targetIndex, componentToAdd);
         layout.SelectedIndex = targetIndex;
         UpdatePreview();

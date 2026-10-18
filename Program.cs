@@ -1252,7 +1252,7 @@ internal sealed class PosForm : Form
 
     private void BuildUi()
     {
-        var sidebarWidth = Math.Clamp((int)(ClientSize.Width * 0.16), 150, 205);
+        var sidebarWidth = Math.Max(150, Math.Min(205, (int)(ClientSize.Width * 0.16)));
         var sidebar = new Panel { Dock = DockStyle.Left, Width = sidebarWidth, BackColor = Color.FromArgb(23, 29, 40), Padding = new Padding(18, 24, 16, 20) };
         var brand = new Label { Text = Tr.T("VECTRON\nPOS"), AutoSize = true, Font = new Font("Segoe UI Semibold", Math.Max(14F, ClientSize.Width / 75F)), ForeColor = mint, Location = new Point(20, 22) };
         sidebar.Controls.Add(brand);
@@ -1449,7 +1449,11 @@ internal sealed class PosForm : Form
         productGrid.Padding = new Padding(0, 14, 0, 0);
         menuPanel.Controls.Add(productGrid);
         menuPanel.Controls.Add(tabs);
-        var barcodeSearch = new TextBox { Dock = DockStyle.Top, Height = 36, BackColor = panelLight, ForeColor = Color.White, PlaceholderText = Tr.T("Scan barcode..."), Visible = store.Features.BarcodeScanning || store.Features.QuickSaleMode };
+        var barcodeSearch = new TextBox { Dock = DockStyle.Top, Height = 36, BackColor = panelLight, ForeColor = Color.White, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("Scan barcode..."),
+#endif
+             Visible = store.Features.BarcodeScanning || store.Features.QuickSaleMode };
         barcodeBox = barcodeSearch;
         barcodeSearch.KeyDown += (_, e) =>
         {
@@ -1542,7 +1546,7 @@ internal sealed class PosForm : Form
 
     private static void LayoutWorkspace(Panel workspace, Panel menuPanel, Panel orderPanel)
     {
-        var paymentWidth = Math.Clamp((int)(workspace.ClientSize.Width * 0.32), 275, 360);
+        var paymentWidth = Math.Max(275, Math.Min(360, (int)(workspace.ClientSize.Width * 0.32)));
         var menuWidth = Math.Max(0, workspace.ClientSize.Width - paymentWidth);
         orderPanel.SetBounds(menuWidth, 0, paymentWidth, workspace.ClientSize.Height);
         menuPanel.SetBounds(0, 0, menuWidth, workspace.ClientSize.Height);
@@ -1571,7 +1575,7 @@ internal sealed class PosForm : Form
     {
         productGrid.SuspendLayout();
         productGrid.Controls.Clear();
-        var tileWidth = Math.Clamp((int)(productGrid.ClientSize.Width / 4.5), 140, 220);
+        var tileWidth = Math.Max(140, Math.Min(220, (int)(productGrid.ClientSize.Width / 4.5)));
         var tileHeight = (int)(tileWidth * 0.80);
         foreach (var product in products.Where(item => item.Category == category))
         {
@@ -1677,8 +1681,8 @@ internal sealed class PosForm : Form
                 {
                     if (!table.Capture) return;
                     var loc = tableMap.PointToClient(Cursor.Position) - new Size(dragStart);
-                    loc.X = Math.Clamp(loc.X, 0, Math.Max(0, tableMap.ClientSize.Width - table.Width));
-                    loc.Y = Math.Clamp(loc.Y, 0, Math.Max(0, tableMap.ClientSize.Height - table.Height));
+                    loc.X = Math.Max(0, Math.Min(Math.Max(0, tableMap.ClientSize.Width - table.Width), loc.X));
+                    loc.Y = Math.Max(0, Math.Min(Math.Max(0, tableMap.ClientSize.Height - table.Height), loc.Y));
                     table.Location = loc;
                     if (Math.Abs(loc.X - origLoc.X) > 4 || Math.Abs(loc.Y - origLoc.Y) > 4) dragMoved = true;
                 };
@@ -1894,7 +1898,7 @@ internal sealed class PosForm : Form
             MaximizeBox = false,
             MinimizeBox = false
         };
-        var currentMods = (item.Modifiers ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        var currentMods = (item.Modifiers ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(m => m.Trim()).ToList();
         decimal ModPrice(string name) => store.ModifierGroups.SelectMany(g => g.Options).FirstOrDefault(o => o.Name == name)?.Price ?? 0m;
         var oldPrice = currentMods.Sum(ModPrice);
         var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoScroll = true, WrapContents = false, BackColor = background, Padding = new Padding(10) };
@@ -3445,7 +3449,7 @@ internal sealed class PosForm : Form
             var box = new ComboBox { Location = new Point(0, 6), Size = new Size(120, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
             box.Items.AddRange(["Cash", "Card", "Transfer", "Mobile"]);
             box.SelectedItem = box.Items.Contains(method) ? method : "Cash";
-            var amt = new NumericUpDown { Location = new Point(130, 6), Size = new Size(140, 30), Minimum = 0, Maximum = 100000000, DecimalPlaces = 2, Increment = 100, Value = Math.Clamp(amount, 0, 100000000) };
+            var amt = new NumericUpDown { Location = new Point(130, 6), Size = new Size(140, 30), Minimum = 0, Maximum = 100000000, DecimalPlaces = 2, Increment = 100, Value = Math.Max(0, Math.Min(100000000, amount)) };
             var remove = new Button { Text = Tr.T("✕"), Location = new Point(280, 6), Size = new Size(34, 30), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(160, 50, 50), ForeColor = Color.White };
             remove.FlatAppearance.BorderSize = 0;
             remove.Click += (_, _) => { chosen.Remove((box, amt)); listFlow.Controls.Remove(row); Refresh(); };
@@ -5072,7 +5076,7 @@ internal sealed class PosForm : Form
             try
             {
                 if (!store.Features.CloudSync) return;
-                var mins = Math.Clamp(store.Features.CloudSyncMinutes, 1, 1440);
+                var mins = Math.Max(1, Math.Min(1440, store.Features.CloudSyncMinutes));
                 if ((DateTime.Now - lastCloudSync).TotalMinutes < mins) return;
                 RunCloudSync(false);
             }
@@ -5417,7 +5421,7 @@ internal sealed class PosForm : Form
                 var bytes = Convert.FromBase64String(dataB64);
                 var temp = Path.Combine(Path.GetTempPath(), $"vectron-restore-{Guid.NewGuid():N}.zip");
                 File.WriteAllBytes(temp, bytes);
-                System.IO.Compression.ZipFile.ExtractToDirectory(temp, store.DataFolder, true);
+                PosZip.ExtractOverwrite(temp, store.DataFolder);
                 try { File.Delete(temp); } catch { }
             }
             catch (Exception ex)
@@ -5485,7 +5489,7 @@ internal sealed class PosForm : Form
             if (MessageBox.Show(Tr.T("Restoring will OVERWRITE the current database with the backup contents.\n\nContinue?"), Tr.T("Restore backup"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             try
             {
-                System.IO.Compression.ZipFile.ExtractToDirectory(dlg.FileName, store.DataFolder, true);
+                PosZip.ExtractOverwrite(dlg.FileName, store.DataFolder);
                 MessageBox.Show(Tr.T("Backup restored.\nThe application will now restart to load the restored data."), Tr.T("Restore"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                 Application.Restart();
             }
@@ -5495,7 +5499,7 @@ internal sealed class PosForm : Form
         try
         {
             var existing = Directory.Exists(store.Features.BackupPath)
-                ? Directory.GetFiles(store.Features.BackupPath, "vectron-backup-*.zip").Select(File.GetLastWriteTime).OrderDescending().FirstOrDefault()
+                ? Directory.GetFiles(store.Features.BackupPath, "vectron-backup-*.zip").Select(File.GetLastWriteTime).OrderByDescending(t => t).FirstOrDefault()
                 : default;
             lastRun.Text = existing == default ? "No previous backup found in this folder." : $"Last backup in this folder: {existing:dd MMM yyyy HH:mm}";
         }
@@ -5564,7 +5568,7 @@ internal sealed class PosForm : Form
         var keyLbl = new Label { Text = Tr.T("Shared key (leave empty to reuse the API key):"), AutoSize = true, Location = new Point(20, 86), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
         var keyTxt = new TextBox { Text = store.Features.CloudSyncKey, Location = new Point(20, 116), Size = new Size(300, 30), BackColor = panelLight, ForeColor = Color.White };
         var minLbl = new Label { Text = Tr.T("Sync every (minutes):"), AutoSize = true, Location = new Point(350, 86), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
-        var minNum = new NumericUpDown { Minimum = 1, Maximum = 1440, Value = Math.Clamp(store.Features.CloudSyncMinutes, 1, 1440), Location = new Point(350, 116), Size = new Size(110, 30), BackColor = panelLight, ForeColor = Color.White };
+        var minNum = new NumericUpDown { Minimum = 1, Maximum = 1440, Value = Math.Max(1, Math.Min(1440, store.Features.CloudSyncMinutes)), Location = new Point(350, 116), Size = new Size(110, 30), BackColor = panelLight, ForeColor = Color.White };
         var storeLbl = new Label { Text = Tr.T("Store ID (this PC, e.g. RESTO-1 — used for backups and restore):"), AutoSize = true, Location = new Point(20, 158), ForeColor = mint, Font = new Font("Segoe UI Semibold", 11F) };
         var storeTxt = new TextBox { Text = store.Features.CloudSyncDevice, Location = new Point(20, 184), Size = new Size(300, 30), BackColor = panelLight, ForeColor = Color.White };
         var pullChk = new CheckBox { Text = Tr.T("Pull other stores' sales automatically (off = push only)"), Checked = store.Features.CloudSyncPull, AutoSize = true, Location = new Point(20, 224), ForeColor = Color.White };
@@ -5746,7 +5750,7 @@ internal sealed class PosForm : Form
         }
         var head = new Label { Text = stats, Location = new Point(14, 12), Size = new Size(430, 64), ForeColor = Color.Orange, Font = new Font("Segoe UI Semibold", 11F) };
         var targetLbl = new Label { Text = Tr.T("Target prep (min):"), AutoSize = true, Location = new Point(456, 14), ForeColor = Color.White };
-        var targetNum = new NumericUpDown { Minimum = 1, Maximum = 180, Value = Math.Clamp(store.Features.KdsPrepMinutes, 1, 180), Location = new Point(456, 38), Size = new Size(70, 30), BackColor = panelLight, ForeColor = Color.White };
+        var targetNum = new NumericUpDown { Minimum = 1, Maximum = 180, Value = Math.Max(1, Math.Min(180, store.Features.KdsPrepMinutes)), Location = new Point(456, 38), Size = new Size(70, 30), BackColor = panelLight, ForeColor = Color.White };
         var saveTarget = ReportButton("Save", new Point(534, 36), new Size(84, 34), mint, background);
         saveTarget.Click += (_, _) =>
         {
@@ -5965,7 +5969,11 @@ internal sealed class PosForm : Form
     {
         using var f = new Form { Text = Tr.T("Find receipt"), Size = new Size(780, 560), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.Sizable, MaximizeBox = false, MinimizeBox = false };
         var date = new DateTimePicker { Location = new Point(14, 12), Size = new Size(150, 26), Format = DateTimePickerFormat.Short, Value = (preselect ?? DateTime.Today).Date, BackColor = panelLight, ForeColor = Color.White };
-        var search = new TextBox { Location = new Point(176, 12), Size = new Size(300, 26), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = Tr.T("Search: #, table, customer, type...") };
+        var search = new TextBox { Location = new Point(176, 12), Size = new Size(300, 26), BackColor = panelLight, ForeColor = Color.White, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("Search: #, table, customer, type...")
+#endif
+             };
         var findBtn = new Button { Text = Tr.T("Find"), Location = new Point(486, 10), Size = new Size(90, 30), BackColor = Color.FromArgb(55, 120, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         findBtn.FlatAppearance.BorderSize = 0;
         var lv = new ListView { Location = new Point(14, 48), Size = new Size(738, 380), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false, GridLines = true };
@@ -6161,7 +6169,11 @@ internal sealed class PosForm : Form
         var nameBox = new TextBox { Location = new Point(258, 12), Size = new Size(150, 26), BackColor = panelLight, ForeColor = Color.White };
         var phoneLabel = new Label { Text = Tr.T("Phone:"), AutoSize = true, Location = new Point(420, 16) };
         var phoneBox = new TextBox { Location = new Point(468, 12), Size = new Size(130, 26), BackColor = panelLight, ForeColor = Color.White };
-        var noteBox = new TextBox { Location = new Point(80, 48), Size = new Size(518, 26), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = Tr.T("Note (optional)") };
+        var noteBox = new TextBox { Location = new Point(80, 48), Size = new Size(518, 26), BackColor = panelLight, ForeColor = Color.White, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("Note (optional)")
+#endif
+             };
         var createBtn = new Button { Text = Tr.T("Create invoice link"), Location = new Point(612, 12), Size = new Size(134, 62), BackColor = Color.FromArgb(60, 130, 90), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5F) };
         createBtn.FlatAppearance.BorderSize = 0;
         var lv = new ListView { Location = new Point(14, 88), Size = new Size(732, 340), BackColor = panelLight, ForeColor = Color.White, View = View.Details, FullRowSelect = true, MultiSelect = false, GridLines = true };
@@ -6264,7 +6276,7 @@ internal sealed class PosForm : Form
     private string NewGiftCardCode()
     {
         string code;
-        do { code = "GC-" + Random.Shared.Next(100000, 999999); } while (store.GiftCards.Any(c => c.Code == code));
+        do { code = "GC-" + SafeRandom.Next(100000, 999999); } while (store.GiftCards.Any(c => c.Code == code));
         return code;
     }
 
@@ -6328,7 +6340,11 @@ internal sealed class PosForm : Form
             var pay = new ComboBox { Location = new Point(20, 113), Size = new Size(160, 30), DropDownStyle = ComboBoxStyle.DropDownList, BackColor = panelLight, ForeColor = Color.White };
             pay.Items.AddRange(["Cash", "Card"]); pay.SelectedIndex = 0;
             var emailLabel = new Label { Text = Tr.T("E-gift to:"), AutoSize = true, Location = new Point(20, 156), Visible = store.Features.EGiftEmail };
-            var emailBox = new TextBox { Location = new Point(20, 181), Size = new Size(250, 26), BackColor = panelLight, ForeColor = Color.White, Visible = store.Features.EGiftEmail, PlaceholderText = Tr.T("recipient@email.com (optional)") };
+            var emailBox = new TextBox { Location = new Point(20, 181), Size = new Size(250, 26), BackColor = panelLight, ForeColor = Color.White, Visible = store.Features.EGiftEmail, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("recipient@email.com (optional)")
+#endif
+             };
             var ok = new Button { Text = Tr.T("Sell"), Location = new Point(20, 216), Size = new Size(120, 38), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
             var cancel = new Button { Text = Tr.T("Cancel"), Location = new Point(150, 216), Size = new Size(120, 38), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             if (!store.Features.EGiftEmail) { ok.Location = new Point(20, 158); cancel.Location = new Point(150, 158); }
@@ -7006,7 +7022,11 @@ internal sealed class PosForm : Form
                 if (store.Ingredients.Count == 0) { MessageBox.Show(Tr.T("No ingredients yet — add them in Stock management first."), Tr.T("Stocktake"), MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
                 using var f = new Form { Text = Tr.T("New stock count"), Size = new Size(620, 520), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 9.5F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
                 var hint = new Label { Text = Tr.T("Enter the counted quantity for each ingredient (system values are pre-filled)."), AutoSize = true, Location = new Point(20, 14), ForeColor = Color.FromArgb(170, 180, 195) };
-                var noteBox = new TextBox { Location = new Point(20, 40), Size = new Size(380, 28), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = Tr.T("Note (optional, e.g. 'Friday count')") };
+                var noteBox = new TextBox { Location = new Point(20, 40), Size = new Size(380, 28), BackColor = panelLight, ForeColor = Color.White, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("Note (optional, e.g. 'Friday count')")
+#endif
+             };
                 var grid = new DataGridView { Location = new Point(20, 78), Size = new Size(565, 340), BackgroundColor = panelLight, BorderStyle = BorderStyle.None, ForeColor = Color.White, GridColor = Color.FromArgb(60, 70, 85), AllowUserToAddRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill };
                 grid.Columns.AddRange(
                     new DataGridViewTextBoxColumn { HeaderText = Tr.T("Ingredient"), ReadOnly = true },
@@ -7074,7 +7094,11 @@ internal sealed class PosForm : Form
                 foreach (var i in store.Ingredients) ingrC.Items.Add($"{i.Name} (stock {i.Stock:0.##} {i.Unit})");
                 if (ingrC.Items.Count > 0) ingrC.SelectedIndex = 0;
                 var qty = new NumericUpDown { Location = new Point(20, 74), Size = new Size(110, 28), Minimum = 0.01m, Maximum = 100000, DecimalPlaces = 2, Increment = 0.1m, BackColor = panelLight, ForeColor = Color.White };
-                var reason = new TextBox { Location = new Point(20, 114), Size = new Size(240, 28), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = Tr.T("Reason (spoiled, dropped…)") };
+                var reason = new TextBox { Location = new Point(20, 114), Size = new Size(240, 28), BackColor = panelLight, ForeColor = Color.White, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("Reason (spoiled, dropped…)")
+#endif
+             };
                 var okBtn = new Button { Text = Tr.T("Log it"), Location = new Point(20, 156), Size = new Size(100, 32), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
                 okBtn.FlatAppearance.BorderSize = 0;
                 var cancelBtn3 = new Button { Text = Tr.T("Cancel"), Location = new Point(130, 156), Size = new Size(100, 32), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -7150,7 +7174,11 @@ internal sealed class PosForm : Form
                 var lb = new ListBox { Location = new Point(20, 34), Size = new Size(200, 180), BackColor = panelLight, ForeColor = Color.White };
                 void FillLb() { lb.Items.Clear(); foreach (var l in Locations()) lb.Items.Add(l); }
                 FillLb();
-                var newLoc = new TextBox { Location = new Point(20, 224), Size = new Size(150, 28), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = Tr.T("New location") };
+                var newLoc = new TextBox { Location = new Point(20, 224), Size = new Size(150, 28), BackColor = panelLight, ForeColor = Color.White, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("New location")
+#endif
+             };
                 var addB = new Button { Text = Tr.T("+"), Location = new Point(178, 224), Size = new Size(42, 28), BackColor = mint, ForeColor = background, FlatStyle = FlatStyle.Flat };
                 var delB = new Button { Text = Tr.T("Remove"), Location = new Point(20, 258), Size = new Size(90, 28), BackColor = Color.FromArgb(180, 70, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
                 addB.FlatAppearance.BorderSize = 0; delB.FlatAppearance.BorderSize = 0;
@@ -7277,7 +7305,7 @@ internal sealed class PosForm : Form
         var es = store.EmailSettings;
         using var f = new Form { Text = Tr.T("Email / SMTP settings"), Size = new Size(440, 400), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
         var host = new TextBox { Location = new Point(150, 20), Size = new Size(250, 28), BackColor = panelLight, ForeColor = Color.White, Text = es.Host };
-        var port = new NumericUpDown { Location = new Point(150, 58), Size = new Size(100, 28), BackColor = panelLight, ForeColor = Color.White, Minimum = 1, Maximum = 65535, Value = Math.Clamp(es.Port, 1, 65535) };
+        var port = new NumericUpDown { Location = new Point(150, 58), Size = new Size(100, 28), BackColor = panelLight, ForeColor = Color.White, Minimum = 1, Maximum = 65535, Value = Math.Max(1, Math.Min(65535, es.Port)) };
         var user = new TextBox { Location = new Point(150, 96), Size = new Size(250, 28), BackColor = panelLight, ForeColor = Color.White, Text = es.User };
         var pass = new TextBox { Location = new Point(150, 134), Size = new Size(250, 28), BackColor = panelLight, ForeColor = Color.White, Text = es.Password, UseSystemPasswordChar = true };
         var from = new TextBox { Location = new Point(150, 172), Size = new Size(250, 28), BackColor = panelLight, ForeColor = Color.White, Text = es.From };
@@ -7426,9 +7454,9 @@ internal sealed class PosForm : Form
         {
             static string QV(string q, string k)
             {
-                foreach (var pair in q.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                foreach (var pair in q.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    var kv = pair.Split('=', 2);
+                    var kv = pair.Split(new[] { '=' }, 2);
                     if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
                 }
                 return "";
@@ -7438,7 +7466,7 @@ internal sealed class PosForm : Form
                 return JsonResponse(new { ok = false, error = "Missing or invalid ?key=." });
             if (path == "/api/sales")
             {
-                var limit = int.TryParse(QV(query, "limit"), out var l) ? Math.Clamp(l, 1, 500) : 50;
+                var limit = int.TryParse(QV(query, "limit"), out var l) ? Math.Max(1, Math.Min(500, l)) : 50;
                 return JsonResponse(new
                 {
                     ok = true,
@@ -7491,9 +7519,9 @@ internal sealed class PosForm : Form
         {
             static string QVs(string q, string k)
             {
-                foreach (var pair in q.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                foreach (var pair in q.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    var kv = pair.Split('=', 2);
+                    var kv = pair.Split(new[] { '=' }, 2);
                     if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
                 }
                 return "";
@@ -7566,9 +7594,9 @@ internal sealed class PosForm : Form
         {
             static string QVb(string q, string k)
             {
-                foreach (var pair in q.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                foreach (var pair in q.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    var kv = pair.Split('=', 2);
+                    var kv = pair.Split(new[] { '=' }, 2);
                     if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
                 }
                 return "";
@@ -7635,9 +7663,9 @@ internal sealed class PosForm : Form
         {
             string QV(string k)
             {
-                foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                foreach (var pair in query.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    var kv = pair.Split('=', 2);
+                    var kv = pair.Split(new[] { '=' }, 2);
                     if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
                 }
                 return "";
@@ -7652,9 +7680,9 @@ internal sealed class PosForm : Form
         {
             string QV2(string k)
             {
-                foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                foreach (var pair in query.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    var kv = pair.Split('=', 2);
+                    var kv = pair.Split(new[] { '=' }, 2);
                     if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
                 }
                 return "";
@@ -7727,9 +7755,9 @@ internal sealed class PosForm : Form
     {
         string Q(string k)
         {
-            foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var pair in query.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
             {
-                var kv = pair.Split('=', 2);
+                var kv = pair.Split(new[] { '=' }, 2);
                 if (kv.Length == 2 && kv[0] == k) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
             }
             return "";
@@ -7872,9 +7900,9 @@ internal sealed class PosForm : Form
     {
         string QueryVal(string key)
         {
-            foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var pair in query.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
             {
-                var kv = pair.Split('=', 2);
+                var kv = pair.Split(new[] { '=' }, 2);
                 if (kv.Length == 2 && kv[0] == key) return Uri.UnescapeDataString(kv[1].Replace('+', ' '));
             }
             return "";
@@ -8258,7 +8286,11 @@ internal sealed class PosForm : Form
             using var f = new Form { Text = Tr.T("Add modifier group"), Size = new Size(380, 300), StartPosition = FormStartPosition.CenterParent, BackColor = background, ForeColor = Color.White, Font = new Font("Segoe UI", 10F), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
             var gn = new TextBox { Location = new Point(20, 30), Size = new Size(320, 28), BackColor = panelLight, ForeColor = Color.White };
             var optList = new ListBox { Location = new Point(20, 70), Size = new Size(320, 120), BackColor = panelLight, ForeColor = Color.White };
-            var optName = new TextBox { Location = new Point(20, 200), Size = new Size(180, 28), BackColor = panelLight, ForeColor = Color.White, PlaceholderText = Tr.T("Option name") };
+            var optName = new TextBox { Location = new Point(20, 200), Size = new Size(180, 28), BackColor = panelLight, ForeColor = Color.White, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("Option name")
+#endif
+             };
             var optPrice = new NumericUpDown { Location = new Point(210, 200), Size = new Size(80, 28), BackColor = panelLight, ForeColor = Color.White, DecimalPlaces = 2, Minimum = 0 };
             var addOpt = new Button { Text = Tr.T("+"), Location = new Point(300, 200), Size = new Size(40, 28), BackColor = panelLight, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             addOpt.FlatAppearance.BorderSize = 0;
@@ -8933,7 +8965,7 @@ internal sealed class OperatorManagerForm : Form
         var op = operators[selectedIndex];
         name.Text = op.Name;
         password.Text = op.Password;
-        wage.Value = Math.Clamp(op.Wage, wage.Minimum, wage.Maximum);
+        wage.Value = Math.Max(wage.Minimum, Math.Min(wage.Maximum, op.Wage));
         foreach (var permission in PermissionNames)
             permissionBoxes[permission].Checked = op.Permissions.Contains("All permissions") || op.Permissions.Contains(permission);
     }
@@ -10399,7 +10431,11 @@ internal static class TcpPrintServer
         {
             try
             {
-                var client = await listener!.AcceptTcpClientAsync(token);
+                #if NETFRAMEWORK
+                    var client = await listener!.AcceptTcpClientAsync();
+                #else
+                    var client = await listener!.AcceptTcpClientAsync(token);
+                #endif
                 _ = Task.Run(() => HandleClient(client), token);
             }
             catch (OperationCanceledException) { break; }
@@ -11116,9 +11152,17 @@ internal sealed class ProductManagerForm : Form
                 lv.Items.Add(new ListViewItem([v.Name, v.Price.ToString("C"), v.Barcode]));
         }
         Fill();
-        var vName = new TextBox { Location = new Point(16, 276), Size = new Size(130, 28), BackColor = pl, ForeColor = Color.White, PlaceholderText = Tr.T("Size / name") };
+        var vName = new TextBox { Location = new Point(16, 276), Size = new Size(130, 28), BackColor = pl, ForeColor = Color.White, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("Size / name")
+#endif
+             };
         var vPrice = new NumericUpDown { Location = new Point(156, 276), Size = new Size(90, 28), Minimum = 0, Maximum = 100000, DecimalPlaces = 2, Increment = 0.5m, BackColor = pl, ForeColor = Color.White };
-        var vBarcode = new TextBox { Location = new Point(256, 276), Size = new Size(120, 28), BackColor = pl, ForeColor = Color.White, PlaceholderText = Tr.T("Barcode") };
+        var vBarcode = new TextBox { Location = new Point(256, 276), Size = new Size(120, 28), BackColor = pl, ForeColor = Color.White, 
+#if NET5_0_OR_GREATER
+                PlaceholderText = Tr.T("Barcode")
+#endif
+             };
         var addBtn = new Button { Text = Tr.T("+ Add"), Location = new Point(16, 312), Size = new Size(90, 30), BackColor = mintC, ForeColor = bg, FlatStyle = FlatStyle.Flat };
         var delBtn = new Button { Text = Tr.T("Remove"), Location = new Point(116, 312), Size = new Size(90, 30), BackColor = Color.FromArgb(180, 70, 60), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         var closeBtn = new Button { Text = Tr.T("Close"), Location = new Point(390, 312), Size = new Size(90, 30), BackColor = pl, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
@@ -11567,8 +11611,8 @@ internal sealed class QrOrderServer : IDisposable
         }
         var raw = data.ToArray();
         var headerText = Encoding.UTF8.GetString(raw, 0, headerEnd);
-        var lines = headerText.Split("\r\n");
-        var parts = lines[0].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var lines = headerText.Split(new[] { "\r\n" }, StringSplitOptions.None);
+        var parts = lines[0].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 2) return null;
         var method = parts[0];
         var path = parts[1];

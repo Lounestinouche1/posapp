@@ -1,32 +1,49 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFrameworks>net10.0-windows;net48</TargetFrameworks>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
     <AssemblyName>Vectron POS</AssemblyName>
-        <RootNamespace>VectronPOS</RootNamespace>
+    <RootNamespace>VectronPOS</RootNamespace>
+  </PropertyGroup>
+
+  <!-- .NET 10 build (Windows 10/11): self-contained single-file -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
+  <!-- .NET Framework 4.8 build (Windows 7): framework-dependent -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+
   <ItemGroup>
-    <Compile Remove="publish/**" />
-    <Compile Remove="publish_self_contained/**" />
+    <Compile Remove="publish*/**" />
+    <EmbeddedResource Remove="publish*/**" />
+    <None Remove="publish*/**" />
     <Compile Remove="LicenseGen/**" />
-    <EmbeddedResource Remove="publish/**" />
-    <EmbeddedResource Remove="publish_self_contained/**" />
     <EmbeddedResource Remove="LicenseGen/**" />
-    <None Remove="publish/**" />
-    <None Remove="publish_self_contained/**" />
     <None Remove="LicenseGen/**" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <PackageReference Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
   </ItemGroup>
 
 </Project>

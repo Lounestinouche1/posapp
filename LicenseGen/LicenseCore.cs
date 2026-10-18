@@ -101,7 +101,7 @@ public static class LicenseCore
             sb.Append(Environment.MachineName);
 
         // Hash down to 8 bytes
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+        var hash = Sha256Hash(Encoding.UTF8.GetBytes(sb.ToString()));
         var fp = new byte[8];
         Array.Copy(hash, fp, 8);
         return fp;
@@ -111,8 +111,8 @@ public static class LicenseCore
     {
         // Display fingerprint as a readable "request code"
         // Format: REQ-XXXXXXXX-XXXXXXXX (hex)
-        var hex = Convert.ToHexString(fingerprint).ToUpperInvariant();
-        return $"REQ-{hex[..4]}-{hex[4..8]}-{hex[8..12]}-{hex[12..16]}";
+        var hex = ToUpperHex(fingerprint);
+        return $"REQ-{hex.Substring(0, 4)}-{hex.Substring(4, 4)}-{hex.Substring(8, 4)}-{hex.Substring(12, 4)}";
     }
 
     public static byte[] ParseRequestCode(string requestCode)
@@ -146,7 +146,7 @@ public static class LicenseCore
         payload[0] = KeyVersion;
 
         // Customer name hash (for display / cross-check, not secret)
-        var nameHash = SHA256.HashData(Encoding.UTF8.GetBytes(customerName.Trim().ToUpperInvariant()));
+        var nameHash = Sha256Hash(Encoding.UTF8.GetBytes(customerName.Trim().ToUpperInvariant()));
         Array.Copy(nameHash, 0, payload, 1, 6);
 
         // Fingerprint
@@ -171,6 +171,19 @@ public static class LicenseCore
 
         // Format: VECT-XXXX-XXXX-XXXX-... (groups of 8 after prefix)
         return FormatKey(key);
+    }
+
+    private static byte[] Sha256Hash(byte[] data)
+    {
+        using var sha = SHA256.Create();
+        return sha.ComputeHash(data);
+    }
+
+    private static string ToUpperHex(byte[] bytes)
+    {
+        var sb = new StringBuilder(bytes.Length * 2);
+        foreach (var b in bytes) sb.Append(b.ToString("X2"));
+        return sb.ToString();
     }
 
     // ── Base32 encoding (RFC 4648, no padding) ──

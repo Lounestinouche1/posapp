@@ -3,11 +3,11 @@ namespace LicenseGen;
 public class MainForm : Form
 {
     // ── Controls ──
-    private readonly TextBox _customerBox = new() { PlaceholderText = "e.g. Restaurant Le Olive" };
-    private readonly TextBox _phoneBox = new() { PlaceholderText = "e.g. +212 600 000 000" };
-    private readonly TextBox _requestBox = new() { PlaceholderText = "REQ-XXXX-XXXX-XXXX-XXXX" };
-    private readonly TextBox _pcNameBox = new() { PlaceholderText = "e.g. Main PC, Order PC 1, Order PC 2" };
-    private readonly TextBox _notesBox = new() { PlaceholderText = "Optional notes (phone, address, ...)" };
+    private readonly TextBox _customerBox = new();
+    private readonly TextBox _phoneBox = new();
+    private readonly TextBox _requestBox = new();
+    private readonly TextBox _pcNameBox = new();
+    private readonly TextBox _notesBox = new() { Width = 300 };
     private readonly NumericUpDown _yearsBox = new() { Minimum = 1, Maximum = 20, Value = 1, Width = 80 };
     private readonly NumericUpDown _monthsBox = new() { Minimum = 0, Maximum = 11, Value = 0, Width = 80 };
     private readonly Label _expiryLabel = new() { AutoSize = true, ForeColor = Color.FromArgb(0, 180, 120), Font = new Font("Segoe UI", 10, FontStyle.Bold) };
@@ -230,7 +230,7 @@ public class MainForm : Form
         }
 
         // Show picker if multiple records
-        var rec = records[^1]; // default: most recent (last row)
+        var rec = records[records.Count - 1]; // default: most recent (last row)
         if (records.Count > 1)
         {
             using var picker = new Form
@@ -289,7 +289,7 @@ public class MainForm : Form
                 csvCache[h.CustomerName] = recs;
             }
             var match = recs.LastOrDefault(r => r.RequestCode == h.RequestCode);
-            var truncatedKey = h.Key.Length > 30 ? h.Key[..30] + "…" : h.Key;
+            var truncatedKey = h.Key.Length > 30 ? h.Key.Substring(0, 30) + "…" : h.Key;
             var item = new ListViewItem(new[]
             {
                 h.CustomerName,

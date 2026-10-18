@@ -1,8 +1,9 @@
 bin/
 obj/
-publish_self_contained/client database/
+publish/
+publish_*/
+publish-*/
 *.zip
-LicenseGen/publish/clients/
 
 # POS data files — never commit (customer data, PINs, keys)
 operators.json
