@@ -8,8 +8,9 @@ public class MainForm : Form
     private readonly TextBox _requestBox = new();
     private readonly TextBox _pcNameBox = new();
     private readonly TextBox _notesBox = new() { Width = 300 };
-    private readonly NumericUpDown _yearsBox = new() { Minimum = 1, Maximum = 20, Value = 1, Width = 80 };
+    private readonly NumericUpDown _yearsBox = new() { Minimum = 0, Maximum = 20, Value = 1, Width = 80 };
     private readonly NumericUpDown _monthsBox = new() { Minimum = 0, Maximum = 11, Value = 0, Width = 80 };
+    private readonly NumericUpDown _daysBox = new() { Minimum = 0, Maximum = 999, Value = 0, Width = 80 };
     private readonly Label _expiryLabel = new() { AutoSize = true, ForeColor = Color.FromArgb(0, 180, 120), Font = new Font("Segoe UI", 10, FontStyle.Bold) };
     private readonly TextBox _keyBox = new() { Multiline = true, ReadOnly = true, Height = 70, Font = new Font("Consolas", 10), BackColor = Color.FromArgb(30, 38, 52), ForeColor = Color.FromArgb(0, 220, 150) };
     private readonly Button _generateBtn = new() { Text = "Generate License Key", BackColor = Color.FromArgb(0, 180, 120), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Height = 40, Font = new Font("Segoe UI", 10, FontStyle.Bold) };
@@ -74,7 +75,9 @@ public class MainForm : Form
         durPanel.Controls.Add(_yearsBox);
         durPanel.Controls.Add(new Label { Text = "year(s)", ForeColor = Color.FromArgb(143, 154, 171), AutoSize = true, Padding = new Padding(4, 6, 12, 0) });
         durPanel.Controls.Add(_monthsBox);
-        durPanel.Controls.Add(new Label { Text = "month(s) →", ForeColor = Color.FromArgb(143, 154, 171), AutoSize = true, Padding = new Padding(4, 6, 8, 0) });
+        durPanel.Controls.Add(new Label { Text = "month(s)", ForeColor = Color.FromArgb(143, 154, 171), AutoSize = true, Padding = new Padding(4, 6, 12, 0) });
+        durPanel.Controls.Add(_daysBox);
+        durPanel.Controls.Add(new Label { Text = "day(s) →", ForeColor = Color.FromArgb(143, 154, 171), AutoSize = true, Padding = new Padding(4, 6, 8, 0) });
         durPanel.Controls.Add(_expiryLabel);
         inputPanel.Controls.Add(new Label { Text = "Duration:", ForeColor = Color.FromArgb(143, 154, 171), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight }, 0, 4);
         inputPanel.Controls.Add(durPanel, 1, 4);
@@ -158,13 +161,15 @@ public class MainForm : Form
 
         _yearsBox.ValueChanged += (_, _) => RefreshExpiry();
         _monthsBox.ValueChanged += (_, _) => RefreshExpiry();
+        _daysBox.ValueChanged += (_, _) => RefreshExpiry();
     }
 
     private void RefreshExpiry()
     {
         _expiryUtc = DateTime.UtcNow.Date
             .AddYears((int)_yearsBox.Value)
-            .AddMonths((int)_monthsBox.Value);
+            .AddMonths((int)_monthsBox.Value)
+            .AddDays((int)_daysBox.Value);
         _expiryLabel.Text = $"expires {_expiryUtc:yyyy-MM-dd}";
     }
 
@@ -269,12 +274,31 @@ public class MainForm : Form
         _pcNameBox.Text = rec.PcName;
         _notesBox.Text = rec.Notes;
 
-        // Reset duration to 1 year (they can adjust)
-        _yearsBox.Value = 1;
-        _monthsBox.Value = 0;
+        // Prefill duration with the time actually remaining on the loaded license,
+        // so a lost license can be re-issued for the exact same end date.
+        // Fall back to 1 year if it already expired.
+        var nowUtc = DateTime.UtcNow.Date;
+        var targetUtc = rec.ExpiryUtc.Date;
+        int y = 0, m = 0, d = 0;
+        if (targetUtc > nowUtc)
+        {
+            var cursor = nowUtc;
+            while (y < _yearsBox.Maximum && cursor.AddYears(1) <= targetUtc) { y++; cursor = cursor.AddYears(1); }
+            while (m < _monthsBox.Maximum && cursor.AddMonths(1) <= targetUtc) { m++; cursor = cursor.AddMonths(1); }
+            d = (targetUtc - cursor).Days;
+            if (d > _daysBox.Maximum) d = (int)_daysBox.Maximum;
+        }
+        else
+        {
+            y = 1;
+        }
+        _yearsBox.Value = y;
+        _monthsBox.Value = m;
+        _daysBox.Value = d;
         RefreshExpiry();
 
-        _statusLabel.Text = $"Loaded \"{rec.CustomerName}\" ({rec.PcName}) from CSV. Adjust duration and click Generate to issue a renewal.";
+        var remainTxt = targetUtc > nowUtc ? $"{y}y {m}m {d}d remaining" : "license expired";
+        _statusLabel.Text = $"Loaded \"{rec.CustomerName}\" ({rec.PcName}) — {remainTxt}. Adjust if needed, then Generate to re-issue.";
     }
 
     private void LoadHistoryIntoList()
