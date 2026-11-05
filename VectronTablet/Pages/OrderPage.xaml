@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:VectronTablet.Models"
+             xmlns:pages="clr-namespace:VectronTablet.Pages"
+             xmlns:local="clr-namespace:VectronTablet"
+             x:Class="VectronTablet.Pages.OrderPage"
+             x:Name="page"
+             BackgroundColor="{StaticResource Bg}">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- Header (P1.7 Flat-HUD: mint accent rail left of the title + 1px hairline under) -->
+        <Grid Grid.Row="0" RowDefinitions="Auto,1">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6"
+                  Padding="10,44,10,8">
+                <!-- P1.5: no Clicked here — a PressBind'ed button's click travels through
+                     Theme.PressBind (a recognizer consumes the touch stream, so a XAML Clicked
+                     would be dead). Wired in the code-behind constructor instead. -->
+                <Button Grid.Column="0" x:Name="backBtn" Text="←" Style="{StaticResource GhostBtn}"
+                        WidthRequest="48" />
+                <BoxView Grid.Column="1" WidthRequest="3" HeightRequest="34"
+                         Color="{StaticResource Mint}" HorizontalOptions="Start"
+                         VerticalOptions="Center" Margin="0,0,6,0" />
+                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1"
+                                     Margin="9,0,0,0">
+                    <Label x:Name="titleLabel" Text="—" FontSize="17" FontAttributes="Bold"
+                           TextColor="{StaticResource Txt}" />
+                    <Label x:Name="statusLabel" Text="free" Style="{StaticResource DimLbl}" />
+                </VerticalStackLayout>
+                <Button Grid.Column="2" x:Name="fireBtn" Text="🔥 Fire" Style="{StaticResource GhostBtn}"
+                        IsVisible="False" />
+                <Button Grid.Column="3" x:Name="billBtn" Text="🧾 Bill" Style="{StaticResource GhostBtn}"
+                        IsVisible="False" />
+            </Grid>
+            <BoxView Grid.Row="1" HeightRequest="1" BackgroundColor="{StaticResource HudLine}" />
+        </Grid>
+
+        <!-- Body -->
+        <ScrollView Grid.Row="1" x:Name="scroller" Scrolled="OnScrolled">
+            <VerticalStackLayout x:Name="body" Padding="14,6,14,14" Spacing="10">
+
+                <VerticalStackLayout x:Name="sentSection" Spacing="6" IsVisible="False">
+                    <Label Text="On the table" Style="{StaticResource SectionLbl}" />
+                    <VerticalStackLayout x:Name="sentLines" Spacing="4" />
+                    <Border BackgroundColor="{StaticResource Panel2}" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 10" Padding="12,8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="Table total" TextColor="{StaticResource TxtDim}" />
+                            <Label x:Name="sentTotalLabel" Grid.Column="1" TextColor="{StaticResource Mint}"
+                                   FontAttributes="Bold" FontSize="16" />
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+
+                <Label Text="Menu" Style="{StaticResource SectionLbl}" Margin="0,4,0,0" />
+                <ScrollView Orientation="Horizontal">
+                    <HorizontalStackLayout x:Name="categoryRow" Spacing="0" />
+                </ScrollView>
+
+                <CollectionView x:Name="productView"
+                                ItemSizingStrategy="MeasureAllItems"
+                                HeightRequest="-1"
+                                SelectionMode="None">
+                    <CollectionView.ItemsLayout>
+                        <GridItemsLayout Orientation="Vertical" Span="3" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="pages:ProductTile">
+                            <Border BackgroundColor="{StaticResource Panel}"
+                                    Stroke="{StaticResource HudLine}" StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 12"
+                                    Padding="6" HeightRequest="{Binding TileHeight}"
+                                    Margin="0,0,8,8">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnProductTap" />
+                                    <PointerGestureRecognizer PointerPressed="OnTilePressed"
+                                                               PointerReleased="OnTileReleased"
+                                                               PointerExited="OnTileReleased" />
+                                </Border.GestureRecognizers>
+                                <Grid RowDefinitions="*,Auto" RowSpacing="3">
+                                    <!-- Image: full width, ~80% of the tile height (accent colour when there is none) -->
+                                    <Border Grid.Row="0" BackgroundColor="{Binding Accent}"
+                                            StrokeShape="RoundRectangle 8" StrokeThickness="0" Padding="0">
+                                        <Grid>
+                                            <Image Aspect="AspectFill" Source="{Binding Image}" />
+                                            <!-- "+" badge (top-right, over the image) -->
+                                            <Border BackgroundColor="{StaticResource PlusBg}"
+                                                    StrokeShape="RoundRectangle 13" StrokeThickness="0" Padding="0"
+                                                    WidthRequest="26" HeightRequest="26" Margin="0,4,4,0"
+                                                    HorizontalOptions="End" VerticalOptions="Start"
+                                                    IsVisible="{Binding ShowPlus}">
+                                                <Label Text="+" FontSize="15" TextColor="{StaticResource OnFill}"
+                                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                                            </Border>
+                                            <!-- "86" badge replaces it on out-of-stock products -->
+                                            <Border BackgroundColor="{StaticResource EightySixBg}"
+                                                    StrokeShape="RoundRectangle 13" StrokeThickness="0" Padding="0"
+                                                    WidthRequest="36" HeightRequest="26" Margin="0,4,4,0"
+                                                    HorizontalOptions="End" VerticalOptions="Start"
+                                                    IsVisible="{Binding ShowEightySix}">
+                                                <Label Text="86" FontSize="13" FontAttributes="Bold"
+                                                       TextColor="{StaticResource DangerInk}"
+                                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                    <!-- Name on top (wraps to 2 lines so long names stay readable),
+                                         price underneath -->
+                                    <VerticalStackLayout Grid.Row="1" Spacing="1">
+                                        <Label Text="{Binding Name}" FontSize="12"
+                                               LineBreakMode="TailTruncation" MaxLines="2"
+                                               TextColor="{StaticResource Txt}"
+                                               TextDecorations="{Binding NameDecorations}" />
+                                        <Label Text="{Binding PriceText}" FontSize="13" FontAttributes="Bold"
+                                               TextColor="{Binding PriceColor}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <!-- P1.5 empty state (Windows parity): the section stays visible and shows a
+                     bold title + dim hint until the first product is added.
+                     P1.7 Flat-HUD: 3px mint tick marks the section title (Windows orderTick). -->
+                <VerticalStackLayout x:Name="basketSection" Spacing="6">
+                    <HorizontalStackLayout Spacing="9" Margin="0,8,0,0">
+                        <BoxView WidthRequest="3" HeightRequest="18" Color="{StaticResource Mint}"
+                                 VerticalOptions="Center" />
+                        <Label Text="To send" Style="{StaticResource SectionLbl}" />
+                    </HorizontalStackLayout>
+                    <VerticalStackLayout x:Name="basketLines" Spacing="4" />
+                    <Label x:Name="emptyTitle" Text="No products selected yet" FontSize="15"
+                           FontAttributes="Bold" TextColor="{StaticResource Txt}" />
+                    <Label x:Name="emptyHint" Text="Choose products from the menu."
+                           Style="{StaticResource DimLbl}" />
+                    <Label x:Name="basketHint" Style="{StaticResource DimLbl}" IsVisible="False"
+                           Text="Tap the name to change note or course · use − + to change qty · ✕ to remove." />
+                </VerticalStackLayout>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Bottom bar (P1.5: 1px divider on top + TOTAL hierarchy, Windows parity.
+             P1.7 Flat-HUD: mint corner brackets over the totals surface — the Android
+             counterpart of the Windows current-order panel brackets. -->
+        <Grid Grid.Row="2" RowDefinitions="1,*">
+            <BoxView HeightRequest="1" BackgroundColor="{StaticResource HudLine}" />
+            <Grid Grid.Row="1">
+            <Border BackgroundColor="{StaticResource Panel}" StrokeThickness="0"
+                    StrokeShape="RoundRectangle 0" Padding="14,10,14,16">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout VerticalOptions="Center" Spacing="1">
+                        <Label x:Name="basketCountLabel" Text="" TextColor="{StaticResource TxtDim}"
+                               FontSize="13" />
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                            <Label Text="TOTAL" TextColor="{StaticResource TxtDim}" FontSize="13"
+                                   VerticalOptions="Center" />
+                            <Label x:Name="totalAmountLabel" Text="" TextColor="{StaticResource Txt}"
+                                   FontSize="24" FontAttributes="Bold" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <Label x:Name="lastStatusLabel" Text="" TextColor="{StaticResource TxtDim}"
+                               FontSize="12" LineBreakMode="TailTruncation" MaxLines="2" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1" x:Name="sendBtn" Text="Send to kitchen"
+                            Style="{StaticResource PrimaryBtn}"
+                            BackgroundColor="{StaticResource Panel2}" TextColor="{StaticResource TxtDim}" />
+                </Grid>
+            </Border>
+            <!-- P1.7 brackets (InputTransparent: the send button keeps every touch) -->
+            <GraphicsView InputTransparent="True" HorizontalOptions="Fill" VerticalOptions="Fill">
+                <GraphicsView.Drawable>
+                    <local:HudFrameDrawable DrawEdge="False" Arm="16" Inset="6" />
+                </GraphicsView.Drawable>
+            </GraphicsView>
+            </Grid>
+        </Grid>
+
+    </Grid>
+</ContentPage>

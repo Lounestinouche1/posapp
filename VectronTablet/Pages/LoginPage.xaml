@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:VectronTablet"
+             x:Class="VectronTablet.Pages.LoginPage"
+             x:Name="page"
+             BackgroundColor="{StaticResource Bg}"
+             NavigationPage.HasNavigationBar="False">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="28,60,28,28" Spacing="14">
+
+            <!-- Brand mark (mirrors the Windows operator-login card: mark + mint rule) -->
+            <Label Text="VECTRON" FontSize="30" FontAttributes="Bold"
+                   TextColor="{StaticResource Mint}" HorizontalOptions="Center" />
+            <Label Text="Waiter terminal" FontSize="15" TextColor="{StaticResource TxtDim}"
+                   HorizontalOptions="Center" Margin="0,0,0,10" />
+            <BoxView WidthRequest="48" HeightRequest="3" CornerRadius="1.5"
+                     Color="{StaticResource Mint}" HorizontalOptions="Center" Margin="0,0,0,26" />
+
+            <!-- Flat card frame (P1.7 Flat-HUD): the connection + operator panels share one
+                 surface; a GraphicsView overlays the card with the mint corner brackets
+                 (InputTransparent, so the entries/buttons below keep every touch). -->
+            <Grid>
+                <Border Stroke="{StaticResource HudLine}" StrokeThickness="1" StrokeShape="RoundRectangle 14"
+                        BackgroundColor="{StaticResource Panel}" Padding="20,22">
+                    <VerticalStackLayout Spacing="14">
+
+                <!-- Stage 1: connection -->
+                <VerticalStackLayout x:Name="connPanel" Spacing="12">
+                    <Label Text="Main PC address" Style="{StaticResource DimLbl}" />
+                    <!-- P1.7 focus rail: 2px mint bar under the focused field (event-driven) -->
+                    <Grid RowDefinitions="Auto,2" RowSpacing="3">
+                        <Entry x:Name="urlEntry" Placeholder="http://192.168.1.10:8080"
+                               TextColor="{StaticResource Txt}" BackgroundColor="{StaticResource Panel2}"
+                               PlaceholderColor="{StaticResource TxtDim}" HeightRequest="48"
+                               Focused="OnFieldFocused" Unfocused="OnFieldUnfocused" />
+                        <BoxView x:Name="urlRail" Grid.Row="1" BackgroundColor="Transparent" />
+                    </Grid>
+                    <Label Text="API key" Style="{StaticResource DimLbl}" />
+                    <Grid RowDefinitions="Auto,2" RowSpacing="3">
+                        <Entry x:Name="keyEntry" IsPassword="True"
+                               TextColor="{StaticResource Txt}" BackgroundColor="{StaticResource Panel2}"
+                               PlaceholderColor="{StaticResource TxtDim}" HeightRequest="48"
+                               Focused="OnFieldFocused" Unfocused="OnFieldUnfocused" />
+                        <BoxView x:Name="keyRail" Grid.Row="1" BackgroundColor="Transparent" />
+                    </Grid>
+                    <Label x:Name="connError" TextColor="{StaticResource Danger}" FontSize="13"
+                           IsVisible="False" />
+                    <!-- P1.5: no Clicked — the clicks travel through Theme.PressBind (code-behind). -->
+                    <Button x:Name="connectBtn" Text="Connect" Style="{StaticResource PrimaryBtn}" />
+                </VerticalStackLayout>
+
+                <!-- Stage 2: operator -->
+                <VerticalStackLayout x:Name="loginPanel" Spacing="12" IsVisible="False">
+                    <Label Text="Who are you?" Style="{StaticResource SectionLbl}" />
+                    <HorizontalStackLayout x:Name="operatorRow" Spacing="8" />
+                    <Label Text="PIN" Style="{StaticResource DimLbl}" x:Name="pinLbl" IsVisible="False" />
+                    <Grid RowDefinitions="Auto,2" RowSpacing="3">
+                        <Entry x:Name="pinEntry" IsPassword="True" Keyboard="Numeric"
+                               TextColor="{StaticResource Txt}" BackgroundColor="{StaticResource Panel2}"
+                               PlaceholderColor="{StaticResource TxtDim}" HeightRequest="48"
+                               IsVisible="False"
+                               Focused="OnFieldFocused" Unfocused="OnFieldUnfocused" />
+                        <BoxView x:Name="pinRail" Grid.Row="1" BackgroundColor="Transparent" />
+                    </Grid>
+                    <Label x:Name="loginError" TextColor="{StaticResource Danger}" FontSize="13"
+                           IsVisible="False" />
+                    <Button x:Name="signInBtn" Text="Sign in" Style="{StaticResource PrimaryBtn}" />
+                    <Button x:Name="backBtn" Text="Back" Style="{StaticResource GhostBtn}" />
+                </VerticalStackLayout>
+
+                    </VerticalStackLayout>
+                </Border>
+                <!-- P1.7 Flat-HUD corner brackets over the card edge -->
+                <GraphicsView InputTransparent="True" HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <GraphicsView.Drawable>
+                        <local:HudFrameDrawable DrawEdge="False" Arm="18" Inset="6" />
+                    </GraphicsView.Drawable>
+                </GraphicsView>
+            </Grid>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

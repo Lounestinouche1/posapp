@@ -27,6 +27,59 @@
 17. [Guest ordering, QR and kiosk](#17-guest-ordering-qr-and-kiosk)
 18. [Troubleshooting](#18-troubleshooting)
 
+**Guides:**
+[⚡ Quick start — basic setup in 15 minutes](#quick-start--basic-setup-in-15-minutes) ·
+[Part 2 — Complete setup guide](#part-2--complete-setup-guide-step-by-step) ·
+[Part 3 — All features & configuration](#part-3--complete-feature-list--configuration-guide)
+
+---
+
+## Quick start — basic setup in 15 minutes
+
+*The shortest path from a fresh install to your first paid sale on **one PC** — basic features only. No multi-terminal, no optional features. Each step is expandable in [Part 2](#part-2--complete-setup-guide-step-by-step) (full setup guide) and [Part 3](#part-3--complete-feature-list--configuration-guide) (every feature, configured step by step).*
+
+### 1 · Launch and log in (1 min)
+1. Run **Vectron POS.exe**. If the network screen appears, choose **Main PC (server)** → **Save**.
+2. At the login screen pick **Manager** and press **Enter** (a fresh install has no PIN yet — set one later in *Settings → Manage operators*).
+
+### 2 · Currency and tax (2 min)
+1. **Settings → Currency and TVA**.
+2. Set your **Currency**, your standard **TVA rate (%)**, and tick **Prices already include TVA** if your menu prices include tax (normal for restaurants).
+3. **Save**.
+
+![Currency and TVA](docs/images/09-currency-tva.png)
+
+### 3 · Your first menu family (1 min)
+1. **Settings → Manage families → New family** (e.g. `Food`, `Drinks`).
+2. Give it a name; if you already installed a printer, set **Print family to** → `Kitchen` (food) or `Bar` (drinks).
+3. **Save changes**.
+
+### 4 · A handful of products (3 min)
+1. **Settings → Manage products → New product**.
+2. Fill **Name**, **Category** (the family from step 3), **Price** → **Save changes**.
+3. Repeat until you have your 5–10 best sellers. (CSV import exists for full menus — see Part 3.)
+
+### 5 · Rooms and tables (2 min)
+1. **Settings → Room management** → set the **table count** per room, rename rooms, **+ Add room** if needed → **Save changes**.
+2. Sidebar **Rooms** → drag the table tiles so the screen matches your real floor.
+
+### 6 · Printer (2 min)
+1. **Settings → Printer routing** → for **Bill** and **Kitchen** pick your Windows printer → **Save changes**.
+2. Print a Windows test page first (Windows → Printers) if unsure.
+3. Take a test order and confirm the kitchen ticket lands on the right printer.
+
+### 7 · First order and payment (3 min)
+1. Sidebar **Order** → tap a **category tab** → tap **product tiles** — lines appear on the right with a live **TOTAL**.
+2. For dine-in: sidebar **Rooms** → tap a **table first**, then add items to it.
+3. **Take payment → Cash** → enter the **tendered** amount → the **CHANGE** shows → accept. The receipt prints and the table turns free.
+
+### 8 · Close the day (1 min)
+At closing: **Settings → End day (X / Z) → Z report** — totals, payment breakdown, then cash-up the drawer.
+
+**✅ You are open for business.**
+
+**Next steps:** [Part 2](#part-2--complete-setup-guide-step-by-step) for multi-terminal + advanced setup · [Part 3](#part-3--complete-feature-list--configuration-guide) to switch on loyalty, stock, QR self-ordering, waiter tablets, KDS, happy hour and ~75 other features.
+
 ---
 
 ## 1. Getting started
@@ -270,6 +323,27 @@ Settings is organised into categories (left column):
 - Enable in Settings → Network; set an **API key**.
 - Routes: `GET/POST /sync/sales`, `POST/GET /sync/backup`, health endpoint.
 - **Sale webhooks**: POST a JSON payload to your URL on every completed sale.
+
+### Waiter tablets (Vectron Waiter app)
+- Android tablets run the **Vectron Waiter** app, which talks to the Main PC over LAN on port `8080` (same API toggle + key as above).
+- The app shows the floor plan, sends orders to the kitchen (printed by the Main PC), fires courses, prints bills, edits/cancels sent lines and shows *call waiter* / *kitchen ready* alerts.
+- Every request carries the key as `?key=...` (GET) or a `key` field in the JSON body (POST).
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/tablet/bootstrap` | Flags, rooms, operators (first load) |
+| POST | `/api/tablet/login` | `{name, pin}` → permissions |
+| GET | `/api/tablet/menu` | Products (with 86 flags + variants), modifier groups, categories |
+| GET | `/api/tablet/map` | Rooms/tables with live order status |
+| GET | `/api/tablet/order?room=&table=` | Full order detail for a table |
+| POST | `/api/tablet/order` | Send/merge lines; `pending_id` makes retries idempotent (offline queue) |
+| POST | `/api/tablet/line-edit` | `{room, table, index, qty}` change quantity or `{..., remove: true}` cancel a sent line (prints delta/cancel ticket to the line's printer) |
+| POST | `/api/tablet/fire` | Print the next pending course |
+| POST | `/api/tablet/bill` | Print the bill (Bill printer destination) |
+| GET | `/api/tablet/alerts?since=` | Guest calls + *ready* tables |
+| POST | `/api/tablet/alerts/dismiss` | Acknowledge alerts (`id`, or `room`+`table`[+`kind`]) |
+
+- **Offline safety**: if the tablet loses Wi-Fi, orders are saved on the device and retried automatically; the server's `pending_id` deduplication guarantees a retried order is never sent twice. Rejected orders (e.g. a product removed meanwhile) are dropped with a warning shown on the tablet.
 
 ---
 
@@ -578,6 +652,649 @@ Open each remaining Settings category and switch on what you need:
 - [ ] Clock-in enabled; training mode OFF
 - [ ] Multi-terminal tested (Order PC sees Main PC's data)
 - [ ] End-of-day: run a **Z report** to verify totals
+
+---
+
+# Part 3 — Complete Feature List & Configuration Guide
+
+*Every feature Vectron POS offers, what it does, where the switch lives, and how to configure it — detail by detail.*
+
+> **How switches work**
+> - Path format: **Settings → category → control**. The categories are the buttons on the left of the Settings screen.
+> - 🟢 **Green = ON** · 🔴 **Red = OFF** — toggles **save instantly**, there is no Save button.
+> - ⬛ **Dark grey = action button** — opens a dialog or runs a command; most action buttons only appear while their toggle is ON.
+> - **Sidebar** buttons (left edge of the order screen) appear/disappear with their feature, and only for operators whose **Permissions** allow them.
+> - Everything below is done while logged in as **Manager**.
+
+---
+
+## Master list — all features at a glance
+
+*(ON) = switched on by default at first run; everything else starts OFF. Total: 74 switches + 42 tools.*
+
+### Core — always available (no switch)
+| Feature | Where |
+|---|---|
+| Order taking: category tabs → product tiles → live TOTAL, ± qty, price edit, remove | sidebar **Order** |
+| Notes on lines, Note button on open orders | order header **Note** |
+| Rooms & tables map (occupied shows running total, free after payment) | sidebar **Rooms** |
+| Order types: Dine-in / Takeaway (+ Delivery when enabled; Kiosk mode) | order header |
+| Payments: cash with tendered & CHANGE, quick-tender buttons, card | **Take payment** |
+| Split tender — several payment methods on one ticket | **Take payment → split** |
+| Receipts printing (Bill / Payment destinations) | printer routing |
+| Sales details: day/period totals, payment breakdown, by operator/product/family, CSV | Settings → **Sales details** |
+| End of day **X / Z** reports + cash-up | Settings → **End day (X / Z)** |
+| Multi-terminal: Main PC + Order PCs | Settings → **Network settings** ([Part 2, Step 1](#step-1--multi-screen-setup-main-pc--order-pcs)) |
+| Ticket layout editor (font size, bold, underline, alignment per element) | Settings → Printer routing → **Edit ticket layout** |
+| Licensing (request code → key → activate) | Settings → **License** |
+
+### Settings → Management (1 switch + 6 tools)
+| Feature | Default | Entry |
+|---|---|---|
+| On-screen touch keyboard (text fields) | ON | toggle |
+| Manage operators (names, PINs, wages, permissions) | always | button |
+| Manage families (menu tabs + kitchen routing) | always | button |
+| Manage products (items, prices, barcodes, CSV, variants, labels) | always | button |
+| Room management (rooms, table counts) | always | button |
+| Printer routing (bill/kitchen/bar destinations) | always | button |
+| Currency and TVA | always | button |
+
+### Settings → Reports (7 switches + 10 tools)
+| Feature | Default | Entry |
+|---|---|---|
+| Live dashboard + hourly graph | OFF | toggle → **Live dashboard** |
+| Close-of-day screen (totals by method) | OFF | toggle → **Close-of-day screen** |
+| Discount & void frequency report | OFF | toggle → **Discount & void frequency** |
+| Occupancy heatmap + dayparts | OFF | toggle → **Occupancy heatmap** |
+| Menu engineering matrix | OFF | toggle → **Menu engineering matrix** |
+| Accounting export (QuickBooks / Xero) | OFF | toggle → **Accounting export CSV** |
+| AI insights (auto analysis) | OFF | toggle → **AI insights** |
+| *(tools)* Sales details · End day (X / Z) · **KDS prep-time analytics** (needs KDS late alarm) | always | buttons |
+
+### Settings → Network (3 switches + 4 tools)
+| Feature | Default | Entry |
+|---|---|---|
+| Cloud backup (daily zip to a folder you trust) | OFF | toggle → **Backup & restore** |
+| REST API for external systems (POS → ERP / BI) + waiter tablets | OFF | toggle → **API key & webhooks** |
+| Cloud sync (share sales with a head-office server) | OFF | toggle → **Cloud sync settings** |
+| *(tools)* **Network settings** (Main PC / Order PC) · backup folder · API key & webhooks · cloud sync dialog | always | buttons |
+
+### Settings → Ordering & Table (16 switches + 4 tools)
+| Feature | Default | Entry |
+|---|---|---|
+| Split bill (by seat or item) | ON | toggle → **Split** button on open order |
+| Table transfer / merge | ON | toggle → **Transfer / Merge** buttons |
+| Product modifiers (extras, size, options) | ON | toggle → **Manage modifier groups** |
+| Special instructions per item (kitchen notes) | ON | toggle → **Note** button |
+| Course-by-course sending to kitchen | OFF | toggle → **Edit course names** |
+| Hold fire — kitchen only gets courses when you press Fire | OFF | toggle (needs courses) |
+| Reservations / bookings (floor plan badges) | OFF | toggle → sidebar **Bookings** |
+| Kitchen display screen (KDS) | OFF | toggle → sidebar **Kitchen** |
+| KDS late alarm (beep & flash past target prep time) | OFF | toggle → target minutes in **KDS prep-time analytics** |
+| 86 board (mark products out of stock) | OFF | toggle → sidebar **86 board** |
+| Seat-level ordering (items assigned to seats) | OFF | toggle → **SEAT** bar on order header |
+| Floor plan editor (drag & drop, rename tables) | OFF | toggle → **Edit floor plan** |
+| Park / hold orders & recall later | OFF | toggle → **Park** button |
+| Repeat last order & customer usual (2 taps) | OFF | toggle → **Repeat** button |
+| Combo meals / deal bundles | OFF | toggle → **Manage combo deals** → **Deals** button |
+| Quick-sale / retail mode (counter button) | OFF | toggle → **Quick sale** button |
+
+### Settings → Payment & Pricing (16 switches + 6 tools)
+| Feature | Default | Entry |
+|---|---|---|
+| Discounts (% or fixed amount) | ON | toggle → **Discount** button (+ Discounts permission) |
+| Voids & comp meals | ON | toggle → line void/comp actions |
+| Happy hour / timed pricing | OFF | toggle → **Manage happy hour rules** |
+| Tip management | OFF | toggle → tip entry at payment |
+| Multi-rate (dine-in / takeaway / delivery) | OFF | toggle — automatic pricing |
+| Cash drawer management | OFF | toggle → sidebar **Drawer**, **Open cash drawer** |
+| Round cash payments to nearest 5 | OFF | toggle — automatic at cash tender |
+| Gift cards & store credit | OFF | toggle → sidebar **Gift cards** |
+| E-gift card email delivery | OFF | toggle (needs SMTP) |
+| Service charge % | OFF | toggle → **Fees & terminal settings** |
+| Cash discount % (cash pays less) | OFF | toggle → **Fees & terminal settings** |
+| Card surcharge % | OFF | toggle → **Fees & terminal settings** |
+| Tabs / charge accounts with credit limit | OFF | toggle — at payment |
+| Deposits & special orders (layaway) | OFF | toggle → **Special orders / deposits** |
+| Offline card payments (queue while terminal down) | OFF | toggle → **Offline payment queue** |
+| Virtual terminal (phone orders, invoice links) | OFF | toggle → **Virtual terminal** |
+
+### Settings → Staff (9 switches + 5 tools)
+| Feature | Default | Entry |
+|---|---|---|
+| Clock in / out | OFF | toggle → sidebar **Clock** |
+| Shift reports (Rapport Z) | OFF | toggle → **View shift reports** |
+| Audit log (track all actions) | OFF | toggle → **View audit log** |
+| Staff scheduling + tip pooling | OFF | toggle → sidebar **Schedule** |
+| Training mode (sales not recorded) | OFF | toggle — banner appears |
+| Employee discount % | OFF | toggle → **Set employee discount %** → Employee button at payment |
+| PIN login (numeric login at startup) | OFF | toggle — PIN required for operators that have one |
+| Payroll export (hours × wage CSV) | OFF | toggle → **Export payroll CSV** |
+| Server performance report | OFF | toggle → **Server performance** |
+
+### Settings → Inventory & Stock (11 switches)
+| Feature | Default | Entry |
+|---|---|---|
+| Ingredient stock / recipe deduction | OFF | toggle → sidebar **Stock** + `recipes.json` |
+| Low stock alerts | OFF | toggle — popup when ingredient < min |
+| Auto-86 when ingredients hit reorder point | OFF | toggle — needs recipes |
+| Stock counts (stocktake) with audit trail | OFF | toggle → **Purchases** → Stocktake tab |
+| Waste & expiry tracking | OFF | toggle → **Purchases** → Waste & expiry tab |
+| Stock transfers between locations | OFF | toggle → **Purchases** → Transfers tab |
+| Weight-priced items (price per kg, scale entry) | OFF | toggle → tick **Priced per kg** on product |
+| Product variants (size / color) + CSV import | OFF | toggle → Manage products → **Variants…** |
+| Barcode label printing (Code 39) | OFF | toggle → Manage products → **Print barcode labels** |
+| Barcode scanning | OFF | toggle → scan field on order screen |
+| Purchase orders, suppliers & food cost | OFF | toggle → sidebar **Purchases** |
+
+### Settings → Customers (2 switches + 1 tool)
+| Feature | Default | Entry |
+|---|---|---|
+| Customer database | OFF | toggle → **Manage customers** |
+| Loyalty program (points & rewards) | OFF | toggle — points at payment, redeem at payment |
+
+### Settings → Operations (6 switches + 4 tools)
+| Feature | Default | Entry |
+|---|---|---|
+| Delivery orders | OFF | toggle — Delivery order type |
+| Multi-branch support | OFF | toggle → **Manage branches & current branch** |
+| Refunds (refund ticket, restock, negative sale) | OFF | toggle → find receipt → refund (+ Refunds permission) |
+| QR code self-ordering (customer phone scan) | OFF | toggle → **Guest ordering URL & QR code** |
+| Kiosk self-order mode (fullscreen, pay at counter) | OFF | toggle → **Launch kiosk** |
+| Customer-facing display (2nd screen) | OFF | toggle → **Customer display** |
+
+### Settings → Receipts & Display (3 switches + 2 tools)
+| Feature | Default | Entry |
+|---|---|---|
+| Email / SMS receipts | OFF | toggle → **Email / SMTP settings** |
+| Find, reprint & reopen any past receipt | OFF | toggle → **Find past receipts** |
+| Multi-language (FR / AR / EN) | OFF | toggle → language buttons on Settings overview |
+
+### Companion systems (configured, not toggled)
+| System | Needs | Configure |
+|---|---|---|
+| **Vectron Waiter** Android tablet app | REST API switch | see [Waiter tablets](#waiter-tablets-configuration) below |
+| Guest phones (QR ordering) | QR or Kiosk switch | see [Guest URL & QR](#qr-code-self-ordering) |
+| Webhooks / POS→ERP integrations | REST API switch | see [REST API & webhooks](#rest-api--webhooks) |
+| Head-office cloud sync / backup vault | Cloud sync switch | see [Cloud sync](#cloud-sync-head-office) |
+
+---
+
+## Configuration guide — step by step
+
+### Management tools
+
+#### Manage operators (staff logins)
+- **Entry:** Settings → Management → **Manage operators** (always available to Managers).
+1. **New operator** → **Operator name** (e.g. `Sara`), **Password (PIN)** (leave empty for no PIN), **Hourly wage** (for labour reports / payroll).
+2. Tick permissions: **Take payments · Discounts · Refunds · View sales · Manage products · Manage rooms** (plus Reservations / Gift cards / Purchasing / Cash drawer where shown).
+3. **Save changes** → repeat per person. Edit later by selecting a name in the list (the form shows the selected operator's password).
+- **Effect:** operators appear on the login screen; with a password set they must enter it (the tablet app's PIN field appears the same way).
+- **Recommended:** Manager = all permissions · Cashier = Take payments + View sales · Waiter = Take payments.
+
+#### Manage families (menu categories + ticket routing)
+- **Entry:** Settings → Management → **Manage families**.
+1. **New family** → **Family name** (e.g. `Pizzas`).
+2. *(optional)* **Family image** → **Import** a picture — the order-screen tile shows it.
+3. **Print family to** → pick the printer destination (e.g. `Kitchen` for food, `Bar` for drinks) — **this is how kitchen tickets route automatically**.
+4. **Save changes**. To move an existing product: select it in the right-hand list → choose the family → **Save changes**.
+
+#### Manage products (catalog)
+- **Entry:** Settings → Management → **Manage products**.
+1. **New product** → **Name**, **Category** (family/tab), **Price**.
+2. *(optional)* **Color** (tile colour), **Image** → **Import**, **Barcode**, tick **Priced per kg** for scale items.
+3. **Save changes** → repeat.
+- **Shortcuts (buttons):** **Import CSV** / **Export CSV** (columns: Name, Price, Category, Barcode) · **Variants…** (needs Product variants switch) · **Print barcode labels** (needs Barcode labels switch).
+
+#### Room management
+- **Entry:** Settings → Management → **Room management**.
+1. Rename rooms in their text boxes; set each room's **Table count**.
+2. **+ Add room** for more (e.g. `Garden`) → **Save changes**.
+3. Arrange the tiles: sidebar **Rooms** → room tab → **drag** tables; with the Floor plan editor switch ON you can also rename/resize (see [Floor plan editor](#floor-plan-editor)).
+
+#### Printer routing
+- **Entry:** Settings → Management → **Printer routing**.
+1. Default destinations: **Bill, Payment, Kitchen, Refund, Cancel**. For each: **Windows printer** (the printer installed in Windows), **Header**, **Footer**, **Activate cutter after last line**.
+2. **New destination** for more stations (`Bar`, `Grill`) → **Save changes**.
+3. **Edit ticket layout** → tune what prints per component: **font size, bold, underline, alignment** (logo, room/table, seat, discount lines…).
+- **Verify:** Windows test page → take a test order → bottom-left status shows **Print server: Running on :9100**.
+
+#### Currency and TVA
+- **Entry:** Settings → Management → **Currency and TVA**.
+1. **Currency** (EUR, USD, MAD…), **TVA rate (%)** (e.g. `20`), tick **Prices already include TVA** if menu prices are tax-inclusive → **Save**.
+- **Effect:** receipts, totals and reports switch to this currency/tax immediately.
+
+#### On-screen touch keyboard
+- **Switch:** Settings → Management → **On-screen touch keyboard (text fields)** 🟢 ON (default).
+- **Effect:** a floating touch keyboard opens whenever you focus a text field — for tablets/till touch screens. Turn OFF on machines with a physical keyboard if it gets in the way.
+
+---
+
+### Reports
+
+#### Live dashboard + hourly graph
+- **Switch:** Settings → Reports → **Live dashboard + hourly graph**.
+- **Open:** same screen → **Live dashboard** button — real-time KPIs and an hourly sales graph while trading.
+
+#### Close-of-day screen
+- **Switch:** Settings → Reports → **Close-of-day screen**.
+- **Open:** → **Close-of-day screen** button — totals by payment method for the day (does not close the day; the Z report does).
+
+#### Discount & void frequency
+- **Switch:** Settings → Reports → **Discount & void frequency**.
+- **Open:** → **Discount & void frequency** button — who discounted/voided what, how often (pairs with the Audit log).
+
+#### Occupancy heatmap + dayparts
+- **Switch:** Settings → Reports → **Occupancy heatmap + dayparts**.
+- **Open:** → **Occupancy heatmap** button — covers by hour/daypart to staff your busy hours.
+
+#### Menu engineering matrix
+- **Switch:** Settings → Reports → **Menu engineering matrix**.
+- **Open:** → **Menu engineering matrix** button — stars / plowhorses / puzzles / dogs from quantity × margin.
+
+#### Accounting export (QuickBooks / Xero)
+- **Switch:** Settings → Reports → **Accounting export**.
+- **Open:** → **Accounting export CSV** — invariant-decimal CSV journal for accounting software.
+
+#### AI insights (auto analysis)
+- **Switch:** Settings → Reports → **AI insights**.
+- **Open:** → **AI insights** — plain-language summary of the day's patterns.
+
+#### KDS prep-time analytics (+ target prep minutes)
+- **Prerequisite:** Ordering → **KDS late alarm** ON.
+- **Open:** Settings → Reports → **KDS prep-time analytics**.
+- The dialog shows completed tickets with their prep minutes; the **target prep time** box (1–180 minutes, default 15) sets the threshold the KDS uses to beep/flash. Change it → saved immediately (confirmation popup).
+
+---
+
+### Network
+
+#### Network settings (Main PC / Order PCs)
+- **Entry:** Settings → Network → **Network settings** (or the first-run network screen).
+1. Choose **Main PC (server) — hosts the database** on the machine that holds `client database`.
+2. On every other terminal choose **Order PC (client)** and type the shared path: `\\MAIN-PC\client database` → **Save** (the app reconnects to the shared folder).
+- **Check:** same LAN, SMB sharing on, bottom-left status shows `MAIN PC` / `ORDER PC`.
+
+#### Cloud backup (offline daily zip)
+- **Switch:** Settings → Network → **Cloud backup (daily zip to a folder you trust)**.
+1. → **Backup & restore** button.
+2. **Backup folder** → **Browse…** (network share, NAS, or sync folder).
+3. Tick **Run a backup automatically once a day** → **Save settings**.
+4. Buttons: **Backup now** (immediate `vectron-backup-<timestamp>.zip`) · **Restore from backup…** (pick a zip → confirms it OVERWRITES the database → app restarts) · the dialog shows the last backup found in the folder.
+
+#### REST API & webhooks
+- **Switch:** Settings → Network → **REST API for external systems (POS → ERP / BI)**.
+1. → **API key & webhooks** button.
+2. **API key** → click **Generate** (or type your own) — required on every request as `?key=…` / body `key`.
+3. *(optional)* **Webhook URL** → every completed sale POSTs JSON like `{ "event": "sale.completed", "total": 12.5, … }` → **Send test** verifies delivery → **Save**.
+4. Endpoints listed in the dialog: `/api/sales`, `/api/products`, `/api/orders`, `/api/tablet/bootstrap` (plus tablet login/menu/map/order/line-edit/fire/bill/alerts — see [§16](#16-network-cloud-and-api)).
+
+#### Cloud sync (head office)
+- **Switch:** Settings → Network → **Cloud sync (share sales with a head-office server)**.
+1. → **Cloud sync settings** button.
+2. **Sync server URL** (e.g. `http://hq.example.com:8080`).
+3. **Shared key** (leave empty to reuse the API key), **Sync every (minutes)** (1–1440, default 5).
+4. **Store ID** (e.g. `RESTO-1` — used for backups/restore; defaults to the PC name).
+5. *(optional)* tick **Pull other stores' sales automatically** (off = push only).
+6. Buttons: **Save settings** · **Sync now** · **Upload backup now** (daily zip to head office, 14-zip rotation) · **Pull sales history** (restores *this* store's sales) · **Restore from home…** (download latest backup zip → overwrites local → restart).
+7. The status block shows Store ID, sales waiting to push, last sync, last backup upload.
+
+#### Waiter tablets (configuration)
+*Android tablets run the **Vectron Waiter** app: floor map, orders printed by the Main PC, inline qty steppers, line cancel, fire courses, bill printing, guest alerts, offline queue.*
+
+1. **Main PC:** Settings → Network → switch **REST API** 🟢 ON → **API key & webhooks** → **Generate** key → **Save**.
+2. Firewall: allow TCP **8080** on the LAN (the app talks plain `http://<PC-IP>:8080` — cleartext is enabled inside the app).
+3. **Tablet:** install `com.vectron.waiter-Signed.apk` → open the app → enter **Main PC address** = `http://<PC-IP>` (the app appends `:8080`) and the **API key** → **Connect**.
+4. Pick your **name** → enter your **PIN** if the operator has a password (operators without one sign in without PIN) → **Sign in**.
+5. Daily use: tap a **table** → tap **products** → **Send to kitchen** (prints on the Main PC) → use **−/+** to change a sent quantity, **✕** to cancel a line (no dialogs), **Fire** for the next course, **Bill** to print the bill. The bell shows *call waiter* / *kitchen ready* alerts.
+6. **Offline safety:** lost Wi-Fi → orders queue on the device and retry; server `pending_id` deduplication guarantees a retry never prints twice.
+7. **System notifications:** while signed in, the app keeps a silent background service running (shown as the low-priority *Vectron Waiter · connected* notification — Android requires it, leave it be). Every **call waiter** and **order ready** alert also raises a normal phone/tablet notification: heads-up banner, default notification sound, vibration, screen lights up, and it stays in the notification bar. Tap it → the app opens on the **Notifications** page; **Done** / **Clear all** there also removes it from the bar. First sign-in asks twice: **Allow notifications** (tap *Allow*) and **Keep alerts alive** → battery settings (tap *Open settings* → allow) so alerts are never delayed by battery saving. Alerts restart automatically after a reboot or app update (boot receiver + a persisted 60-second watchdog job, plus a re-check every time the app is opened). On Chinese-brand phones/tablets and emulators (Xiaomi, Oppo/Vivo, LDPlayer…) the ROM may additionally kill background apps: add Vectron Waiter to the **auto-start / background-whitelist** (Settings → Apps → Vectron Waiter → *Auto-start* / *Battery* → *No restrictions*) if notifications ever stop while the app is closed.
+
+---
+
+### Ordering & Table Service
+
+#### Split bill (by seat or item)
+- **Switch:** Settings → Ordering & Table → **Split bill (by seat or item)** 🟢 ON (default).
+- **Use:** open an occupied table → **Split** button → split **by seat**, **by item**, or a **custom amount** → take each part's payment separately.
+
+#### Table transfer / merge
+- **Switch:** Settings → Ordering & Table → **Table transfer / merge** 🟢 ON (default).
+- **Use:** on an open order, **Transfer** moves it to another table; **Merge** combines two tables' orders (Manager).
+
+#### Product modifiers (extras, size, options)
+- **Switch:** Settings → Ordering & Table → **Product modifiers** 🟢 ON (default).
+1. → **Manage modifier groups** button.
+2. Create a group (e.g. `Size`, `Extras`) → add options with their **prices** (e.g. `Large +2.00`) → save.
+- **Use:** tapping a product offers the group's options; chosen options add their price to the line and print on tickets and the KDS. Tablets show the same sheet.
+
+#### Special instructions per item (item notes)
+- **Switch:** Settings → Ordering & Table → **Special instructions per item** 🟢 ON (default).
+- **Use:** the **Note** button on an open order (or the line's note action) attaches a free-text kitchen note — it prints on the ticket and shows on the KDS as `• note`.
+
+#### Course-by-course sending to kitchen
+- **Switch:** Settings → Ordering & Table → **Course-by-course sending to kitchen**.
+1. → **Edit course names (Course 1 = …)** → rename courses (e.g. `Starters`, `Mains`, `Dessert`).
+2. On each order line click its **course button** (shows `C`/the course name) to assign the line to a course.
+3. The order header shows **Fire \<next course\>** — press it to print/send only that course; **Delay fire** schedules it after N minutes.
+
+#### Hold fire — kitchen gets courses only when you fire
+- **Switch:** Settings → Ordering & Table → **Hold fire** (with courses ON).
+- **Effect:** items stay held on the order until you press **Fire** — nothing reaches the kitchen early. Fire the next course manually (or via delay fire / tablet **Fire**).
+
+#### Reservations / bookings
+- **Switch:** Settings → Ordering & Table → **Reservations**.
+- **Permission:** operator needs **Reservations**.
+- **Use:** sidebar **Bookings** appears → add a booking: **name, phone, party size, date/time, room, table** → the table tile shows a `booked` badge on its day; change status (seated / cancelled) from the list.
+
+#### Kitchen display screen (KDS)
+- **Switch:** Settings → Ordering & Table → **Kitchen display screen (KDS)**.
+- **Use:** sidebar **Kitchen** appears — a live ticket queue (second screen/PC): elapsed timer per ticket (green <10 min, orange <20, red after), tap a ticket to bump/complete; only fired courses are visible when courses are on.
+
+#### KDS late alarm
+- **Switch:** Settings → Ordering & Table → **KDS late alarm (beep & flash past target prep time)**.
+- **Configure:** Settings → Reports → **KDS prep-time analytics** → set **target prep time** (1–180 min, default 15).
+- **Effect:** tickets older than the target beep (`950 Hz`) and flash red until bumped.
+
+#### 86 board (out of stock)
+- **Switch:** Settings → Ordering & Table → **86 board**.
+- **Use:** sidebar **86 board** → every product grouped by category → **86 it** turns it struck-through and un-orderable (ordering attempts warn *out of stock (86'd)*) → **Restore** brings it back.
+- Pairs with **Auto-86** (Inventory) which marks items automatically from ingredient levels.
+
+#### Seat-level ordering
+- **Switch:** Settings → Ordering & Table → **Seat-level ordering**.
+- **Effect:** a **SEAT 1/2/3…** bar appears on the order header; new lines attach to the selected seat, tickets and KDS show `[S1]`, and split-by-seat payment uses these seats.
+
+#### Floor plan editor
+- **Switch:** Settings → Ordering & Table → **Floor plan editor** (needs **Manage rooms** permission).
+- **Open:** → **Edit floor plan (opens Rooms view)** button, or sidebar **Rooms**.
+- **Use:** drag tables to match the room, rename (double-click), resize, set capacity — layout stored per room.
+
+#### Park / hold orders & recall
+- **Switch:** Settings → Ordering & Table → **Park / hold orders & recall later**.
+- **Use:** **Park** button (with items or an open order) clears the screen and files the order; recall it later from the parked-orders list and continue.
+
+#### Repeat last order (2 taps)
+- **Switch:** Settings → Ordering & Table → **Repeat last order & customer usual**.
+- **Use:** **Repeat** button duplicates the last ticket's lines into a new order — takeaway regulars.
+
+#### Combo meals / deal bundles
+- **Switch:** Settings → Ordering & Table → **Combo meals / deal bundles**.
+1. → **Manage combo deals** → **New**: **name**, **price**, then pick a product + qty → **+** to add components → **Save**.
+2. On the order screen the **Deals** button appears → tapping it adds all component lines (marked `in <deal>`) at the bundle price.
+
+#### Quick-sale / retail mode
+- **Switch:** Settings → Ordering & Table → **Quick-sale / retail mode (counter button)**.
+- **Effect:** a **Quick sale** button and the barcode scan field appear on the order screen — scan or tap, take payment, done (counter/retail flow).
+
+---
+
+### Payment & Pricing
+
+#### Discounts (% or fixed)
+- **Switch:** Settings → Payment & Pricing → **Discounts** 🟢 ON (default). Permission: **Discounts**.
+- **Use:** **Discount** button on the order header → percent or fixed amount → applies per line or to the whole ticket; the button shows the active `Discount 10%`.
+- Employee discount (separate) is the orange **Employee x%** button at payment — see [Employee discount %](#employee-discount-).
+
+#### Voids & comp meals
+- **Switch:** Settings → Payment & Pricing → **Voids & comp meals** 🟢 ON (default).
+- **Use:** void a line before payment; comp marks it free (0.00). Both are audited when the Audit log is ON and appear in the discount & void report.
+
+#### Happy hour / timed pricing
+- **Switch:** Settings → Payment & Pricing → **Happy hour / timed pricing**.
+1. → **Manage happy hour rules** → **Add rule**.
+2. Fill: **Name**, **Start** time, **End** time, **Discount %** (1–100).
+3. Tick the weekday abbreviations (Mo Tu We Th Fr Sa Su) → **Save**.
+- **Effect:** prices drop automatically inside the window (tablet bootstrap reports `happy_hour`); rules are edited/deleted from the same list.
+
+#### Tip management
+- **Switch:** Settings → Payment & Pricing → **Tip management**.
+- **Effect:** a tip field appears at payment, added to the total; tips land on the shift report and payroll export.
+
+#### Multi-rate (dine-in / takeaway / delivery)
+- **Switch:** Settings → Payment & Pricing → **Multi-rate**.
+- **Effect:** automatic pricing per order type at payment — **Takeaway ×0.9 (−10 %)**, **Delivery ×0.85 (−15 %)**, dine-in unchanged.
+
+#### Cash drawer management
+- **Switch:** Settings → Payment & Pricing → **Cash drawer management**. Permission: **Cash drawer**.
+- **Effect:** the drawer kicks on cash payment; **No-sale** opens are logged.
+- **Manual open:** sidebar **Drawer**, or Settings → Payment & Pricing → **Open cash drawer**.
+
+#### Round cash payments to nearest 5
+- **Switch:** Settings → Payment & Pricing → **Round cash payments to nearest 5**.
+- **Effect:** cash totals round to the nearest 0.05; the receipt shows a **ROUNDING** line.
+
+#### Gift cards & store credit
+- **Switch:** Settings → Payment & Pricing → **Gift cards & store credit**. Permission: **Gift cards**.
+- **Use:** sidebar **Gift cards** → sell/activate cards, check balances; at payment choose the gift-card tender — balance applies to the due total; balances live in the shared database.
+
+#### E-gift card email delivery
+- **Switch:** Settings → Payment & Pricing → **E-gift card email delivery** (configure SMTP first — [Email / SMTP](#email--sms-receipts)).
+- **Effect:** the gift card is emailed to the customer at sale time.
+
+#### Service charge % / Cash discount % / Card surcharge %
+- **Switches:** Settings → Payment & Pricing → each of the three toggles.
+1. With any of them ON (or Offline payments ON) the **Fees & terminal settings** button appears → click it.
+2. Set **Service charge %** (adds to total), **Cash discount %** (subtracts when paid cash), **Card surcharge %** (adds when paid card) — each 0–50, one decimal.
+3. **Save** — fees calculate at payment and print as their own receipt lines (saved actions are audit-logged when Audit log is ON).
+
+#### Tabs / charge accounts
+- **Switch:** Settings → Payment & Pricing → **Tabs / charge accounts with credit limit**.
+- **Use:** open a customer tab, keep charging items over time, settle later; the customer's credit balance is enforced when paying by charge.
+
+#### Deposits & special orders (layaway)
+- **Switch:** Settings → Payment & Pricing → **Deposits & special orders (layaway)**.
+1. → **Special orders / deposits** button — take a deposit now against a future order; collect goods and settle the balance later from the same list.
+
+#### Offline card payments
+- **Switch:** Settings → Payment & Pricing → **Offline card payments**.
+1. → **Offline payment queue** button — queued card payments while the terminal/network is down.
+2. In **Fees & terminal settings** tick **Card terminal offline (queue card payments)** while offline; sales record immediately and settle when you untick.
+
+#### Virtual terminal (phone orders)
+- **Switch:** Settings → Payment & Pricing → **Virtual terminal**.
+1. → **Virtual terminal** button — take a phone order and email an invoice/payment link instead of tapping a card.
+
+---
+
+### Staff
+
+#### Clock in / out
+- **Switch:** Settings → Staff → **Clock in / out**.
+- **Effect:** sidebar **Clock** button appears; staff clock in at login and out at end of shift; hours feed shift reports and payroll.
+
+#### Shift reports
+- **Switch:** Settings → Staff → **Shift reports (Rapport Z)**.
+- **Open:** → **View shift reports** — hours worked, sales per operator, tips, discounts given.
+
+#### Audit log
+- **Switch:** Settings → Staff → **Audit log (track all actions)**.
+- **Open:** → **View audit log** — who voided, refunded, discounted, changed fees/courses, logged into tablets…
+- Recommended ON for live venues; the discount & void frequency report analyses it.
+
+#### Staff scheduling + tip pooling
+- **Switch:** Settings → Staff → **Staff scheduling + tip pooling**. Permission: **Manage operators**.
+- **Use:** sidebar **Schedule** → add shifts: **operator, date, start time, end time** — weekly rota view; tip pooling is handled with the shift totals.
+
+#### Training mode
+- **Switch:** Settings → Staff → **Training mode (sales not recorded)**.
+- **Effect:** a warning banner appears; sales are **not recorded** (not in reports, not in stock). Keep OFF for live trading.
+
+#### Employee discount %
+- **Switch:** Settings → Staff → **Employee discount %**.
+1. → **Set employee discount %** → choose 0–100 (default 10, step 5) → OK.
+- **Use:** at payment the orange **Employee x%** button applies it to staff purchases.
+
+#### PIN login
+- **Switch:** Settings → Staff → **PIN login (numeric login at startup)**.
+- **Effect:** login asks for a **numeric PIN** for operators that have a password set (label switches PIN vs password). Operators without a password still sign in with just their name — set passwords in Manage operators to require them (also enables the PIN field on waiter tablets).
+
+#### Payroll export (CSV)
+- **Switch:** Settings → Staff → **Payroll export**.
+- **Open:** → **Export payroll CSV** — hours × hourly wage per operator, invariant decimals, ready for accounting.
+
+#### Server performance
+- **Switch:** Settings → Staff → **Server performance report**.
+- **Open:** → **Server performance** — per-terminal health ranking (uptime/sales); use it when the app feels slow.
+
+---
+
+### Inventory & Stock
+
+#### Ingredient stock / recipe deduction
+- **Switch:** Settings → Inventory & Stock → **Ingredient stock / recipe deduction**.
+1. Sidebar **Stock** → **Add** ingredient: **Name**, **Unit** (e.g. `kg`, `L`), **Stock** quantity → OK. (List columns: stock, min, cost, expiry; expired rows show red, expiring ≤7 days orange.)
+2. Define recipes in the shared database file `client database/recipes.json` — per product, the ingredient quantities consumed:
+   ```json
+   {
+     "Margherita": [
+       { "Ingredient": "Flour", "Quantity": 0.2 },
+       { "Ingredient": "Mozzarella", "Quantity": 0.12 }
+     ]
+   }
+   ```
+3. On each completed payment the recipe quantities are deducted from ingredient stock (training sales are skipped).
+
+#### Low stock alerts
+- **Switch:** Settings → Inventory & Stock → **Low stock alerts** (stock + recipes needed).
+- **Effect:** when a sale drops an ingredient below its **Min Stock**, a popup lists every affected ingredient with remaining qty and the product that uses it.
+
+#### Auto-86 when ingredients hit reorder point
+- **Switch:** Settings → Inventory & Stock → **Auto-86** (recipes needed).
+- **Effect:** affected products are marked 86 automatically → greyed out on the menu and listed on the 86 board; **Restore** on the 86 board clears the auto mark.
+
+#### Stock counts (stocktake)
+- **Switch:** Settings → Inventory & Stock → **Stock counts (stocktake) with audit trail**.
+- **Where:** sidebar **Purchases** → **Stocktake** tab (the Purchasing switch + permission are required to open Purchases at all).
+- **Use:** **count** physical quantities per ingredient (optional **note**) → only differences are saved as a stocktake record — system qty, counted qty, who, when; history lists past stocktakes; audit-logged when Audit log is ON.
+
+#### Waste & expiry tracking
+- **Switch:** Settings → Inventory & Stock → **Waste & expiry tracking**.
+- **Where:** sidebar **Purchases** → **Waste & expiry** tab.
+- **Use:** **Log waste** → ingredient, qty (cannot exceed stock), reason (defaults to `Waste`) — stock drops and the entry is logged with who/when; **Set expiry** marks ingredient expiry dates (Stock list colours expired red, ≤7 days orange).
+
+#### Stock transfers between locations
+- **Switch:** Settings → Inventory & Stock → **Stock transfers** (locations also need **Multi-branch**).
+- **Where:** sidebar **Purchases** → **Transfers** tab.
+- **Use:** **New transfer** → From ≠ To, ingredient, qty (≤ available at source) → saves a numbered transfer with who/when; stock moves from source location to destination.
+
+#### Weight-priced items
+- **Switch:** Settings → Inventory & Stock → **Weight-priced items**.
+1. Manage products → tick **Priced per kg** for the item.
+- **Use:** tapping it at the till asks for **kg** → price = kg × unit price; the line note records `x kg @ price/kg`.
+
+#### Product variants (size / color)
+- **Switch:** Settings → Inventory & Stock → **Product variants**.
+1. Manage products → **Variants…** → add variants with prices (Small/Medium/Large) or import CSV.
+- **Use:** tapping the product offers the variant; the chosen variant's price is used and shown on tickets/reports.
+
+#### Barcode label printing (Code 39)
+- **Switch:** Settings → Inventory & Stock → **Barcode label printing**.
+- **Use:** Manage products → **Print barcode labels** → prints Code-39 shelf labels from the catalog barcodes.
+
+#### Barcode scanning
+- **Switch:** Settings → Inventory & Stock → **Barcode scanning**.
+- **Effect:** the scan field appears on the order screen — scan (or type) a barcode → the product is added instantly. (Quick-sale mode shows the field too.)
+
+#### Purchase orders, suppliers & food cost
+- **Switch:** Settings → Inventory & Stock → **Purchase orders, suppliers & food cost**. Permission: **Purchasing**.
+- **Use:** sidebar **Purchases** → tabs **Purchase orders** · **Suppliers** · **Profit (food cost)** plus, when their switches are ON, **Stocktake** · **Waste & expiry** · **Transfers**:
+  1. **Suppliers**: add/edit vendors.
+  2. Create a **purchase order** (supplier, ingredient, qty, cost) → **receive** it — ingredient stock increases; cancel or email the PO as PDF.
+  3. **Profit** tab: revenue, food cost and margin per product for today / 7 / 30 days / all time.
+  4. A banner warns **ingredients at/below reorder point** with a **Reorder low** shortcut.
+
+---
+
+### Customers
+
+#### Customer database
+- **Switch:** Settings → Customers → **Customer database**.
+1. → **Manage customers** → add records (**name, phone, email, notes**).
+- **Use:** attach a customer to a ticket → purchase history, loyalty, balance (used by tabs/charge accounts and store credit).
+
+#### Loyalty program
+- **Switch:** Settings → Customers → **Loyalty program (points & rewards)** (customer database used).
+- **Effect:** customers earn points per purchase; points redeem as a discount at payment (`redeem` field in the tender screen).
+
+---
+
+### Operations
+
+#### Delivery orders
+- **Switch:** Settings → Operations → **Delivery orders**.
+- **Effect:** the **Delivery** order type joins the order-type selector; delivery tickets/reports are distinguishable by type (and priced with the multi-rate discount if enabled).
+
+#### Multi-branch support
+- **Switch:** Settings → Operations → **Multi-branch support**.
+1. → **Manage branches & current branch** → type a branch name → **Add** (repeat) → **Remove selected** to delete.
+2. Choose the **Current branch for this register** → **Save** — a badge appears next to the operator name; every sale is stamped with this branch.
+
+#### Refunds
+- **Switch:** Settings → Operations → **Refunds**. Permission: **Refunds**.
+- **Use:** find the past sale (**Find past receipts** or sales list) → select items → refund to the original method → a **refund ticket** prints to the Refund destination, stock is restocked, and a negative sale is recorded.
+
+#### QR code self-ordering
+- **Switch:** Settings → Operations → **QR code self-ordering (customer phone scan)** (Kiosk switch also enables the URL dialog).
+1. → **Guest ordering URL & QR code**:
+   - **Built-in local URL**: `http://<PC-IP>:8080` — guests on your Wi-Fi open it directly.
+   - *(optional)* **Public URL override** for a tunnel/domain → **Save** (the order-screen banner and QR labels then use it).
+   - **Copy URL** / QR preview for sharing.
+2. Open the **QR orders** screen (order-screen banner) → **Table QR labels** → pick tables → **Print** — each label's QR opens the menu pre-attributed to that table.
+3. Guests browse, order, **call waiter** and check order status from the phone page; guest orders appear on the main screen with a source badge.
+
+#### Kiosk self-order mode
+- **Switch:** Settings → Operations → **Kiosk self-order mode**.
+1. → **Launch kiosk** — fullscreen self-order, pay at counter.
+2. Share the same **Guest ordering URL** if customers should order from their own phones.
+
+#### Customer-facing display
+- **Switch:** Settings → Operations → **Customer-facing display (2nd screen)**.
+1. → **Customer display** — opens the guest-facing window (second monitor) showing the running total and thank-you message.
+
+---
+
+### Receipts & Display
+
+#### Email / SMS receipts
+- **Switch:** Settings → Receipts & Display → **Email / SMS receipts**.
+1. → **Email / SMTP settings** → fill **SMTP host, Port, Username, Password, From address**, tick **TLS** → **Save**.
+- **Use:** at payment the receipt can be sent by email (also required for e-gift email delivery).
+
+#### Find, reprint & reopen any past receipt
+- **Switch:** Settings → Receipts & Display → **Find, reprint & reopen any past receipt**.
+1. → **Find past receipts** → pick a **date** → select a ticket → reprint it, reopen it, or start a refund (with the Refunds switch/permission).
+
+#### Multi-language (FR / AR / EN)
+- **Switch:** Settings → Receipts & Display → **Multi-language (FR / AR / EN)**.
+- **Use:** language buttons (**English / Français / العربية**) appear at the top of Settings — click one → the app saves and **restarts** to apply.
+- Currency/date format follow the language (en-GB / fr-FR / ar-MA); Arabic flips the whole layout **RTL**. Product/room/table/payment names are your data and never translate.
+
+---
+
+### Companion systems
+
+#### Vectron Waiter tablets
+Covered step-by-step under [Waiter tablets (configuration)](#waiter-tablets-configuration) above; endpoints table in [§16](#16-network-cloud-and-api).
+
+#### Kiosk / guest phones / webhooks / cloud
+See [QR code self-ordering](#qr-code-self-ordering), [Kiosk self-order mode](#kiosk-self-order-mode), [REST API & webhooks](#rest-api--webhooks) and [Cloud sync](#cloud-sync-head-office) above.
+
+---
+
+## Feature checklist — before you go live
+
+- [ ] Currency + TVA set; prices tax-inclusive flag correct
+- [ ] Operators with PINs & minimal permissions (Part 2, Step 2)
+- [ ] Families routed to Kitchen / Bar printers; printers tested
+- [ ] Rooms/tables arranged; floor plan matches reality
+- [ ] Payment switches match your trade (service charge? cash discount? rounding?)
+- [ ] PIN login ON; training mode OFF; audit log ON
+- [ ] Language chosen (EN / FR / AR)
+- [ ] Waiter tablets: REST API ON + strong key; tablets connected and tested
+- [ ] Cloud backup folder set + **Backup now** tested once
+- [ ] Optional features you need turned ON (loyalty, stock, QR, KDS, happy hour…)
+- [ ] End of day: run a **Z report** and cash-up once as a rehearsal
 
 ---
 

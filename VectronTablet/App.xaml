@@ -1,0 +1,90 @@
+<?xml version = "1.0" encoding = "UTF-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:VectronTablet"
+             x:Class="VectronTablet.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- P2: the MAUI template palette/styles (Colors.xaml + Styles.xaml, #512BD4
+                 purples) were removed — App.xaml's own tokens below plus Theme.cs are the
+                 single source of every themed colour. -->
+
+            <Color x:Key="Bg">#0F141A</Color>
+            <Color x:Key="Panel">#1A222C</Color>
+            <Color x:Key="Panel2">#243040</Color>
+            <Color x:Key="Kpi">#1C2432</Color>
+            <Color x:Key="Mint">#70C1B3</Color>
+            <Color x:Key="MintDeep">#5AA99B</Color>
+            <Color x:Key="Ink">#0F141A</Color>
+            <Color x:Key="Amber">#F4B860</Color>
+            <Color x:Key="Danger">#E07A5F</Color>
+            <Color x:Key="Green">#4E9F6E</Color>
+            <Color x:Key="Txt">#E9EFF5</Color>
+            <Color x:Key="TxtDim">#8C99A8</Color>
+            <!-- P1.7 Flat-HUD: the structural hairline / outline color (DESIGN.md border-windows
+                 parity; the product tiles already stroke #2E3A4B) -->
+            <Color x:Key="HudLine">#2E3A4B</Color>
+            <!-- P1.9 appearance tokens: every one of these is rewritten by Theme.Apply()
+                 for the light palette (DESIGN.md "Appearance system"). -->
+            <Color x:Key="ReadyBg">#16321F</Color>
+            <Color x:Key="TakenBg">#332A16</Color>
+            <Color x:Key="PlusBg">#9600DC96</Color>
+            <Color x:Key="EightySixBg">#CC3E3230</Color>
+            <Color x:Key="DangerInk">#F06A5A</Color>
+            <Color x:Key="Price">#47D6AE</Color>
+            <!-- Ink on a saturated fill (badges / status pills) — white in both themes. -->
+            <Color x:Key="OnFill">#FFFFFF</Color>
+
+            <Style x:Key="PrimaryBtn" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="{StaticResource Mint}" />
+                <Setter Property="TextColor" Value="{StaticResource Ink}" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="Padding" Value="14,10" />
+                <Setter Property="FontSize" Value="15" />
+                <!-- P1.4 pressed feedback is done in code via PointerGestureRecognizer (Theme.PressBind);
+                     a VisualStateManager Pressed state is a no-op on MAUI Android (verified on device). -->
+            </Style>
+
+            <Style x:Key="GhostBtn" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="{StaticResource Panel2}" />
+                <Setter Property="TextColor" Value="{StaticResource Txt}" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="Padding" Value="14,10" />
+                <Setter Property="FontSize" Value="15" />
+                <!-- P1.4 pressed feedback is done in code via Theme.PressBind (a VisualStateManager
+                     Pressed state is a no-op on MAUI Android — verified on device). -->
+            </Style>
+
+            <Style x:Key="TableBtn" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="{StaticResource Panel}" />
+                <Setter Property="TextColor" Value="{StaticResource Txt}" />
+                <Setter Property="CornerRadius" Value="14" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="Padding" Value="6" />
+                <Setter Property="HeightRequest" Value="96" />
+            </Style>
+
+            <Style x:Key="ChipBtn" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="{StaticResource Kpi}" />
+                <Setter Property="TextColor" Value="{StaticResource TxtDim}" />
+                <Setter Property="CornerRadius" Value="18" />
+                <Setter Property="Padding" Value="14,7" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+            </Style>
+
+            <Style x:Key="SectionLbl" TargetType="Label">
+                <Setter Property="TextColor" Value="{StaticResource Txt}" />
+                <Setter Property="FontSize" Value="17" />
+                <Setter Property="FontAttributes" Value="Bold" />
+            </Style>
+
+            <Style x:Key="DimLbl" TargetType="Label">
+                <Setter Property="TextColor" Value="{StaticResource TxtDim}" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

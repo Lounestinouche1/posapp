@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:VectronTablet"
+             x:Class="VectronTablet.Pages.TablesPage"
+             BackgroundColor="{StaticResource Bg}">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="14,44,14,8">
+
+        <!-- P1.9 app bar — the Android mirror of the Windows top bar: vector mark + wordmark
+             lockup on the left, status pills on the right. No sidebar, no title bar. -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+            <GraphicsView WidthRequest="28" HeightRequest="28" InputTransparent="True"
+                          VerticalOptions="Center">
+                <GraphicsView.Drawable>
+                    <local:VectronMarkDrawable />
+                </GraphicsView.Drawable>
+            </GraphicsView>
+            <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center"
+                                 Margin="8,0,0,0">
+                <Label Text="VECTRON" FontSize="14" FontAttributes="Bold"
+                       TextColor="{StaticResource Txt}" />
+                <Label Text="W A I T E R" FontSize="9" TextColor="{StaticResource Mint}" />
+            </VerticalStackLayout>
+
+            <Border Grid.Column="2" BackgroundColor="{StaticResource Kpi}" StrokeThickness="0"
+                    StrokeShape="RoundRectangle 18" Padding="12,7" x:Name="bellBorder">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnBell" />
+                </Border.GestureRecognizers>
+                <Label x:Name="bellLabel" Text="🔔 0" TextColor="{StaticResource Txt}" FontSize="14" />
+            </Border>
+
+            <!-- P1.9 Appearance (Theme + Graphics) — the tablet's Settings entry. -->
+            <Button Grid.Column="3" x:Name="appearanceBtn" Text="⋯" Style="{StaticResource GhostBtn}"
+                    WidthRequest="44" />
+
+            <!-- P1.5: no Clicked — the click travels through Theme.PressBind (code-behind). -->
+            <Button Grid.Column="4" x:Name="exitBtn" Text="Exit" Style="{StaticResource GhostBtn}" />
+        </Grid>
+
+        <!-- Page head (P1.7 Flat-HUD mint rail + hairline, same language as OrderPage) -->
+        <Grid Grid.Row="1" RowDefinitions="Auto,1" Margin="0,10,0,0">
+            <HorizontalStackLayout Spacing="9" VerticalOptions="Center">
+                <BoxView WidthRequest="3" HeightRequest="34" Color="{StaticResource Mint}"
+                         VerticalOptions="Center" />
+                <VerticalStackLayout Spacing="1">
+                    <Label x:Name="whoLabel" Text="—" FontSize="16" FontAttributes="Bold"
+                           TextColor="{StaticResource Txt}" />
+                    <!-- P1.7 LED status: the dot alone carries the state colour (mint ok /
+                         amber warning), the rest stays dim; HUD micro-copy is uppercase. -->
+                    <Label x:Name="serverLabel" Text="—" Style="{StaticResource DimLbl}" />
+                </VerticalStackLayout>
+            </HorizontalStackLayout>
+            <BoxView Grid.Row="1" HeightRequest="1" BackgroundColor="{StaticResource HudLine}" />
+        </Grid>
+
+        <ScrollView Grid.Row="2" Margin="0,12,0,6" Orientation="Horizontal">
+            <HorizontalStackLayout x:Name="roomRow" Spacing="0" />
+        </ScrollView>
+
+        <RefreshView Grid.Row="3" x:Name="refreshView" Refreshing="OnRefresh">
+            <ScrollView>
+                <Grid x:Name="tableGrid"
+                      ColumnDefinitions="*,*,*,*" ColumnSpacing="10" RowSpacing="10"
+                      Padding="0,4,0,16" />
+            </ScrollView>
+        </RefreshView>
+
+    </Grid>
+</ContentPage>

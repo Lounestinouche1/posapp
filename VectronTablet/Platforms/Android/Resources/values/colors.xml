@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- P1.9: brand chrome instead of the MAUI template purple. The runtime status/nav bar
+         colour follows the active palette (Theme / MainActivity.ApplySystemBars); these are
+         the pre-theme values used by the splash window. -->
+    <color name="colorPrimary">#1A222C</color>
+    <color name="colorPrimaryDark">#0F141A</color>
+    <color name="colorAccent">#70C1B3</color>
+</resources>

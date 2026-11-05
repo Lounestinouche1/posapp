@@ -70,7 +70,7 @@ internal static class TicketLayout
 
 internal sealed record TicketDragData(object Component, bool FromLayout, int SourceIndex);
 
-internal sealed class TicketDesignerForm : Form
+internal sealed class TicketDesignerForm : SettingsSubForm
 {
     private readonly ListBox available = new();
     private readonly ListBox layout = new();
@@ -96,7 +96,7 @@ internal sealed class TicketDesignerForm : Form
         this.save = save;
         this.logoPath = destination.LogoPath;
         Text = "Edit ticket layout - " + destination.Name;
-        StartPosition = FormStartPosition.CenterParent;
+        Breadcrumb = "Settings / Receipts / Ticket Designer";
         ClientSize = new Size(1000, 600);
         BackColor = background;
         ForeColor = Color.White;
@@ -132,8 +132,9 @@ internal sealed class TicketDesignerForm : Form
         logoSection.Location = new Point(15, 225); logoSection.Size = new Size(170, 100); logoSection.Visible = false;
         var logoLabel = new Label { Text = Tr.T("Logo image"), AutoSize = true, Location = new Point(0, 0) };
         logoPathLabel.Text = string.IsNullOrEmpty(logoPath) ? Tr.T("No logo set") : Path.GetFileName(logoPath);
-        logoPathLabel.Location = new Point(0, 25); logoPathLabel.Size = new Size(170, 20); logoPathLabel.ForeColor = Color.Gray;
-        var browseBtn = new Button { Text = Tr.T("Browse..."), Location = new Point(0, 50), Size = new Size(80, 28), BackColor = Color.FromArgb(71, 214, 174), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        logoPathLabel.Location = new Point(0, 25); logoPathLabel.Size = new Size(170, 20); logoPathLabel.ForeColor = Color.FromArgb(160, 170, 185);
+        var browseBtn = new Button { Text = Tr.T("Browse..."), Location = new Point(0, 50), Size = new Size(80, 28), BackColor = Color.FromArgb(71, 214, 174), ForeColor = Color.FromArgb(20, 30, 40), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        browseBtn.FlatAppearance.BorderSize = 0;
         browseBtn.Click += (_, _) =>
         {
             using var dlg = new OpenFileDialog { Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp|All files|*.*" };
@@ -144,7 +145,8 @@ internal sealed class TicketDesignerForm : Form
                 UpdatePreview();
             }
         };
-        var removeBtn = new Button { Text = Tr.T("Remove"), Location = new Point(85, 50), Size = new Size(80, 28), BackColor = Color.FromArgb(60, 60, 80), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var removeBtn = new Button { Text = Tr.T("Remove"), Location = new Point(85, 50), Size = new Size(80, 28), BackColor = Color.FromArgb(37, 47, 62), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+        removeBtn.FlatAppearance.BorderSize = 0;
         removeBtn.Click += (_, _) => { logoPath = ""; logoPathLabel.Text = Tr.T("No logo set"); UpdatePreview(); };
         logoSection.Controls.AddRange([logoLabel, logoPathLabel, browseBtn, removeBtn]);
         
@@ -173,13 +175,21 @@ internal sealed class TicketDesignerForm : Form
         layout.DragDrop += (_, args) => HandleDrop(args);
         layout.DoubleClick += (_, _) => { if (layout.SelectedIndex >= 0) { layout.Items.RemoveAt(layout.SelectedIndex); UpdatePreview(); } };
 
+        // Receipt paper preview: intentionally white paper with black ink — it mirrors the
+        // thermal printout, so it is NOT themed (same rule as the printed ticket itself).
         preview.Location = new Point(670, 80); preview.Size = new Size(300, 400); preview.BackColor = Color.White; preview.ForeColor = Color.Black; preview.Font = new Font("Consolas", 9F);
         
         var saveButton = Button("Save layout", 840, 500, 130, mint);
-        saveButton.ForeColor = background;
         saveButton.Click += (_, _) => { save(layout.Items.Cast<TicketComponentStyle>().ToList(), logoPath); DialogResult = DialogResult.OK; Close(); };
 
         Controls.AddRange([title, available, layout, stylePanel, preview, saveButton]);
+        doneBtn.Click += (_, _) =>
+        {
+            save(layout.Items.Cast<TicketComponentStyle>().ToList(), logoPath);
+            DialogResult = DialogResult.OK;
+            Close();
+        };
+        ShiftBodyDown(72);
         UpdatePreview();
     }
 
@@ -258,6 +268,12 @@ internal sealed class TicketDesignerForm : Form
     }
 
     private void SetDropEffect(DragEventArgs args) => args.Effect = args.Data?.GetData(typeof(TicketDragData)) is TicketDragData d ? (d.FromLayout ? DragDropEffects.Move : DragDropEffects.Copy) : DragDropEffects.None;
-    private Button Button(string text, int x, int y, int width, Color color) => new() { Text = text, Location = new Point(x, y), Size = new Size(width, 38), BackColor = color, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+    private Button Button(string text, int x, int y, int width, Color color) => new() { Text = text, Location = new Point(x, y), Size = new Size(width, 38), BackColor = color, ForeColor = Color.FromArgb(20, 30, 40), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
     private static bool IsDragging(Point start, Point current) => Math.Abs(current.X - start.X) >= SystemInformation.DragSize.Width / 2 || Math.Abs(current.Y - start.Y) >= SystemInformation.DragSize.Height / 2;
+
+    protected override void Back()
+    {
+        save(layout.Items.Cast<TicketComponentStyle>().ToList(), logoPath);
+        base.Back();
+    }
 }

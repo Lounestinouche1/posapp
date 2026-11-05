@@ -30,6 +30,15 @@
     <Compile Remove="LicenseGen/**" />
     <EmbeddedResource Remove="LicenseGen/**" />
     <None Remove="LicenseGen/**" />
+    <Compile Remove="VectronTablet/**" />
+    <EmbeddedResource Remove="VectronTablet/**" />
+    <None Remove="VectronTablet/**" />
+    <Compile Remove="antigravity skills/**" />
+    <EmbeddedResource Remove="antigravity skills/**" />
+    <None Remove="antigravity skills/**" />
+    <Compile Remove="scratch/**" />
+    <EmbeddedResource Remove="scratch/**" />
+    <None Remove="scratch/**" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">

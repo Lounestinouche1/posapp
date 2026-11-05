@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="VectronTablet.Pages.SettingsPage"
+             BackgroundColor="{DynamicResource Bg}"
+             NavigationPage.HasNavigationBar="False">
+
+    <Grid RowDefinitions="Auto,*" Padding="16,44,16,16">
+        <!-- Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Margin="0,0,0,20">
+            <Button x:Name="backBtn" Text="←" Style="{StaticResource GhostBtn}" WidthRequest="44" HeightRequest="44" Padding="0" />
+            <Label Grid.Column="1" Text="Settings" FontSize="20" FontAttributes="Bold" TextColor="{DynamicResource Txt}" VerticalOptions="Center" />
+        </Grid>
+
+        <!-- Body -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Spacing="24">
+                <!-- Appearance Card -->
+                <Border Stroke="{DynamicResource HudLine}" StrokeThickness="1" StrokeShape="RoundRectangle 14"
+                        BackgroundColor="{DynamicResource Panel}" Padding="18">
+                    <VerticalStackLayout Spacing="16">
+                        <Label Text="APPEARANCE" FontSize="13" FontAttributes="Bold" TextColor="{DynamicResource MintInk}" />
+
+                        <!-- Theme Selection -->
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Theme" FontSize="15" TextColor="{DynamicResource Txt}" />
+                            <HorizontalStackLayout Spacing="8">
+                                <Button x:Name="darkChip" Text="Dark" Style="{StaticResource ChipBtn}" />
+                                <Button x:Name="lightChip" Text="Light" Style="{StaticResource ChipBtn}" />
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource HudLine}" />
+
+                        <!-- Motion Selection -->
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Animations" FontSize="15" TextColor="{DynamicResource Txt}" />
+                            <HorizontalStackLayout Spacing="8">
+                                <Button x:Name="motionOffChip" Text="Off" Style="{StaticResource ChipBtn}" />
+                                <Button x:Name="motionSubtleChip" Text="Subtle" Style="{StaticResource ChipBtn}" />
+                                <Button x:Name="motionFullChip" Text="Full" Style="{StaticResource ChipBtn}" />
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

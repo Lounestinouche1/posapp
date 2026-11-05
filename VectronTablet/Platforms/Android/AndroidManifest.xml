@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true" android:usesCleartextTraffic="true">
+		<!-- Boot / app-update → restart the alert-polling service (also declared via [BroadcastReceiver]). -->
+		<receiver android:name="com.vectron.waiter.BootReceiver" android:enabled="true" android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.BOOT_COMPLETED" />
+				<action android:name="android.intent.action.QUICKBOOT_POWERON" />
+				<action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+			</intent-filter>
+		</receiver>
+		<!-- specialUse requires a human-readable subtype (Android 14+ / Play policy). -->
+		<service android:name="com.vectron.waiter.AlertPollingService" android:exported="false" android:foregroundServiceType="dataSync|specialUse">
+			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+				android:value="Polls the LAN point-of-sale server every 3 seconds for guest call and order-ready alerts and posts local notifications." />
+		</service>
+		<!-- Reboot-proof watchdog: persisted JobScheduler job that restarts polling even when
+		     the ROM swallows the BOOT_COMPLETED broadcast for third-party apps. -->
+		<service android:name="com.vectron.waiter.AlertJobService"
+			android:exported="true"
+			android:permission="android.permission.BIND_JOB_SERVICE" />
+	</application>
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+	<uses-permission android:name="android.permission.VIBRATE" />
+	<uses-permission android:name="android.permission.WAKE_LOCK" />
+	<uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+	<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+</manifest>
