@@ -1471,3 +1471,211 @@ all four variants ship together; Light is its own palette; no High effect in Lit
       - Updated `tester-release\Windows\Vectron POS.exe`.
       - Rebuilt all release zips (`VectronPOS-v1.2.0-Win10-x64.zip`, `…-Win7-x86-x64.zip`, `…-Win7-Full-x86-x64.zip`, `tester-release.zip`) entry-by-entry: 0 forbidden files, 0 .pdb, 0 backslashes.
 
+
+
+---
+
+# 12. P7.7 — Settings Sub-Menu Back Navigation, AppBar RTL Mirroring & Arabic Localization
+
+> **Brief from user:**
+> 1. Settings sub-menu Back button: present in every menu/sub-menu in settings, but pressing it opens an empty page instead of returning to the previous settings menu. User has to click Settings in the top bar to recover.
+> 2. Stock alert button (`stockPill`): appears in top right most of the time, but sometimes goes under the application logo on the top left.
+> 3. Arabic language: almost everything is mirrored properly except the current operator button, day total income button (`salesChip`), and 3-dots button (`overflowButton`) which stay on the right. Also, language translation should translate everything except families, products, and ingredients, but the price screen (Product catalog + Payment screen) buttons and Rooms & Tables aren't translated.
+
+### 12.1 Detailed Root Cause Analysis
+
+#### 1. Bug 1: Settings Sub-Form Back Button Leaves an Empty Page
+- **Mechanism:**
+  - `SettingsSubForm` defines:
+    ```csharp
+    protected virtual void Back() { Close(); }
+    protected virtual void Done() { Back(); }
+    ```
+  - In `PosForm.ShowView(Panel content, string title, Action? onBack = null)`, sub-forms (e.g., `ProductManagerForm`, `RoomManagerForm`, `PrinterManagerForm`, `CurrencySettingsForm`, `StockManagerForm`, `RecipeEditorForm`, `IngredientManagerForm`, `OperatorManagerForm`, `NetworkSettingsForm`, `SalesReportForm`, `FamilyManagerForm`, etc.) are hosted as embedded child forms:
+    ```csharp
+    subForm.TopLevel = false;
+    subForm.FormBorderStyle = FormBorderStyle.None;
+    subForm.Dock = DockStyle.Fill;
+    panel.Controls.Add(subForm);
+    subForm.Show();
+    ShowView(panel, title, ShowSettings);
+    ```
+  - When the user clicks the "← Back" button (or "Done" button, or presses `Esc` / `Alt+Left`) inside `SettingsSubForm`, `Back()` calls `Close()`.
+  - Calling `Close()` on an embedded child form (`TopLevel = false`) detaches and disposes the sub-form from its parent `panel`.
+  - However, `panel` remains docked inside `PosForm.viewPanel`! Because `subForm` did not notify `PosForm` to switch views, `viewPanel` continues displaying the now-empty `panel`. The user sees a blank screen and must manually click the "Settings" nav pill in the app bar to re-render Settings.
+  - Furthermore, `ShowView` currently creates a redundant 64px `skinPanel` header on top of `SettingsSubForm` (which already contains its own 72px Vectron app bar with logo, title, breadcrumbs, Back, and Done buttons).
+
+#### 2. Bug 2: Stock Alert Button (`stockPill`) Jumping Under Logo
+- **Mechanism:**
+  - `stockPill` is instantiated with default Location `Point(0, 0)`.
+  - When Arabic (RTL) mode is enabled (`Tr.Lang == "ar"`), `Rtl.Apply(this)` is called during startup and when navigating between views (e.g. `ShowRooms()`, `ShowOrder()`).
+  - `Rtl.Mirror()` reads `c.Left` and stores it into `Originals`. If `stockPill` is not visible or has not yet been laid out, its cached `orig.Left` is `0` or an uncalculated position.
+  - When `stockPill.Visible` becomes true (`UpdateStockPill()`), `LayoutAppBar()` calculates an LTR coordinate (`Point(num2 - stockPill.Width, 19)`).
+  - On the next view transition or refresh, `Rtl.Apply` re-mirrors controls using `c.Left = parent.ClientSize.Width - orig.Left - c.Width`. This pushes `stockPill` directly to `X = 0..16`, sitting right beneath `brandMark` (the Vectron logo at `Point(22, 19)`).
+
+#### 3. Bug 3A: Operator, Sales Chip & 3-Dots Buttons Not Mirrored in Arabic (RTL)
+- **Mechanism:**
+  - `PosForm.LayoutAppBar()` hardcodes LTR coordinate calculations:
+    ```csharp
+    int num2 = num - 20;
+    overflowButton.Location = new Point(num2 - 38, 19);
+    operatorButton.Location = new Point(num2 - num3, 18);
+    salesChip.Location = new Point(num2 - num4, 14);
+    stockPill.Location = new Point(num2 - stockPill.Width, 19);
+    int num9 = 206; // Nav pills flow LTR from X=206
+    ```
+  - Whenever `LayoutAppBar()` executes (on form resize, stock pill update, operator switch, or window restore), it unconditionally forces the action buttons to the right edge and nav pills to the left edge, clobbering RTL mirroring.
+  - Because `LayoutAppBar()` lacks an explicit `isRtl` branch, the top bar remains in English/LTR layout order while the rest of the POS is mirrored.
+
+#### 4. Bug 3B: Untranslated Price Screen, Payment Modal, Rooms & Tables
+- **Mechanism:**
+  - **Product Catalog / Price Screen (`ProductManagerForm`):**
+    - `FieldLabel(string text, ...)` and `CatalogButton(string text, ...)` instantiate `Label` and `Button` with raw `text` without wrapping in `Tr.T(text)`.
+    - Labels: "Name", "Category", "Price", "Color", "Image", "Barcode", "Priced per kg (weight item)".
+    - Buttons: "Import image", "New product", "Delete", "Save changes", "Variants…", "Import CSV", "Export CSV", "Print barcode labels".
+  - **Payment Dialog (`PayOrder` & `ShowSplitPayment`):**
+    - `paymentCombo` populates untranslated strings: `"Cash"`, `"Card"`, `"Transfer"`, `"Mobile"`, `"Tab"`, `"Deposit"`.
+    - `payOk` initial text uses raw string `$"Accept payment  {total:C}"` instead of `Tr.T("Accept payment")`.
+    - `ShowSplitPayment` dialog has untranslated title (`"Split payment - due ..."`), subheader (`"Amount due: ... — methods must add up to it"`), `+ Add method`, and `Accept split`.
+  - **Rooms & Tables (`RenderRooms`, `RenderTableMap`, `OrderContextText`, `RoomManagerForm`):**
+    - Default room names ("Main dining", "Terrace", "Private room") are not wrapped in `Tr.T()`.
+    - Table naming logic `TableName()` returns hardcoded English `"Table " + index`.
+    - Table status returns hardcoded `"Taken"` and `"Available"` and `"booked"` without `Tr.T()`.
+    - Room manager action buttons (`"+ Add room"`, `"Save changes"`, `"New room"`) use raw strings.
+    - `OrderContextText()` prints `"Room: " + selectedRoom + "     " + selectedTable` without translating `selectedRoom` and `selectedTable`.
+  - **`Lang.cs`:**
+    - Missing Arabic and French translations for: "Main dining", "Terrace", "Private room", "Available", "Taken", "booked", "No table selected", "Mobile", "Priced per kg (weight item)", "Import image", "Category", "Color", "New product", "Variants…", "Print barcode labels", "+ Add room", "New room", "Reset layout", "Split payment - due {0}", "Amount due: {0}  —  methods must add up to it", "+ Add method", "Accept split".
+
+---
+
+### 12.2 Implementation Tasks
+
+#### Task 1: Fix Settings Sub-Form Back Navigation (`Program.cs`)
+1. In `SettingsSubForm`:
+   - Add property:
+     ```csharp
+     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+     public Action? OnBackAction { get; set; }
+     ```
+   - Update `Back()` and `Done()`:
+     ```csharp
+     protected virtual void Back()
+     {
+         if (OnBackAction != null)
+             OnBackAction();
+         else
+             Close();
+     }
+     ```
+2. In `PosForm.ShowView(Panel content, string title, Action? onBack = null)`:
+   - Detect if `content` embeds a `SettingsSubForm`:
+     ```csharp
+     SettingsSubForm? subForm = content.Controls.OfType<SettingsSubForm>().FirstOrDefault();
+     ```
+   - Wire `subForm.OnBackAction = onBack ?? ShowSettings;` and attach `subForm.FormClosed += (s, e) => (onBack ?? ShowSettings)();`.
+   - If `subForm != null`, skip adding the redundant outer `skinPanel` (so the screen displays cleanly without double headers or wasted padding).
+
+#### Task 2: Fix AppBar RTL Layout & Stock Pill Positioning (`Program.cs`)
+1. In `PosForm.BuildUi()`:
+   - Store brand title and subtitle labels in fields (`brandTitle`, `brandSubtitle`).
+   - Set safe off-screen initial location for `stockPill`: `stockPill.Location = new Point(9999, 19);`.
+2. In `PosForm.LayoutAppBar()`:
+   - Check `bool isRtl = Tr.Lang == "ar";`.
+   - **When `isRtl` (Arabic):**
+     - Action buttons flow from **left edge** (`X = 20`):
+       `overflowButton` (3-dots) at `X = 20` &rarr; `operatorButton` &rarr; `salesChip` (when `Width >= 1020`) &rarr; `stockPill` (when visible) &rarr; `statusDot` & `statusText`.
+     - Brand identity on **far right**:
+       `brandMark` at `Width - 22 - brandMark.Width`, `brandTitle` and `brandSubtitle` immediately to its left.
+     - Nav pills (`pillOrder`, `pillRooms`, `pillOperator`, `pillSettings`) flow from **right to left**, starting to the left of the brand mark.
+   - **When `!isRtl` (English/French):**
+     - Maintain crisp standard LTR layout: brand mark & nav pills on the left; status, stock pill, sales chip, operator button, and 3-dots on the right.
+3. In `Lang.cs` (`Rtl.Mirror`):
+   - Exclude `appBar` from generic mirroring (`if (c == appBar) continue;`), preventing `Rtl.Apply` from corrupting `LayoutAppBar()`'s authoritative coordinates.
+
+#### Task 3: Complete Localization for Prices Screen, Payment Modal, Rooms & Tables
+1. **`ProductManagerForm`:**
+   - In `FieldLabel(string text, int x, int y)`: set `Text = Tr.T(text)`.
+   - In `CatalogButton(string text, ...)`: set `Text = Tr.T(text)`.
+   - Wrap `weighted.Text = Tr.T("Priced per kg (weight item)")`.
+   - Wrap `Breadcrumb` and category dropdown defaults.
+2. **Payment & Split Dialogs:**
+   - In `PayOrder()`:
+     - Wrap payment method list items in `Tr.T()`: `new List<string> { Tr.T("Cash"), Tr.T("Card"), Tr.T("Transfer"), Tr.T("Mobile") }` and `Tr.T("Tab")`, `Tr.T("Deposit")`.
+     - Map selected translated method back to internal code when recording the transaction.
+     - Initialize `payOk.Text = $"{Tr.T("Accept payment")}  {totalBeforeDiscount - discount:C}"`.
+   - In `ShowSplitPayment()`:
+     - Wrap `form.Text = string.Format(Tr.T("Split payment - due {0}"), $"{due:C}")`.
+     - Wrap header `label.Text = string.Format(Tr.T("Amount due: {0}  —  methods must add up to it"), $"{due:C}")`.
+     - Wrap `button.Text = Tr.T("+ Add method")`.
+     - Wrap payment method combo box items using `Tr.T()`.
+3. **Rooms & Tables:**
+   - In `RenderRooms()`:
+     - `ActionButton(Tr.T(room.Name), ...)`
+     - `selectedTable = Tr.T("No table selected");`
+   - In `RenderTableMap()`:
+     - `label.Text = Tr.T(room.Name);`
+     - Update `TableName()`: `return Tr.T("Table") + " " + index;`
+     - Table status: `string text2 = flag ? Tr.T("Taken") : Tr.T("Available");`
+     - Reservation badge: `text2 = $"{reservation.When:HH:mm} " + Tr.T("booked");`
+   - In `OrderContextText()`:
+     - Wrap room and table names: `Tr.T(selectedRoom) + "     " + Tr.T(selectedTable)`.
+   - In `RoomManagerForm`:
+     - In `RoomButton(string text, ...)`: set `Text = Tr.T(text)`.
+     - `RoomButton(Tr.T("+ Add room"), ...)`
+     - `roomManagerForm.AddRoomRow(Tr.T("New room"), ...)`
+4. **`Lang.cs`:**
+   - Add all new dictionary entries in both `Fr` (French) and `Ar` (Arabic) dictionaries:
+     - "Main dining" &rarr; Fr: "Salle principale", Ar: "القاعة الرئيسية"
+     - "Terrace" &rarr; Fr: "Terrasse", Ar: "الشرفة"
+     - "Private room" &rarr; Fr: "Salon privé", Ar: "غرفة خاصة"
+     - "Table" &rarr; Fr: "Table", Ar: "طاولة"
+     - "Available" &rarr; Fr: "Disponible", Ar: "متاح"
+     - "Taken" &rarr; Fr: "Occupée", Ar: "مشغول"
+     - "booked" &rarr; Fr: "réservé", Ar: "محجوز"
+     - "No table selected" &rarr; Fr: "Aucune table sélectionnée", Ar: "لم يتم اختيار طاولة"
+     - "Mobile" &rarr; Fr: "Mobile", Ar: "دفع إلكتروني"
+     - "Category" &rarr; Fr: "Catégorie", Ar: "الفئة"
+     - "Color" &rarr; Fr: "Couleur", Ar: "اللون"
+     - "Priced per kg (weight item)" &rarr; Fr: "Vendu au kg (au poids)", Ar: "سعر بالكيلوغرام (وزن)"
+     - "Import image" &rarr; Fr: "Importer image", Ar: "استيراد صورة"
+     - "New product" &rarr; Fr: "Nouveau produit", Ar: "منتج جديد"
+     - "Variants…" &rarr; Fr: "Variantes…", Ar: "خيارات…"
+     - "Print barcode labels" &rarr; Fr: "Imprimer étiquettes code-barres", Ar: "طباعة ملصقات الباركود"
+     - "+ Add room" &rarr; Fr: "+ Ajouter salle", Ar: "+ إضافة قاعة"
+     - "New room" &rarr; Fr: "Nouvelle salle", Ar: "قاعة جديدة"
+     - "Reset layout" &rarr; Fr: "Réinitialiser disposition", Ar: "إعادة ضبط التخطيط"
+     - "Split payment - due {0}" &rarr; Fr: "Paiement fractionné - dû {0}", Ar: "دفع مجزأ - المستحق {0}"
+     - "Amount due: {0}  —  methods must add up to it" &rarr; Fr: "Montant dû : {0}  —  les modes de paiement doivent être égaux", Ar: "المبلغ المستحق: {0}  —  يجب أن تتطابق طرق الدفع معه"
+     - "+ Add method" &rarr; Fr: "+ Ajouter mode", Ar: "+ إضافة طريقة"
+     - "Accept split" &rarr; Fr: "Accepter le partage", Ar: "قبول التجزئة"
+
+---
+
+### 12.3 Verification & Quality Gate
+1. **Compilation Check:**
+   - Compile both TFMs: `powershell -NoProfile -File ".opencode\tools\build-win.ps1" -Tfm all` &rarr; 0 errors, 0 warnings.
+2. **Settings Back Navigation Verification:**
+   - Open every settings sub-menu: Products, Rooms, Printers, Currency & Tax, Stock Console, Recipe Editor, Ingredient Catalog, Operators, Network Settings.
+   - Click "← Back" on each &rarr; verify instant return to Settings menu, 0 empty pages.
+   - Click "Done" on each &rarr; verify saves changes and returns cleanly to Settings.
+3. **Stock Pill Positioning Verification:**
+   - Switch language to Arabic (`Ar`), set low stock threshold to trigger stock alert.
+   - Verify `stockPill` is displayed next to `salesChip` on the left side of the app bar.
+   - Switch between Order and Rooms multiple times &rarr; verify `stockPill` NEVER moves under the Vectron logo.
+4. **Arabic RTL Mirroring Verification:**
+   - Verify `overflowButton` (3-dots) is at the far-left (`X = 20`).
+   - Verify `operatorButton` is adjacent to the 3-dots button.
+   - Verify `salesChip` is adjacent to the operator button.
+   - Verify `brandMark` and "VECTRON POS" are on the far right.
+   - Verify Nav pills flow from right to left starting next to the brand title.
+5. **Localization Verification:**
+   - In Arabic:
+     - Open Product Catalog: verify "Name", "Category", "Price", "Color", "Image", "Barcode", "New product", "Delete", "Save changes", etc. are in Arabic.
+     - Open Tables/Rooms: verify "Main dining", "Terrace", "Private room", "Table 1", "Available", "Taken", "booked" are in Arabic.
+     - Open Payment modal: verify payment methods ("نقداً", "بطاقة", "تحويل", "دفع إلكتروني", etc.) and "قبول الدفع" are in Arabic.
+     - Basket/Order context header: verify "طاولة 1", "القاعة الرئيسية" are in Arabic.
+6. **Ship & Synchronize:**
+   - Deploy updated binaries to `publish-win10-x64\` and `publish-win7\` (`client database\` untouched).
+   - Update `tester-release\Windows\`.
+   - Rebuild release zips.
+   - Rebuild Android APK (`Vectron-Waiter-v1.2.0.apk`).

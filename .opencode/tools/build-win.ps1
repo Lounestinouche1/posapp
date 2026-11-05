@@ -45,10 +45,21 @@ foreach ($t in $targets) {
         Get-ChildItem $out -File | Where-Object {
             $_.Extension -ne '.pdb' -and $protected -notcontains $_.Name
         } | ForEach-Object {
+            $src = $_.FullName
             $target = Join-Path $dest $_.Name
             if (Test-Path $target -PathType Container) { return }
-            if (Test-Path $target) { Copy-Item $target "$target.old" -Force }
-            Copy-Item $_.FullName $target -Force
+            if (Test-Path $target) {
+                try {
+                    Copy-Item $src $target -Force -ErrorAction Stop
+                } catch {
+                    $old = "$target.old"
+                    if (Test-Path $old) { Remove-Item $old -Force -ErrorAction SilentlyContinue }
+                    Move-Item $target $old -Force
+                    Copy-Item $src $target -Force
+                }
+            } else {
+                Copy-Item $src $target -Force
+            }
             $copied++
         }
         Write-Host "  shipped $copied binaries -> $dest (client database untouched)" -ForegroundColor Green

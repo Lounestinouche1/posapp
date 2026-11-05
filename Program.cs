@@ -1152,7 +1152,16 @@ internal sealed class PosStore
 			}
 			if (File.Exists(recipesFile))
 			{
-				Recipes = JsonSerializer.Deserialize<Dictionary<string, List<RecipeItem>>>(File.ReadAllText(recipesFile), JsonOptions) ?? Recipes;
+				var rawRec = JsonSerializer.Deserialize<Dictionary<string, List<RecipeItem>>>(File.ReadAllText(recipesFile), JsonOptions);
+				if (rawRec != null)
+				{
+					Recipes = new Dictionary<string, List<RecipeItem>>(StringComparer.OrdinalIgnoreCase);
+					foreach (var kv in rawRec)
+					{
+						if (!string.IsNullOrWhiteSpace(kv.Key))
+							Recipes[kv.Key] = kv.Value;
+					}
+				}
 			}
 			if (File.Exists(productStockFile))
 			{
@@ -1986,6 +1995,25 @@ internal enum SkinQuality
 
 internal static class StockEngine
 {
+        private static List<RecipeItem>? FindRecipe(PosStore store, string product)
+    {
+        if (store == null || string.IsNullOrWhiteSpace(product)) return null;
+        if (store.Recipes.TryGetValue(product, out var direct) && direct != null && direct.Count > 0)
+            return direct;
+        var match = store.Recipes.FirstOrDefault(kv => string.Equals(kv.Key, product, StringComparison.OrdinalIgnoreCase));
+        if (match.Value != null && match.Value.Count > 0) return match.Value;
+        int paren = product.IndexOf('(');
+        if (paren > 0)
+        {
+            string baseProd = product.Substring(0, paren).Trim();
+            if (store.Recipes.TryGetValue(baseProd, out var baseDirect) && baseDirect != null && baseDirect.Count > 0)
+                return baseDirect;
+            match = store.Recipes.FirstOrDefault(kv => string.Equals(kv.Key, baseProd, StringComparison.OrdinalIgnoreCase));
+            if (match.Value != null && match.Value.Count > 0) return match.Value;
+        }
+        return null;
+    }
+
     public static void Apply(PosStore store, IEnumerable<(string Product, decimal Quantity)> lines, string by, string reference, bool reverse)
     {
         if (store == null || !store.Features.StockManagement) return;
@@ -1997,7 +2025,8 @@ internal static class StockEngine
         {
             if (string.IsNullOrWhiteSpace(line.Product) || line.Quantity == 0m) continue;
 
-            if (store.Recipes.TryGetValue(line.Product, out var recipeItems) && recipeItems.Count > 0)
+            var recipeItems = FindRecipe(store, line.Product);
+            if (recipeItems != null && recipeItems.Count > 0)
             {
                 foreach (var ri in recipeItems)
                 {
@@ -2014,7 +2043,7 @@ internal static class StockEngine
                     decimal totalDeduction = line.Quantity * itemQty;
                     decimal delta = reverse ? totalDeduction : -totalDeduction;
 
-                    if (!string.IsNullOrEmpty(reference) &&
+                    if (!string.IsNullOrEmpty(reference) && reference != "0" &&
                         store.StockMovements.Any(m => m.Kind == kind && m.Ref == reference && string.Equals(m.Item, ing.Name, StringComparison.OrdinalIgnoreCase)))
                     {
                         continue;
@@ -2032,7 +2061,7 @@ internal static class StockEngine
                 {
                     decimal delta = reverse ? line.Quantity : -line.Quantity;
 
-                    if (!string.IsNullOrEmpty(reference) &&
+                    if (!string.IsNullOrEmpty(reference) && reference != "0" &&
                         store.StockMovements.Any(m => m.Kind == kind && m.Ref == reference && string.Equals(m.Item, ps.Product, StringComparison.OrdinalIgnoreCase)))
                     {
                         continue;
@@ -2092,7 +2121,8 @@ internal static class StockEngine
 
     public static decimal RecipeCost(PosStore store, string product)
     {
-        if (store == null || !store.Recipes.TryGetValue(product, out var items)) return 0m;
+        var items = FindRecipe(store, product);
+        if (items == null || items.Count == 0) return 0m;
         decimal total = 0m;
         foreach (var ri in items)
         {
@@ -2113,7 +2143,8 @@ internal static class StockEngine
 
     public static bool HasRecipe(PosStore store, string product)
     {
-        return store != null && store.Recipes.TryGetValue(product, out var items) && items.Count > 0;
+        var items = FindRecipe(store, product);
+        return items != null && items.Count > 0;
     }
 }
 
@@ -4287,6 +4318,7 @@ internal sealed class PosForm : Form
 			BuildUi();
 			Rtl.Apply(this);
 			ApplyOrderPcRestrictions();
+			Auto86Sync();
 			RenderProducts();
 			RenderBasket();
 			TicketLayout.CourseNames = store.CourseNames.ToArray();
@@ -8107,19 +8139,53 @@ internal sealed class PosForm : Form
 			}
 		}
 
+		private static bool Contains86(IEnumerable<string>? list, string name)
+		{
+			if (list == null || string.IsNullOrWhiteSpace(name)) return false;
+			foreach (var item in list)
+			{
+				if (string.Equals(item, name, StringComparison.OrdinalIgnoreCase)) return true;
+			}
+			int paren = name.IndexOf('(');
+			if (paren > 0)
+			{
+				string baseName = name.Substring(0, paren).Trim();
+				foreach (var item in list)
+				{
+				if (string.Equals(item, baseName, StringComparison.OrdinalIgnoreCase)) return true;
+				}
+			}
+			return false;
+		}
+
 		private static bool Is86(PosStore store, string name)
 		{
-			if (!store.EightySix.Contains(name))
+			if (store == null || string.IsNullOrWhiteSpace(name)) return false;
+			if (Contains86(store.EightySix, name))
 			{
-				return store.Auto86.Contains(name);
+				return true;
 			}
-			return true;
+			if (store.Features.Auto86 && Contains86(store.Auto86, name))
+			{
+				return true;
+			}
+			return false;
 		}
 
 		private void Auto86Sync()
 		{
 			if (!store.Features.Auto86)
 			{
+				if (store.Auto86.Count > 0)
+				{
+					store.SaveAuto86(new List<string>());
+					if (productGrid != null)
+					{
+						RenderProducts();
+					}
+				}
+				Update86Banner();
+				UpdateStockPill();
 				return;
 			}
 			List<string> list = store.Auto86.ToList();
@@ -8128,20 +8194,28 @@ internal sealed class PosForm : Form
 			{
 				foreach (var (item, source) in store.Recipes)
 				{
-					bool flag2 = source.Any((RecipeItem ri) =>
+					if (string.IsNullOrWhiteSpace(item) || source == null || source.Count == 0) continue;
+					bool depleted = source.Any((RecipeItem ri) =>
 					{
-						Ingredient ingredient = store.Ingredients.FirstOrDefault((Ingredient i) => i.Name == ri.Ingredient);
-						return ingredient != null && ingredient.MinStock > 0m && ingredient.Stock <= ingredient.MinStock;
+						Ingredient ingredient = store.Ingredients.FirstOrDefault((Ingredient i) => string.Equals(i.Name, ri.Ingredient, StringComparison.OrdinalIgnoreCase));
+						if (ingredient == null) return false;
+						decimal needed = ri.Quantity;
+						if (!string.IsNullOrWhiteSpace(ri.Unit))
+						{
+							var conv = UnitMath.Convert(needed, ri.Unit, ingredient.Unit);
+							if (conv.HasValue) needed = conv.Value;
+						}
+						return needed > 0m ? (ingredient.Stock < needed) : (ingredient.Stock <= 0m);
 					});
-					bool flag3 = list.Contains(item);
-					if (flag2 && !flag3)
+					bool inList = list.Any(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
+					if (depleted && !inList)
 					{
 						list.Add(item);
 						flag = true;
 					}
-					else if (!flag2 && flag3)
+					else if (!depleted && inList)
 					{
-						list.Remove(item);
+						list.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
 						flag = true;
 					}
 				}
@@ -8150,16 +8224,20 @@ internal sealed class PosForm : Form
 			{
 				if (ps.Tracked)
 				{
-					bool depleted = (ps.MinStock > 0m && ps.Stock <= ps.MinStock) || (ps.Stock <= 0m);
-					bool inList = list.Contains(ps.Product);
+					if (StockEngine.HasRecipe(store, ps.Product))
+					{
+						continue;
+					}
+					bool depleted = ps.Stock <= 0m;
+					bool inList = list.Any(x => string.Equals(x, ps.Product, StringComparison.OrdinalIgnoreCase));
 					if (depleted && !inList)
 					{
 						list.Add(ps.Product);
 						flag = true;
 					}
-					else if (!depleted && inList && !StockEngine.HasRecipe(store, ps.Product))
+					else if (!depleted && inList)
 					{
-						list.Remove(ps.Product);
+						list.RemoveAll(x => string.Equals(x, ps.Product, StringComparison.OrdinalIgnoreCase));
 						flag = true;
 					}
 				}
@@ -8167,6 +8245,10 @@ internal sealed class PosForm : Form
 			if (flag)
 			{
 				store.SaveAuto86(list);
+				if (productGrid != null)
+				{
+					RenderProducts();
+				}
 			}
 			Update86Banner();
 			UpdateStockPill();
@@ -9072,7 +9154,7 @@ internal sealed class PosForm : Form
 				}
 				if (!trainingMode && store.Features.StockManagement)
 				{
-					StockEngine.Apply(store, list3.Select(l => (l.Product, (decimal)l.Quantity)), currentOperator?.Name ?? "Cashier", num.ToString(), reverse: false);
+					StockEngine.Apply(store, list3.Select(l => (l.Product, (decimal)l.Quantity)), currentOperator?.Name ?? "Cashier", num7.ToString(), reverse: false);
 					Auto86Sync();
 				}
 				if (!trainingMode)
@@ -11043,7 +11125,7 @@ internal sealed class PosForm : Form
 					}
 					if (store.Features.StockManagement)
 					{
-						StockEngine.Apply(store, list2.Select(l => (l.Product, (decimal)l.Quantity)), currentOperator?.Name ?? "Cashier", num.ToString(), reverse: false);
+						StockEngine.Apply(store, list2.Select(l => (l.Product, (decimal)l.Quantity)), currentOperator?.Name ?? "Cashier", num7.ToString(), reverse: false);
 						Auto86Sync();
 					}
 					List<SoldLine> list4 = openOrder.Items.Except(list2).ToList();
@@ -21367,15 +21449,16 @@ internal sealed class PosForm : Form
 						button.Click += (object _, EventArgs _) =>
 						{
 							List<string> list = store.EightySix.ToList();
-							if (!list.Remove(product.Name))
+							int removedCount = list.RemoveAll(x => string.Equals(x, product.Name, StringComparison.OrdinalIgnoreCase));
+							if (removedCount == 0)
 							{
 								list.Add(product.Name);
 							}
 							store.SaveEightySix(list);
-							if (store.Auto86.Contains(product.Name))
+							if (Contains86(store.Auto86, product.Name))
 							{
 								List<string> list2 = store.Auto86.ToList();
-								list2.Remove(product.Name);
+								list2.RemoveAll(x => string.Equals(x, product.Name, StringComparison.OrdinalIgnoreCase));
 								store.SaveAuto86(list2);
 							}
 							RenderProducts();
@@ -23137,6 +23220,7 @@ internal sealed class FeatureCard : Panel
 	private readonly Button actionBtn;
 	private readonly Button actionBtn2;
 	private bool hovering;
+	private bool isToggled;
 
 	public FeatureCard(string title, string description, string toggleKey = null, bool currentToggle = false, Action<bool> onToggle = null, string actionText = null, Action onAction = null, Func<bool> isActionVisible = null, string actionText2 = null, Action onAction2 = null, Func<bool> isAction2Visible = null)
 	{
@@ -23213,18 +23297,17 @@ internal sealed class FeatureCard : Panel
 				FlatStyle = FlatStyle.Flat,
 				Font = new Font("Segoe UI Semibold", 10f),
 				Cursor = Cursors.Hand,
-				Tag = currentToggle
 			};
+			isToggled = currentToggle;
 			toggleBtn.FlatAppearance.BorderSize = 0;
 			Skin.FlatStates(toggleBtn);
 			toggleBtn.Click += (s, e) =>
 			{
-				bool newState = !(bool)toggleBtn.Tag;
-				toggleBtn.Tag = newState;
-				toggleBtn.Text = newState ? Tr.T("ON") : Tr.T("OFF");
-				toggleBtn.BackColor = newState ? Skin.Accent : Skin.PanelLight;
-				toggleBtn.ForeColor = newState ? Skin.OnAccent : Skin.TextDim;
-				onToggle(newState);
+				isToggled = !isToggled;
+				toggleBtn.Text = isToggled ? Tr.T("ON") : Tr.T("OFF");
+				Skin.SetFlatBase(toggleBtn, isToggled ? Skin.Accent : Skin.PanelLight);
+				toggleBtn.ForeColor = isToggled ? Skin.OnAccent : Skin.TextDim;
+				onToggle(isToggled);
 				if (actionBtn != null && isActionVisible != null)
 				{
 					actionBtn.Visible = isActionVisible();
@@ -23512,8 +23595,6 @@ internal sealed class SettingsForm : Form
 		pageSubtitleLabel.Location = new Point(30, 52);
 		pageHead.Controls.Add(pageSubtitleLabel);
 
-		mainArea.Controls.Add(pageHead);
-
 		// Content panel (FlowLayout vertical scroll)
 		contentPanel.Dock = DockStyle.Fill;
 		contentPanel.BackColor = Skin.Background;
@@ -23522,7 +23603,10 @@ internal sealed class SettingsForm : Form
 		contentPanel.FlowDirection = FlowDirection.TopDown;
 		contentPanel.WrapContents = false;
 
+		// Docking order: contentPanel (Fill) added first, then pageHead (Top).
 		mainArea.Controls.Add(contentPanel);
+		mainArea.Controls.Add(pageHead);
+		pageHead.SendToBack();
 
 		// Docking order: Controls added first dock last.
 		// mainArea (Fill) added first, then navRail (Left), then appBar (Top).
@@ -28284,7 +28368,7 @@ internal sealed class RecipeEditorForm : SettingsSubForm
 
     private void SaveRecipe()
     {
-        if (selectedProduct == null) return;
+        if (selectedProduct == null || string.IsNullOrWhiteSpace(selectedProduct.Name)) return;
 
         decimal portions = Math.Max(1m, portionsNum.Value);
         if (currentLines.Count == 0)
