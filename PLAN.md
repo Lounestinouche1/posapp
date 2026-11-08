@@ -2581,3 +2581,25 @@ Guided by `ui-ux-pro-max`, `frontend-design`, `emil-design-eng`, `break-ui`, and
      - `tester-release\Windows\Vectron Kiosk.exe` (116,263,078 bytes)
      - `publish-win7\Vectron Kiosk.exe` (162,816 bytes net48)
    - Preserved all customer database directories intact and kept POS PID 5840 operational.
+
+
+---
+
+## 20. P11 Store Setup Profiles & Customized Business Modes (Nov 9, 2026)
+
+### 20.1 Purpose & Motivation
+Provide preconfigured 1-click business setup models inside the Settings menu optimizing Vectron POS for any store type (Supermarket, Boutique, Café, Restaurant, Pizzeria, Pharmacy), with a smart "Customized Setup" state safeguard preserving user customizations against accidental profile switching.
+
+### 20.2 Preconfigured Store Profiles
+1. **Supermarket & Grocery**: Barcode scanning, fast lane direct checkout, weighted items (scales kg/g), inventory alerts, cash drawer, cash rounding, customer pole display, price checker, stocktakes.
+2. **Boutique & Retail / Fashion**: Product variants (sizes/colors/styles), barcode labels & scanning, customer database, loyalty points, discounts, gift cards, refunds, special orders.
+3. **Café & Bakery**: Quick counter sales, beverage modifiers/sizes, combo deals, park orders queue, barista display, cash drawer, cash rounding, customer display.
+4. **Restaurant & Dine-In**: Interactive tables & floor plan, waiter tablet sync, courses, split bill, table transfer, KDS, seat ordering, tips, 86 board.
+5. **Pizzeria & Fast Food**: Fast counter sales, delivery orders (caller phone/address), pizza modifiers/toppings, kitchen display, combo deals, park orders.
+6. **Pharmacy & Cosmetics**: High-speed barcode scanning, quick sale, customer health notes/profiles, batch stock alerts, refunds, price checker, receipts, audit log.
+
+### 20.3 Customized Setup Safeguard
+- `FeatureSettings.ActiveProfile`: Tracks active profile (`"restaurant"`, `"supermarket"`, `"boutique"`, `"cafe"`, `"fastfood"`, `"pharmacy"`, or `"custom"`).
+- `FeatureSettings.CustomProfileJson`: Holds serialized snapshot of the user's custom settings.
+- Automatic Switch: Modifying any individual toggle in Settings changes `ActiveProfile` to `"custom"` and updates `CustomProfileJson`.
+- Restore Safety: "★ My Customized Setup" card allows 1-click restoration if another preset was clicked by mistake.

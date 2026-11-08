@@ -792,7 +792,228 @@ internal sealed class FeatureSettings
 		public string ResolvedQuality { get; set; } = "";
 
 		public string ResolvedReason { get; set; } = "";
+
+		public string ActiveProfile { get; set; } = "restaurant";
+
+		public string? CustomProfileJson { get; set; } = null;
 	}
+
+internal static class BusinessProfiles
+{
+	public const string Restaurant = "restaurant";
+	public const string Supermarket = "supermarket";
+	public const string Boutique = "boutique";
+	public const string Cafe = "cafe";
+	public const string FastFood = "fastfood";
+	public const string Pharmacy = "pharmacy";
+	public const string Custom = "custom";
+
+	public static void ApplyProfile(FeatureSettings f, string profileKey)
+	{
+		switch (profileKey)
+		{
+			case Supermarket:
+				ApplySupermarket(f);
+				break;
+			case Boutique:
+				ApplyBoutique(f);
+				break;
+			case Cafe:
+				ApplyCafe(f);
+				break;
+			case Restaurant:
+				ApplyRestaurant(f);
+				break;
+			case FastFood:
+				ApplyFastFood(f);
+				break;
+			case Pharmacy:
+				ApplyPharmacy(f);
+				break;
+		}
+		f.ActiveProfile = profileKey;
+	}
+
+	public static void ApplySupermarket(FeatureSettings f)
+	{
+		f.BarcodeScanning = true;
+		f.QuickSaleMode = true;
+		f.WeightedItems = true;
+		f.StockManagement = true;
+		f.InventoryAlerts = true;
+		f.CashDrawer = true;
+		f.CashRounding = true;
+		f.CustomerDisplay = true;
+		f.Stocktakes = true;
+		f.Discounts = true;
+		f.Refunds = true;
+		f.CashDiscount = true;
+		f.ReceiptSearch = true;
+
+		f.SplitBill = false;
+		f.TableTransfer = false;
+		f.CourseManagement = false;
+		f.SeatOrdering = false;
+		f.FloorPlanEditor = false;
+		f.KitchenDisplay = false;
+		f.HoldFire = false;
+		f.Auto86 = false;
+		f.EightySixBoard = false;
+		f.Tips = false;
+		f.Modifiers = false;
+		f.ItemNotes = false;
+		f.HappyHour = false;
+		f.DeliveryOrders = false;
+		f.ProductVariants = false;
+	}
+
+	public static void ApplyBoutique(FeatureSettings f)
+	{
+		f.ProductVariants = true;
+		f.BarcodeScanning = true;
+		f.BarcodeLabels = true;
+		f.CustomerDatabase = true;
+		f.Loyalty = true;
+		f.Discounts = true;
+		f.GiftCards = true;
+		f.Refunds = true;
+		f.QuickSaleMode = true;
+		f.CashDrawer = true;
+		f.InventoryAlerts = true;
+		f.Stocktakes = true;
+		f.ReceiptSearch = true;
+		f.MultiRatePricing = true;
+
+		f.SplitBill = false;
+		f.TableTransfer = false;
+		f.CourseManagement = false;
+		f.SeatOrdering = false;
+		f.FloorPlanEditor = false;
+		f.KitchenDisplay = false;
+		f.HoldFire = false;
+		f.Auto86 = false;
+		f.EightySixBoard = false;
+		f.Tips = false;
+		f.Modifiers = false;
+		f.ItemNotes = false;
+		f.WeightedItems = false;
+		f.HappyHour = false;
+		f.DeliveryOrders = false;
+	}
+
+	public static void ApplyCafe(FeatureSettings f)
+	{
+		f.QuickSaleMode = true;
+		f.Modifiers = true;
+		f.ComboDeals = true;
+		f.ParkOrders = true;
+		f.KitchenDisplay = true;
+		f.CashDrawer = true;
+		f.CashRounding = true;
+		f.CustomerDisplay = true;
+		f.StockManagement = true;
+		f.InventoryAlerts = true;
+		f.HappyHour = true;
+		f.Tips = true;
+		f.ItemNotes = true;
+		f.Discounts = true;
+		f.Refunds = true;
+
+		f.CourseManagement = false;
+		f.WeightedItems = false;
+		f.ProductVariants = false;
+		f.SeatOrdering = false;
+		f.BarcodeLabels = false;
+		f.DeliveryOrders = false;
+	}
+
+	public static void ApplyRestaurant(FeatureSettings f)
+	{
+		f.SplitBill = true;
+		f.TableTransfer = true;
+		f.FloorPlanEditor = true;
+		f.KitchenDisplay = true;
+		f.CourseManagement = true;
+		f.Modifiers = true;
+		f.ItemNotes = true;
+		f.SeatOrdering = true;
+		f.Tips = true;
+		f.HoldFire = true;
+		f.EightySixBoard = true;
+		f.Auto86 = true;
+		f.CustomerDatabase = true;
+		f.ShiftReports = true;
+		f.CashDrawer = true;
+		f.Discounts = true;
+		f.Refunds = true;
+		f.StockManagement = true;
+		f.InventoryAlerts = true;
+
+		f.QuickSaleMode = false;
+		f.WeightedItems = false;
+		f.ProductVariants = false;
+		f.BarcodeLabels = false;
+	}
+
+	public static void ApplyFastFood(FeatureSettings f)
+	{
+		f.QuickSaleMode = true;
+		f.Modifiers = true;
+		f.DeliveryOrders = true;
+		f.KitchenDisplay = true;
+		f.ComboDeals = true;
+		f.ParkOrders = true;
+		f.RepeatOrders = true;
+		f.CashDrawer = true;
+		f.CashRounding = true;
+		f.CustomerDisplay = true;
+		f.ItemNotes = true;
+		f.CustomerDatabase = true;
+		f.Discounts = true;
+		f.Refunds = true;
+		f.StockManagement = true;
+		f.InventoryAlerts = true;
+
+		f.CourseManagement = false;
+		f.WeightedItems = false;
+		f.ProductVariants = false;
+		f.SeatOrdering = false;
+		f.BarcodeLabels = false;
+		f.FloorPlanEditor = false;
+	}
+
+	public static void ApplyPharmacy(FeatureSettings f)
+	{
+		f.BarcodeScanning = true;
+		f.QuickSaleMode = true;
+		f.StockManagement = true;
+		f.InventoryAlerts = true;
+		f.CustomerDatabase = true;
+		f.Refunds = true;
+		f.CashDrawer = true;
+		f.Stocktakes = true;
+		f.Discounts = true;
+		f.AuditLog = true;
+		f.EmailReceipts = true;
+		f.ReceiptSearch = true;
+
+		f.SplitBill = false;
+		f.TableTransfer = false;
+		f.CourseManagement = false;
+		f.SeatOrdering = false;
+		f.FloorPlanEditor = false;
+		f.KitchenDisplay = false;
+		f.HoldFire = false;
+		f.Auto86 = false;
+		f.EightySixBoard = false;
+		f.Tips = false;
+		f.Modifiers = false;
+		f.ItemNotes = false;
+		f.WeightedItems = false;
+		f.ComboDeals = false;
+		f.HappyHour = false;
+	}
+}
 
 internal sealed class FloorTable { public string? Name { get; set; } public int? X { get; set; } public int? Y { get; set; } }
 internal sealed record TicketComponentStyle(string Component, int FontSize = 10, bool Bold = false, bool Underline = false, string Alignment = "Left")
@@ -844,7 +1065,7 @@ internal sealed class PosStore
 			public int Minutes { get; set; }
 		}
 
-		private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+		internal static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
 		{
 			WriteIndented = true,
 			Converters = { (JsonConverter)new TicketComponentStyleConverter() }
@@ -1670,7 +1891,7 @@ internal sealed class PosStore
 			suppressWatcher = false;
 		}
 
-		private static void CopyFeatures(FeatureSettings src, FeatureSettings dst)
+		public static void CopyFeatures(FeatureSettings src, FeatureSettings dst)
 		{
 			PropertyInfo[] properties = typeof(FeatureSettings).GetProperties();
 			foreach (PropertyInfo propertyInfo in properties)
@@ -24714,6 +24935,7 @@ internal sealed class SettingsForm : Form
 
 		AddGroup(Tr.T("Setup"), new[]
 		{
+			("profiles", Tr.T("Business Profiles")),
 			("appearance", Tr.T("Appearance")),
 			("system", Tr.T("System & General")),
 			("devices", Tr.T("Devices & Hardware")),
@@ -24799,6 +25021,9 @@ internal sealed class SettingsForm : Form
 
 		switch (key)
 		{
+			case "profiles":
+				PopulateProfiles();
+				break;
 			case "appearance":
 				PopulateAppearance();
 				break;
@@ -24861,6 +25086,8 @@ internal sealed class SettingsForm : Form
 				if (prop != null)
 				{
 					prop.SetValue(features, v);
+					features.ActiveProfile = BusinessProfiles.Custom;
+					features.CustomProfileJson = JsonSerializer.Serialize(features, PosStore.JsonOptions);
 					saveFeatures(features);
 				}
 			},
@@ -24884,6 +25111,305 @@ internal sealed class SettingsForm : Form
 			onAction2: onAction2
 		);
 		contentPanel.Controls.Add(card);
+	}
+
+	private void PopulateProfiles()
+	{
+		SetPageHeader(Tr.T("Business Profiles"), Tr.T("Select a preconfigured store model or customize your setup"));
+
+		bool isCustomActive = string.Equals(features.ActiveProfile, BusinessProfiles.Custom, StringComparison.OrdinalIgnoreCase);
+		bool hasSavedCustom = !string.IsNullOrEmpty(features.CustomProfileJson);
+
+		// 1. Customized Setup Safeguard Card
+		Panel customCard = new Panel
+		{
+			Size = new Size(640, 116),
+			BackColor = Skin.Panel,
+			Margin = new Padding(0, 0, 0, 14)
+		};
+
+		Label starLabel = new Label
+		{
+			Text = "★",
+			Font = new Font("Segoe UI", 16f, FontStyle.Bold),
+			ForeColor = Skin.Accent,
+			Location = new Point(14, 12),
+			AutoSize = true
+		};
+		customCard.Controls.Add(starLabel);
+
+		Label customTitle = new Label
+		{
+			Text = Tr.T("My Customized Setup"),
+			Font = new Font("Segoe UI Semibold", 12f),
+			ForeColor = Skin.Text,
+			Location = new Point(42, 14),
+			AutoSize = true
+		};
+		customCard.Controls.Add(customTitle);
+
+		if (isCustomActive)
+		{
+			Label activeBadge = new Label
+			{
+				Text = Tr.T("ACTIVE"),
+				Font = new Font("Segoe UI Bold", 8f),
+				BackColor = Skin.Accent,
+				ForeColor = Skin.OnAccent,
+				TextAlign = ContentAlignment.MiddleCenter,
+				Size = new Size(64, 22),
+				Location = new Point(customTitle.Right + 12, 15)
+			};
+			customCard.Controls.Add(activeBadge);
+		}
+
+		Label customDesc = new Label
+		{
+			Text = Tr.T("Your personalized feature toggles and custom setup. Any modification in settings is remembered here."),
+			Font = new Font("Segoe UI", 9f),
+			ForeColor = Skin.TextDim,
+			Location = new Point(16, 42),
+			Size = new Size(430, 36)
+		};
+		customCard.Controls.Add(customDesc);
+
+		Label customStatus = new Label
+		{
+			Text = isCustomActive 
+				? Tr.T("✔ Active custom profile in use") 
+				: (hasSavedCustom ? Tr.T("💾 Saved custom setup available to restore") : Tr.T("No custom modifications saved yet")),
+			Font = new Font("Segoe UI Semibold", 8.5f),
+			ForeColor = isCustomActive ? Skin.Accent : Skin.TextMuted,
+			Location = new Point(16, 84),
+			AutoSize = true
+		};
+		customCard.Controls.Add(customStatus);
+
+		Button restoreBtn = new Button
+		{
+			Text = Tr.T("Restore Setup"),
+			Size = new Size(130, 34),
+			Location = new Point(494, 20),
+			BackColor = hasSavedCustom ? Skin.Accent : Skin.PanelLight,
+			ForeColor = hasSavedCustom ? Skin.OnAccent : Skin.TextMuted,
+			FlatStyle = FlatStyle.Flat,
+			Font = new Font("Segoe UI Semibold", 9.5f),
+			Cursor = hasSavedCustom ? Cursors.Hand : Cursors.Default,
+			Enabled = hasSavedCustom
+		};
+		restoreBtn.FlatAppearance.BorderSize = 0;
+		Skin.FlatStates(restoreBtn);
+		restoreBtn.Click += (s, e) =>
+		{
+			if (string.IsNullOrEmpty(features.CustomProfileJson)) return;
+			try
+			{
+				var saved = JsonSerializer.Deserialize<FeatureSettings>(features.CustomProfileJson, PosStore.JsonOptions);
+				if (saved != null)
+				{
+					PosStore.CopyFeatures(saved, features);
+					features.ActiveProfile = BusinessProfiles.Custom;
+					saveFeatures(features);
+					PopulateProfiles();
+					MessageBox.Show(Tr.T("Your customized setup has been restored successfully."), Tr.T("Customized Setup"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+				}
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show(ex.Message, Tr.T("Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+			}
+		};
+		customCard.Controls.Add(restoreBtn);
+
+		Button saveCustomBtn = new Button
+		{
+			Text = Tr.T("Save Current"),
+			Size = new Size(130, 34),
+			Location = new Point(494, 62),
+			BackColor = Skin.PanelLight,
+			ForeColor = Skin.Text,
+			FlatStyle = FlatStyle.Flat,
+			Font = new Font("Segoe UI Semibold", 9f),
+			Cursor = Cursors.Hand
+		};
+		saveCustomBtn.FlatAppearance.BorderSize = 0;
+		Skin.FlatStates(saveCustomBtn);
+		saveCustomBtn.Click += (s, e) =>
+		{
+			features.ActiveProfile = BusinessProfiles.Custom;
+			features.CustomProfileJson = JsonSerializer.Serialize(features, PosStore.JsonOptions);
+			saveFeatures(features);
+			PopulateProfiles();
+			MessageBox.Show(Tr.T("Current configuration has been saved as your custom setup."), Tr.T("Customized Setup"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+		};
+		customCard.Controls.Add(saveCustomBtn);
+
+		contentPanel.Controls.Add(customCard);
+
+		Label modelsHeader = new Label
+		{
+			Text = Tr.T("PRECONFIGURED STORE MODELS"),
+			Font = new Font("Segoe UI Bold", 9f),
+			ForeColor = Skin.TextDim,
+			Margin = new Padding(0, 10, 0, 8),
+			AutoSize = true
+		};
+		contentPanel.Controls.Add(modelsHeader);
+
+		void AddProfileCard(string key, string icon, string title, string description, string featuresList, Action applyAction)
+		{
+			bool isActive = string.Equals(features.ActiveProfile, key, StringComparison.OrdinalIgnoreCase);
+
+			Panel card = new Panel
+			{
+				Size = new Size(640, 108),
+				BackColor = Skin.Panel,
+				Margin = new Padding(0, 0, 0, 10)
+			};
+
+			Label iconLbl = new Label
+			{
+				Text = icon,
+				Font = new Font("Segoe UI Emoji", 14f),
+				Location = new Point(14, 12),
+				Size = new Size(30, 30),
+				TextAlign = ContentAlignment.MiddleCenter
+			};
+			card.Controls.Add(iconLbl);
+
+			Label titleLbl = new Label
+			{
+				Text = title,
+				Font = new Font("Segoe UI Semibold", 11.5f),
+				ForeColor = Skin.Text,
+				Location = new Point(48, 14),
+				AutoSize = true
+			};
+			card.Controls.Add(titleLbl);
+
+			if (isActive)
+			{
+				Label badge = new Label
+				{
+					Text = Tr.T("ACTIVE"),
+					Font = new Font("Segoe UI Bold", 8f),
+					BackColor = Skin.Accent,
+					ForeColor = Skin.OnAccent,
+					TextAlign = ContentAlignment.MiddleCenter,
+					Size = new Size(64, 22),
+					Location = new Point(titleLbl.Right + 10, 14)
+				};
+				card.Controls.Add(badge);
+			}
+
+			Label descLbl = new Label
+			{
+				Text = description,
+				Font = new Font("Segoe UI", 9f),
+				ForeColor = Skin.TextDim,
+				Location = new Point(16, 42),
+				Size = new Size(460, 32)
+			};
+			card.Controls.Add(descLbl);
+
+			Label featLbl = new Label
+			{
+				Text = featuresList,
+				Font = new Font("Segoe UI Semibold", 8f),
+				ForeColor = Skin.Accent,
+				Location = new Point(16, 78),
+				Size = new Size(460, 20),
+				AutoEllipsis = true
+			};
+			card.Controls.Add(featLbl);
+
+			Button applyBtn = new Button
+			{
+				Text = isActive ? Tr.T("Active") : Tr.T("Apply Setup"),
+				Size = new Size(116, 36),
+				Location = new Point(508, 36),
+				BackColor = isActive ? Skin.PanelLight : Skin.Accent,
+				ForeColor = isActive ? Skin.TextDim : Skin.OnAccent,
+				FlatStyle = FlatStyle.Flat,
+				Font = new Font("Segoe UI Semibold", 9.5f),
+				Cursor = Cursors.Hand
+			};
+			applyBtn.FlatAppearance.BorderSize = 0;
+			Skin.FlatStates(applyBtn);
+			applyBtn.Click += (s, e) =>
+			{
+				string confirmText = string.Format(Tr.T("Apply {0} setup?\n\nThis will configure all feature switches for {0}.\n\nYour customized configuration is safely backed up and can be restored at any time."), title);
+				if (MessageBox.Show(confirmText, Tr.T("Business Profiles"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+				{
+					if (features.ActiveProfile == BusinessProfiles.Custom || string.IsNullOrEmpty(features.CustomProfileJson))
+					{
+						features.CustomProfileJson = JsonSerializer.Serialize(features, PosStore.JsonOptions);
+					}
+					applyAction();
+					features.ActiveProfile = key;
+					saveFeatures(features);
+					PopulateProfiles();
+					MessageBox.Show(string.Format(Tr.T("{0} setup applied successfully."), title), Tr.T("Business Profiles"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+				}
+			};
+			card.Controls.Add(applyBtn);
+
+			contentPanel.Controls.Add(card);
+		}
+
+		AddProfileCard(
+			BusinessProfiles.Supermarket,
+			"🛒",
+			Tr.T("Supermarket & Grocery"),
+			Tr.T("High-speed retail for grocery stores, mini-markets, and convenience shops."),
+			Tr.T("✔ Barcode scan  ✔ Quick sale  ✔ Scales (kg/g)  ✔ Stock alerts  ✖ Tables hidden"),
+			() => BusinessProfiles.ApplySupermarket(features)
+		);
+
+		AddProfileCard(
+			BusinessProfiles.Boutique,
+			"👗",
+			Tr.T("Boutique & Fashion Retail"),
+			Tr.T("Apparel, footwear, cosmetics, and specialty retail stores."),
+			Tr.T("✔ Size/color variants  ✔ Barcode labels  ✔ Customer loyalty  ✔ Refunds  ✖ Tables hidden"),
+			() => BusinessProfiles.ApplyBoutique(features)
+		);
+
+		AddProfileCard(
+			BusinessProfiles.Cafe,
+			"☕",
+			Tr.T("Café & Bakery"),
+			Tr.T("Coffee shops, bakeries, juice bars, and quick counter service."),
+			Tr.T("✔ Quick sale  ✔ Drink modifiers  ✔ Combo deals  ✔ Barista screen  ✔ Cash rounding"),
+			() => BusinessProfiles.ApplyCafe(features)
+		);
+
+		AddProfileCard(
+			BusinessProfiles.Restaurant,
+			"🍽️",
+			Tr.T("Restaurant & Dine-In"),
+			Tr.T("Full service dining, bistros, lounges, and fine dining establishments."),
+			Tr.T("✔ Floor plan tables  ✔ Waiter tablet sync  ✔ Courses  ✔ Split bill  ✔ KDS kitchen"),
+			() => BusinessProfiles.ApplyRestaurant(features)
+		);
+
+		AddProfileCard(
+			BusinessProfiles.FastFood,
+			"🍕",
+			Tr.T("Pizzeria & Fast Food"),
+			Tr.T("Counter service takeaway, pizza shops, burger joints, and delivery."),
+			Tr.T("✔ Quick counter checkout  ✔ Delivery orders  ✔ Pizza modifiers  ✔ KDS kitchen  ✔ Combos"),
+			() => BusinessProfiles.ApplyFastFood(features)
+		);
+
+		AddProfileCard(
+			BusinessProfiles.Pharmacy,
+			"💊",
+			Tr.T("Pharmacy & Health Care"),
+			Tr.T("Pharmacies, health stores, drugstores, and medical supply retail."),
+			Tr.T("✔ Fast barcode scan  ✔ Patient/client notes  ✔ Batch stock alerts  ✔ Price checker"),
+			() => BusinessProfiles.ApplyPharmacy(features)
+		);
 	}
 
 	private void PopulateAppearance()
