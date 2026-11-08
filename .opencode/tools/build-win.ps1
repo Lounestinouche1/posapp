@@ -39,7 +39,7 @@ foreach ($t in $targets) {
 
     if ($Ship) {
         $dest = Join-Path $root $t.Publish
-        if (-not (Test-Path $dest)) { throw "missing target folder: $dest" }
+        if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
         $protected = @('client database', 'images', 'license.dat', 'license.time', 'feature-settings.json', 'api-settings.json')
         $copied = 0
         Get-ChildItem $out -File | Where-Object {

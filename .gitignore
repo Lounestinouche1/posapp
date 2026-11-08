@@ -1,12 +1,16 @@
 bin/
 obj/
 publish/
-publish-win10-x64/
-publish-win7/
+publish-win10-x64/*
+!publish-win10-x64/README.md
+publish-win7/*
+!publish-win7/README.md
 publish-android/*
 !publish-android/src/
+!publish-android/README.md
 publish-kiosk/*
 !publish-kiosk/src/
+!publish-kiosk/README.md
 *.zip
 .git/
 
