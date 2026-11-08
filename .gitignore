@@ -1,8 +1,12 @@
 bin/
 obj/
 publish/
-publish_*/
-publish-*/
+publish-win10-x64/
+publish-win7/
+publish-android/*
+!publish-android/src/
+publish-kiosk/*
+!publish-kiosk/src/
 *.zip
 .git/
 

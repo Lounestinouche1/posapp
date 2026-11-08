@@ -14,7 +14,8 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..\..").Path
 if (-not (Test-Path (Join-Path $root 'VectronTablet\VectronTablet.csproj'))) { $root = Split-Path $PSScriptRoot -Parent }
 if (-not (Test-Path (Join-Path $root 'VectronTablet\VectronTablet.csproj'))) { $root = 'F:\vscode projects\VectronPOS' }
-$proj = Join-Path $root 'VectronTablet\VectronTablet.csproj'
+$proj = Join-Path $root 'publish-android\src\VectronTablet.csproj'
+if (-not (Test-Path $proj)) { $proj = Join-Path $root 'VectronTablet\VectronTablet.csproj' }
 
 $dotnet = 'C:\Users\serveur-it\.dotnet\dotnet.exe'
 if (-not (Test-Path $dotnet)) { $dotnet = 'dotnet' }
@@ -32,12 +33,15 @@ Write-Host "=== build net10.0-android (Release) ===" -ForegroundColor Cyan
     -p:AndroidSdkDirectory="$sdk" -p:JavaSdkDirectory="$jdk"
 if ($LASTEXITCODE -ne 0) { throw "android publish failed (exit $LASTEXITCODE)" }
 
-$apk = Join-Path $root 'VectronTablet\bin\Release\net10.0-android\com.vectron.waiter-Signed.apk'
+$projDir = Split-Path $proj -Parent
+$apk = Join-Path $projDir 'bin\Release\net10.0-android\com.vectron.waiter-Signed.apk'
 if (-not (Test-Path $apk)) { throw "signed APK not found: $apk" }
 
 if (-not $NoCopy) {
-    $dest = Join-Path $root 'Vectron-Waiter-v1.2.0.apk'
+    $dest = Join-Path $root 'publish-android\Vectron-Waiter-v1.2.0.apk'
     Copy-Item $apk $dest -Force
+    Copy-Item $apk (Join-Path $root 'publish-android\Vectron-Waiter.apk') -Force
+    Copy-Item $apk (Join-Path $root 'Vectron-Waiter-v1.2.0.apk') -Force
     Write-Host ("staged -> {0} ({1:N1} MB)" -f $dest, ((Get-Item $dest).Length / 1MB)) -ForegroundColor Green
 } else {
     Write-Host ("APK: {0} ({1:N1} MB)" -f $apk, ((Get-Item $apk).Length / 1MB)) -ForegroundColor Green
