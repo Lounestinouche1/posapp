@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 internal static class Tr
@@ -160,6 +160,10 @@ internal static class Tr
         ["Language:"] = "Langue :",
         ["Language"] = "Langue",
         ["Language changed. Vectron POS will now restart."] = "Langue modifiée. Vectron POS va maintenant redémarrer.",
+        ["Theme changed. Vectron POS will now restart to apply the new theme."] = "Thème visuel modifié. Vectron POS va maintenant redémarrer pour appliquer les changements.",
+        ["Theme"] = "Thème",
+        ["Dark Mode"] = "Mode Sombre",
+        ["Light Mode"] = "Mode Clair",
         ["  TRAINING MODE — sales are NOT recorded"] = "  MODE FORMATION — les ventes ne sont PAS enregistrées",
         ["+ Add"] = "+ Ajouter",
         ["+ Add line"] = "+ Ajouter une ligne",
@@ -857,11 +861,91 @@ internal static class Tr
         ["Adjustment"] = "Ajustement",
         ["Waste"] = "Perte",
         ["Purchase"] = "Achat",
+        // P7.7 UI & Settings polish
+        ["Product name"] = "Nom du produit",
+        ["Print destination"] = "Destination d'impression",
+        ["Catalog image"] = "Image du catalogue",
+        ["Quick select color"] = "Couleur d'accès rapide",
+        ["Priced per kg (weight item)"] = "Prix au kg (article au poids)",
+        ["Save product"] = "Enregistrer le produit",
+        ["Choose image"] = "Choisir une image",
+        ["Clear image"] = "Effacer l'image",
+        ["Cash"] = "Espèces",
+        ["Card"] = "Carte",
+        ["Mobile"] = "Paiement mobile",
+        ["Tab"] = "Note / Compte",
+        ["Add method"] = "Ajouter un mode",
+        ["Main dining"] = "Salle principale",
+        ["Terrace"] = "Terrasse",
+        ["Private room"] = "Salon privé",
+        ["No table selected"] = "Aucune table sélectionnée",
+        ["Taken"] = "Occupée",
+        ["Available"] = "Disponible",
+        ["booked"] = "réservée",
+        ["Manage rooms"] = "Gérer les salles",
+        ["+ Add room"] = "+ Ajouter une salle",
+        ["New room"] = "Nouvelle salle",
+        ["Room name"] = "Nom de la salle",
+        ["Number of tables"] = "Nombre de tables",
+        ["Delete room"] = "Supprimer la salle",
+        ["Edit recipe..."] = "Modifier la recette...",
+        ["Currency settings"] = "Paramètres de devise",
+        ["Import image"] = "Importer une image",
+        ["New product"] = "Nouveau produit",
+        ["Variants…"] = "Variantes…",
+        ["Print barcode labels"] = "Imprimer les codes-barres",
+        ["Color"] = "Couleur",
+        ["Image"] = "Image",
+        ["Category"] = "Catégorie",
+        ["Product Variants"] = "Variantes de produit",
+        ["Offer size, flavor or portion options with individual pricing and barcodes"] = "Proposer des options de taille, goût ou portion avec prix et codes-barres dédiés",
+        ["Manage variants →"] = "Gérer les variantes →",
+        ["\u2190  Back"] = "← Retour",
+        ["Kiosk Staff Confirmation"] = "Validation des commandes borne",
+        ["Hold kiosk orders for cashier/waiter approval before printing to kitchen (prevents fake orders; 10 min auto-void)"] = "Mettre les commandes borne en attente de confirmation par un serveur/caissier avant envoi cuisine (évite les fausses commandes ; annulation auto 10 min)",
+        ["  🛎 KIOSK ORDER {0} AWAITING CONFIRMATION ({1:HH:mm}){2}"] = "  🛎 COMMANDE BORNE {0} EN ATTENTE DE VALIDATION ({1:HH:mm}){2}",
+        ["Received at {0:HH:mm} ({1} min ago) • Auto-voids in {2} min"] = "Reçue à {0:HH:mm} (il y a {1} min) • Annulation auto dans {2} min",
+        ["✓  Confirm & Fire to Kitchen"] = "✓  Confirmer et envoyer en cuisine",
+        ["✕  Reject"] = "✕  Rejeter",
+        ["Order #{0} confirmed and sent to kitchen."] = "Commande #{0} confirmée et envoyée en cuisine.",
+        ["Are you sure you want to reject Order #{0}? (Fake order / customer left)"] = "Êtes-vous sûr de vouloir rejeter la commande #{0} ? (Faute / client parti)",
+        ["Reject order"] = "Rejeter la commande",
+        ["Kiosk order"] = "Commande borne",
+        ["Kiosk & link setup  ➔"] = "Liaison borne & tablettes  ➔",
+        ["Kiosk & Waiter Tablet Linking"] = "Liaison Bornes & Tablettes Serveur",
+        ["Link External Kiosks & Waiter Tablets:"] = "Relier les bornes externes et tablettes :",
+        ["Main POS Server Address (Wi-Fi / LAN):"] = "Adresse du PC Principal (Wi-Fi / LAN) :",
+        ["Launch Kiosk on this PC"] = "Lancer la Borne sur ce PC",
+        ["Link Kiosk"] = "Liaison Borne",
+        ["🔍 Auto-detect Main PC"] = "🔍 Détecter le PC Principal",
+        ["Main PC database detected at:\n"] = "Base de données du PC Principal détectée :\n",
+        ["Could not auto-detect Main PC on the local network.\nEnsure Vectron POS is open on the Main PC and 'client database' folder is shared on the network."] = "Impossible de détecter le PC Principal automatiquement.\nVérifiez que Vectron POS est ouvert et que le dossier 'client database' est partagé sur le réseau.",
+        ["✓ Found Main PC"] = "✓ PC Principal trouvé",
+        ["READY"] = "PRÊT",
+        ["READY — WAITING FOR WAITER"] = "PRÊT — EN ATTENTE DU SERVEUR",
+        ["Deliver"] = "Servir",
+        ["In prep"] = "En cours",
+        ["ORDER READY"] = "COMMANDE PRÊTE",
+        ["Order delivered"] = "Commande servie",
+
+
 
     };
 
     private static readonly Dictionary<string, string> Ar = new()
     {
+        ["Kiosk & link setup  ➔"] = "ربط أجهزة الخدمة والأجهزة اللوحية  ➔",
+        ["Kiosk & Waiter Tablet Linking"] = "ربط أجهزة الخدمة الذاتية وأجهزة النادل",
+        ["Link External Kiosks & Waiter Tablets:"] = "ربط أجهزة الخدمة الذاتية والأجهزة اللوحية عبر الشبكة:",
+        ["Main POS Server Address (Wi-Fi / LAN):"] = "عنوان خادم نقطة البيع الرئيسي (Wi-Fi / LAN):",
+        ["Launch Kiosk on this PC"] = "تشغيل شاشة الخدمة الذاتية على هذا الجهاز",
+        ["Link Kiosk"] = "ربط جهاز الخدمة",
+        ["🔍 Auto-detect Main PC"] = "🔍 كشف الجهاز الرئيسي تلقائياً",
+        ["Main PC database detected at:\n"] = "تم اكتشاف قاعدة بيانات الجهاز الرئيسي في:\n",
+        ["Could not auto-detect Main PC on the local network.\nEnsure Vectron POS is open on the Main PC and 'client database' folder is shared on the network."] = "تعذر اكتشاف الجهاز الرئيسي على الشبكة المحلية.\nيرجى التأكد من تشغيل Vectron POS ومشاركة مجلد 'client database'.",
+        ["✓ Found Main PC"] = "✓ تم العثور على الجهاز الرئيسي",
+
+
         // Login
         ["Select operator and enter PIN"] = "اختر المشغل وأدخل الرقم السري",
         ["Select operator and enter password"] = "اختر المشغل وأدخل كلمة المرور",
@@ -1006,6 +1090,10 @@ internal static class Tr
         ["Language:"] = "اللغة:",
         ["Language"] = "اللغة",
         ["Language changed. Vectron POS will now restart."] = "تم تغيير اللغة. سيُعاد تشغيل Vectron POS الآن.",
+        ["Theme changed. Vectron POS will now restart to apply the new theme."] = "تم تغيير المظهر. سيُعاد تشغيل Vectron POS الآن لتطبيق التغييرات.",
+        ["Theme"] = "المظهر",
+        ["Dark Mode"] = "الوضع الداكن",
+        ["Light Mode"] = "الوضع الفاتح",
         ["  TRAINING MODE — sales are NOT recorded"] = "  وضع التدريب — المبيعات غير مسجلة",
         ["+ Add"] = "+ إضافة",
         ["+ Add line"] = "+ إضافة سطر",
@@ -1702,6 +1790,62 @@ internal static class Tr
         ["Adjustment"] = "تعديل",
         ["Waste"] = "هدر",
         ["Purchase"] = "شراء",
+        // P7.7 UI & Settings polish
+        ["Product name"] = "اسم المنتج",
+        ["Print destination"] = "جهة الطباعة",
+        ["Catalog image"] = "صورة الكتالوج",
+        ["Quick select color"] = "لون التحديد السريع",
+        ["Priced per kg (weight item)"] = "السعر بالكيلوغرام (وزن)",
+        ["Save product"] = "حفظ المنتج",
+        ["Choose image"] = "اختيار صورة",
+        ["Clear image"] = "مسح الصورة",
+        ["Cash"] = "نقداً",
+        ["Card"] = "بطاقة",
+        ["Mobile"] = "دفع إلكتروني",
+        ["Tab"] = "حساب آجل",
+        ["Add method"] = "إضافة طريقة",
+        ["Main dining"] = "القاعة الرئيسية",
+        ["Terrace"] = "الشرفة",
+        ["Private room"] = "قاعة خاصة",
+        ["No table selected"] = "لم يتم اختيار طاولة",
+        ["Taken"] = "مشغولة",
+        ["Available"] = "متاحة",
+        ["booked"] = "محجوزة",
+        ["Manage rooms"] = "إدارة القاعات",
+        ["+ Add room"] = "+ إضافة قاعة",
+        ["New room"] = "قاعة جديدة",
+        ["Room name"] = "اسم القاعة",
+        ["Number of tables"] = "عدد الطاولات",
+        ["Delete room"] = "حذف القاعة",
+        ["Edit recipe..."] = "تعديل الوصفة...",
+        ["Currency settings"] = "إعدادات العملة",
+        ["Import image"] = "استيراد صورة",
+        ["New product"] = "منتج جديد",
+        ["Variants…"] = "خيارات…",
+        ["Print barcode labels"] = "طباعة الباركود",
+        ["Color"] = "اللون",
+        ["Image"] = "صورة",
+        ["Category"] = "الفئة",
+        ["Product Variants"] = "خيارات المنتج (المقاسات / النكهات)",
+        ["Offer size, flavor or portion options with individual pricing and barcodes"] = "إتاحة خيارات الحجم أو النكهة مع تسعير وباركود مخصص لكل خيار",
+        ["Manage variants →"] = "إدارة الخيارات ←",
+        ["\u2190  Back"] = "رجوع →",
+        ["Kiosk Staff Confirmation"] = "تأكيد طلبات أجهزة الخدمة الذاتية (الكيوسك)",
+        ["Hold kiosk orders for cashier/waiter approval before printing to kitchen (prevents fake orders; 10 min auto-void)"] = "تعليق طلبات الكيوسك حتى يؤكدها النادل أو الكاشير قبل الطباعة للمطبخ (لمنع الطلبات الوهمية ؛ إلغاء تلقائي بعد 10 دقائق)",
+        ["  🛎 KIOSK ORDER {0} AWAITING CONFIRMATION ({1:HH:mm}){2}"] = "  🛎 طلب خدمة ذاتية {0} بانتظار التأكيد ({1:HH:mm}){2}",
+        ["Received at {0:HH:mm} ({1} min ago) • Auto-voids in {2} min"] = "استلمت الساعة {0:HH:mm} (منذ {1} دقيقة) • إلغاء تلقائي بعد {2} دقيقة",
+        ["✓  Confirm & Fire to Kitchen"] = "✓  تأكيد وإرسال للمطبخ",
+        ["✕  Reject"] = "✕  رفض",
+        ["Order #{0} confirmed and sent to kitchen."] = "تم تأكيد الطلب #{0} وإرساله للمطبخ بنجاح.",
+        ["Are you sure you want to reject Order #{0}? (Fake order / customer left)"] = "هل أنت متأكد من رفض الطلب #{0}؟ (طلب وهمي / مغادرة العميل)",
+        ["Reject order"] = "رفض الطلب",
+        ["Kiosk order"] = "طلب جهاز الخدمة الذاتية",
+        ["READY"] = "جاهز",
+        ["READY — WAITING FOR WAITER"] = "جاهز — بانتظار النادل",
+        ["Deliver"] = "تقديم",
+        ["In prep"] = "قيد التحضير",
+        ["ORDER READY"] = "الطلب جاهز",
+        ["Order delivered"] = "تم تسليم الطلب",
 
     };
 }
@@ -1714,6 +1858,7 @@ internal static class Rtl
     public static void Apply(Control root)
     {
         if (Tr.Lang != "ar") return;
+        if (root.Tag as string == "manual-appbar") return;
         root.RightToLeft = RightToLeft.Yes;
         Mirror(root);
     }
@@ -1722,6 +1867,7 @@ internal static class Rtl
     {
         foreach (Control c in parent.Controls)
         {
+            if (c.Tag as string == "manual-appbar") continue;
             if (!Originals.TryGetValue(c, out var orig))
             {
                 orig = new Orig(c.Left, c.Dock);

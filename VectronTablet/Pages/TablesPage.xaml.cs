@@ -124,7 +124,7 @@ public partial class TablesPage : ContentPage
 
     private void UpdateBell(AlertsResult alerts)
     {
-        var count = alerts.Alerts.Count + alerts.Ready.Count;
+        var count = alerts.Alerts.Count + alerts.Ready.Count + alerts.PendingKiosk.Count;
         bellLabel.Text = count > 0 ? $"🔔 {count}" : "🔔";
         bellBorder.BackgroundColor = count > 0 ? Theme.C("Amber") : Theme.C("Kpi");
     }

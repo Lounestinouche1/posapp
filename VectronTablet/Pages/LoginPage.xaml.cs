@@ -23,6 +23,8 @@ public partial class LoginPage : ContentPage
         // travel through PressBind (a recognizer consumes the touch stream, so the XAML
         // Clicked would be dead — see Theme.PressBind). canClick gates the press for the
         // two buttons that paint a flat busy state while connecting/signing in.
+        Theme.PressBind(autoDetectBtn, () => OnAutoDetect(autoDetectBtn, EventArgs.Empty),
+            canClick: () => !_detecting && !_connecting);
         Theme.PressBind(connectBtn, () => OnConnect(connectBtn, EventArgs.Empty),
             canClick: () => !_connecting);
         Theme.PressBind(signInBtn, () => OnSignIn(signInBtn, EventArgs.Empty),
@@ -47,6 +49,133 @@ public partial class LoginPage : ContentPage
         if (sender is not Entry entry || entry.Parent is not Grid grid || grid.Children.Count < 2) return;
         if (grid.Children[1] is BoxView rail)
             rail.BackgroundColor = on ? Theme.C("Mint") : Colors.Transparent;
+    }
+
+    private bool _detecting;
+
+    private async void OnAutoDetect(object sender, EventArgs e)
+    {
+        if (_detecting || _connecting) return;
+        _detecting = true;
+        connError.IsVisible = false;
+
+        autoDetectBtn.BackgroundColor = Theme.C("Panel");
+        autoDetectBtn.TextColor = Theme.C("TxtDim");
+        autoDetectBtn.Text = "Scanning...";
+
+        try
+        {
+            string? found = await ScanForServerAsync();
+            if (!string.IsNullOrEmpty(found))
+            {
+                urlEntry.Text = found;
+                autoDetectBtn.Text = "✓ Found";
+                autoDetectBtn.TextColor = Theme.C("Mint");
+                autoDetectBtn.BackgroundColor = Theme.C("Panel2");
+
+                if (string.IsNullOrWhiteSpace(keyEntry.Text))
+                {
+                    keyEntry.Focus();
+                }
+                else
+                {
+                    OnConnect(connectBtn, EventArgs.Empty);
+                }
+            }
+            else
+            {
+                ShowError(connError, "Could not find Main PC automatically.\nMake sure Vectron POS is running and both devices are on the same Wi-Fi.");
+                autoDetectBtn.Text = "🔍 Auto-detect";
+                autoDetectBtn.TextColor = Theme.C("Mint");
+                autoDetectBtn.BackgroundColor = Theme.C("Panel2");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError(connError, "Detection error: " + ex.Message);
+            autoDetectBtn.Text = "🔍 Auto-detect";
+            autoDetectBtn.TextColor = Theme.C("Mint");
+            autoDetectBtn.BackgroundColor = Theme.C("Panel2");
+        }
+        finally
+        {
+            _detecting = false;
+        }
+    }
+
+    private static async Task<string?> ScanForServerAsync()
+    {
+        using (var h = new HttpClient { Timeout = TimeSpan.FromMilliseconds(500) })
+        {
+            foreach (var local in new[] { "http://10.0.2.2:8080", "http://127.0.0.1:8080" })
+            {
+                try
+                {
+                    var res = await h.GetStringAsync($"{local}/api/tablet/bootstrap");
+                    if (res.Contains("restaurant_name") || res.Contains("ok")) return local;
+                }
+                catch {}
+            }
+        }
+
+        var subnets = new List<string>();
+        try
+        {
+            foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+                if (ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                var ipProps = ni.GetIPProperties();
+                foreach (var ua in ipProps.UnicastAddresses)
+                {
+                    if (ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    {
+                        string ip = ua.Address.ToString();
+                        if (ip.StartsWith("127.")) continue;
+                        int lastDot = ip.LastIndexOf('.');
+                        if (lastDot > 0)
+                        {
+                            string prefix = ip.Substring(0, lastDot + 1);
+                            if (!subnets.Contains(prefix)) subnets.Add(prefix);
+                        }
+                    }
+                }
+            }
+        }
+        catch {}
+
+        if (subnets.Count == 0)
+        {
+            subnets.Add("192.168.1.");
+            subnets.Add("192.168.0.");
+        }
+
+        foreach (var prefix in subnets)
+        {
+            var candidates = Enumerable.Range(1, 254).Select(i => prefix + i).ToList();
+            for (int i = 0; i < candidates.Count; i += 32)
+            {
+                var batch = candidates.Skip(i).Take(32);
+                var tasks = batch.Select(async host =>
+                {
+                    using var h = new HttpClient { Timeout = TimeSpan.FromMilliseconds(450) };
+                    try
+                    {
+                        string u = $"http://{host}:8080/api/tablet/bootstrap";
+                        var str = await h.GetStringAsync(u);
+                        if (str.Contains("restaurant_name") || str.Contains("ok")) return $"http://{host}:8080";
+                    }
+                    catch {}
+                    return null;
+                }).ToList();
+
+                var results = await Task.WhenAll(tasks);
+                var match = results.FirstOrDefault(r => !string.IsNullOrEmpty(r));
+                if (match != null) return match;
+            }
+        }
+
+        return null;
     }
 
     private async void OnConnect(object sender, EventArgs e)

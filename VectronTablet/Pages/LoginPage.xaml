@@ -28,7 +28,13 @@
 
                 <!-- Stage 1: connection -->
                 <VerticalStackLayout x:Name="connPanel" Spacing="12">
-                    <Label Text="Main PC address" Style="{StaticResource DimLbl}" />
+                    <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                        <Label Text="Main PC address" Style="{StaticResource DimLbl}" VerticalOptions="Center" />
+                        <Button x:Name="autoDetectBtn" Grid.Column="1" Text="🔍 Auto-detect"
+                                HeightRequest="32" Padding="12,0" FontSize="12" FontAttributes="Bold"
+                                BackgroundColor="{StaticResource Panel2}" TextColor="{StaticResource Mint}"
+                                CornerRadius="6" VerticalOptions="Center" />
+                    </Grid>
                     <!-- P1.7 focus rail: 2px mint bar under the focused field (event-driven) -->
                     <Grid RowDefinitions="Auto,2" RowSpacing="3">
                         <Entry x:Name="urlEntry" Placeholder="http://192.168.1.10:8080"

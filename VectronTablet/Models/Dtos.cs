@@ -226,6 +226,16 @@ public class AlertsResult
     public string? ServerTime { get; set; }
     public List<AlertInfo> Alerts { get; set; } = [];
     public List<ReadyInfo> Ready { get; set; } = [];
+    public List<PendingKioskInfo> PendingKiosk { get; set; } = [];
+}
+
+public class PendingKioskInfo
+{
+    public int Order { get; set; }
+    public string Time { get; set; } = "";
+    public string OrderType { get; set; } = "";
+    public decimal Total { get; set; }
+    public int ItemsCount { get; set; }
 }
 
 public class AlertInfo

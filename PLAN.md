@@ -1679,3 +1679,905 @@ all four variants ship together; Light is its own palette; no High effect in Lit
    - Update `tester-release\Windows\`.
    - Rebuild release zips.
    - Rebuild Android APK (`Vectron-Waiter-v1.2.0.apk`).
+
+
+---
+
+## 16. Phase 16: "Soul & Appetite" — Next-Level Frontend & Culinary Design System Upgrade for Vectron Kiosk
+
+### 16.1 Design Philosophy & Emotional Fast-Casual Psychology
+*Based on the project's frontend and UI/UX design skills (`ui-ux-designer`, `ui-visual-validator`, `frontend-developer`, `DESIGN.md`).*
+
+Self-order kiosks in modern dining (e.g. McDonald's, Shake Shack, KFC) succeed through **emotional connection and appetite appeal**, not sterile technical forms:
+- **Atmospheric Depth over Flat Grids**: Replace cold, flat wireframe cards with multi-layered depth, warm ambient spotlighting, soft 3-stop drop shadows, and subtle culinary surface lusters.
+- **Sensory & Visual Appetite Appeal**: Every product without a physical photo must feature rich, full-color, shaded culinary artwork (crust textures, melted cheese gradients, glistening grill marks, rising steam spirals, and beverage condensation) rather than minimalist line schematics.
+- **Micro-Interactions & Living Feedback**:
+  - Cards elevate and illuminate on hover/press.
+  - Floating badges (`★ Populaire`, `👨‍🍳 Recette du Chef`, `🌱 Veggie`, `🔥 Piquant`).
+  - Active category chips with glowing under-pill glow.
+  - Cart item addition with visual feedback and live price recalculation.
+- **High-Contrast Multi-Theme Harmony**: Ensure all rich visual elements look stunning and meet WCAG 2.1 AA accessibility in both **Dark Mode** (#131821 / #1B222E with golden amber and mint accents) and **Light Mode** (#F3F6FA / #FFFFFF with deep forest green and warm ember accents).
+- **Trilingual Excellence & Arabic RTL**: Flawless typographic hierarchy across French, English, and Arabic with true RTL alignment.
+
+---
+
+### 16.2 Screen-by-Screen Frontend Upgrade Specification
+
+#### Screen 1: The Gourmet Attract & Culinary Showcase (Lock Screen)
+1. **Atmospheric Spotlight**: Warm ambient radial glow emanating from top-center, creating a welcoming restaurant entryway lighting effect.
+2. **Interactive Food Billboard**:
+   - Auto-rotating showcase banner featuring hero specialties with appetizing imagery and price callouts.
+   - Floating culinary trust badges: `★ 100% Ingrédients Frais`, `★ Préparé à la Commande`, `★ Recettes Maison`.
+3. **Pulsating Call-To-Action**:
+   - Giant rounded pill button (`TOUCHER POUR DÉCOUVRIR LE MENU ➔`) with multi-layered breathing halo, animated shimmer sheen, and dynamic tactile press depth.
+4. **Crystal Control Header**:
+   - Translucent rounded pill switcher for Languages (`[ FR | EN | AR ]`) with active accent glow.
+   - Theme toggle pill (`🌙 / ☀️`) with smooth instant re-skinning.
+
+#### Screen 2: Holographic Service Choice (Sur Place vs. À Emporter)
+1. **Sur Place Card (Dine-In)**:
+   - **Atmosphere**: Warm golden amber candlelight ambiance.
+   - **Hero Visual**: 3D-shaded gourmet cloche dome with golden steam trails, ceramic rimmed dinner plate, silverware, and soft top spotlight.
+   - **Experience Badges**:
+     - `🍽️ Service en salle`
+     - `Plateau chaud préparé minute`
+     - `Ambiance confortable & conviviale`
+   - **Action Pill**: Full-width glowing button: `COMMANDER SUR PLACE ➔`.
+2. **À Emporter Card (Takeaway)**:
+   - **Atmosphere**: Fresh energetic emerald mint & flame orange ambiance.
+   - **Hero Visual**: 3D-shaded insulated kraft packaging bag with reinforced handle, steaming burger box, cold tumbler cup with straw, ice cubes, and condensation droplets.
+   - **Experience Badges**:
+     - `🛍️ Emballage isotherme hermétique`
+     - `Préparation express en cuisine`
+     - `Prêt à emporter partout`
+   - **Action Pill**: Full-width glowing button: `PRENDRE À EMPORTER ➔`.
+3. **Card Micro-Physics**: Smooth 4px hover elevation, luminous neon border lighting, and tactile press response.
+
+#### Screen 3: Next-Gen Culinary Catalog & Interactive Order Dock
+1. **Gourmet Category Chips Bar**:
+   - Touch-optimized scrolling pill chips with category icons:
+     `🔥 Best-Sellers`, `🍔 Burgers Gourmets`, `🍕 Pizzas Maison`, `🥗 Salades & Bowls`, `🍟 Accompagnements`, `🍹 Boissons Fraîches`, `🍰 Desserts`.
+   - Active chip receives a high-contrast gradient fill, glowing mint under-indicator, and tactile elevation.
+2. **Gourmet Food Cards (Multi-Layer Depth Architecture)**:
+   - **Dimensions & Frame**: 280 × 360px cards with 18px rounded corners, subtle edge lighting, and ambient shadow.
+   - **185px Culinary Hero Container**:
+     - Category-tuned backdrop warmth (warm tomato red for pizza, flame amber for burgers, fresh basil green for salads, espresso mocha for desserts, cool azure for beverages).
+     - Rich vector artwork with realistic gradients, crust shading, steam, and highlights (when local images are not present).
+     - Edge-to-edge aspect-fill container with subtle inner vignette when photographic images are loaded.
+   - **Appetite Badges**: Top-left floating badges (`★ Populaire`, `🔥 Épicé`, `🌱 Végé`, `👨‍🍳 Chef`).
+   - **Typography**: Bold 14pt item title, appetizing 10pt subtitle describing ingredients/recipe.
+   - **Bottom Control Area**:
+     - High-contrast floating price pill badge (`12,50 €`).
+     - Floating circular `+` button with glowing neon border and interactive elevation.
+3. **Interactive Cyber Order Dock (Cart Panel)**:
+   - **Header**: `Votre Commande` with live item count pill badge `[ 3 articles ]`.
+   - **Item Rows**: Mini card rows with category color dot, item name, line item modifiers, tactile quantity pills `[-] [ 2 ] [+]`, and line item total.
+   - **Summary Dock**: Subtotal, VAT pill, and grand total in giant 26pt bold glowing typography.
+   - **Action Button**: Giant checkout pill with animated shimmer sheen: `VALIDER MA COMMANDE (24,80 €) ➔`.
+
+#### Screen 4: Interactive Item Customizer & Modifier Modal
+1. Full-screen dimmed acrylic backdrop.
+2. Floating dialog card (560 × 640px) displaying large food hero preview.
+3. Modifier checkboxes/chips (e.g. *Sans oignons*, *Double fromage (+1,00 €)*, *Sauce burger (+0,50 €)*).
+4. Quantity stepper with live recalculation and giant `Ajouter au panier ➔` button.
+
+#### Screen 5: Holographic Celebration Confirmation & Thermal Ticket
+1. Luminous checkmark celebration animation with glowing concentric rings.
+2. Giant Order Number badge (`COMMANDE #042`).
+3. Digital ticket slip preview with summary breakdown and Code 39 barcode.
+4. Animated countdown progress ring returning to the attract screen.
+
+---
+
+### 16.3 Phased Implementation Tasks
+
+- [ ] **P16.1 Design Tokens & Atmospheric Shading Engine (`KioskSkin`)**:
+  - Add surface lighting tiers (Ambient Spotlight, Multi-stop drop shadows, Surface luster).
+  - Add culinary gradient palettes (Golden Amber, Flame Orange, Fresh Basil Mint, Tomato Crimson, Espresso).
+  - Ensure strict WCAG 2.1 AA contrast for both Dark and Light themes.
+
+- [ ] **P16.2 Screen 1 Attract Screen Overhaul (Atmospheric Spotlight & Hero Showcase)**:
+  - Implement dynamic warm radial top spotlight and ambient particles/embers.
+  - Implement auto-rotating specialty showcase billboard with badges and prices.
+  - Upgrade CTA button with dual-pulsing breathing aura and animated shimmer sheen.
+  - Add refined crystal language selector and theme switch pills.
+
+- [ ] **P16.3 Screen 2 Service Choice Overhaul (3D-Shaded Culinary Cards)**:
+  - Re-engineer `ServiceChoiceCard` with 3D-shaded artwork (cloche dome with golden steam & plate for Dine-In; insulated kraft bag & cold beverage tumbler for Takeaway).
+  - Add ambient candlelight / flame atmosphere backdrops.
+  - Implement smooth card elevation and neon border illumination on hover/press.
+
+- [ ] **P16.4 Screen 3 Menu Catalog & Gourmet Food Cards**:
+  - Overhaul Category Chips Bar with rich icons and glowing active pills.
+  - Overhaul Product Cards with multi-layer depth, category-tuned warm backdrops, realistic shaded vector food illustrations (or smart-cropped photos), floating appetite badges, and glowing circular `+` buttons.
+  - Overhaul Cyber Order Dock with item cards, tactile quantity steppers, summary breakdown, and glowing checkout CTA with total price.
+
+- [ ] **P16.5 Screen 4 Item Customizer Dialog & Screen 5 Celebration Confirmation**:
+  - Implement interactive product detail modal with ingredient modifiers and quantity steppers.
+  - Enhance order confirmation screen with celebration radial aura, ticket mockup, and countdown timer.
+
+- [ ] **P16.6 Dual-TFM Compilation, Multi-Variant Packaging & Ship**:
+  - Verify 0 errors, 0 warnings across `net10.0-windows` and `net48`.
+  - Generate test snapshots for Dark and Light modes in Landscape and Portrait.
+  - Publish single-file Win10 x64, Win7 .NET 4.8, and tester builds.
+  - Update all 4 release zips and verify zero forbidden files.
+
+## 17. Phase 17: "Fast-Casual Flagship" — Commercial QSR Kiosk Design Overhaul (McDonald's & KFC Ergonomics, Left Navigation Rail, Combo Customizer & Suggestive Upselling)
+
+### 17.1 Research & Industry Benchmark Synthesis
+Based on comprehensive UI/UX analysis of global QSR self-ordering leaders (**McDonald's Global Kiosk 2.0**, **KFC Touch & Pay**, **Five Guys Kiosk**, **Shake Shack**, and top Dribbble/Behance fast-casual design kits):
+
+1. **Ergonomic "Thumb Zone" & Physical Reach Hierarchy (Fitts's Law)**:
+   - On a large vertical touchscreen (27"–32" portrait totem or 24" counter screen), top-mounted navigation causes customer shoulder strain and is physically unreachable for children or wheelchair users.
+   - **Industry Standard Solution**: Primary category navigation moves to an ergonomic **Left Category Sidebar Rail** (or mirrored Right rail in Arabic RTL), placing high-frequency category switches within natural hand resting height.
+   - All decisive transaction buttons (**Checkout**, **Quantity Steppers**, **Upsell Confirmation**) are anchored to the **lower third** of the screen.
+
+2. **Food Card Presentation — Floating Hero Cutouts on Ambient Pedestals**:
+   - Standard e-commerce grids with boxed square photos look clinical and unappetizing.
+   - Leading kiosks use **Floating Hero Food Presentation**:
+     - A warm ambient circular/oval pedestal disc beneath the dish with soft diffused lighting.
+     - Food cutouts and shaded culinary illustrations float above the pedestal, casting organic contact shadows.
+     - Generous white space/dark breathing room, bold sans-serif pricing pills (`12,50 €`), and elevated floating circular `+` buttons.
+
+3. **High-Conversion Suggestive Upselling Screen ("Complétez votre commande")**:
+   - In commercial kiosks, the upsell screen accounts for 20% to 30% of total ticket revenue.
+   - Triggered on tapping Checkout: a single, frictionless modal presenting 3–4 complementary add-ons (Fries, Drink, Dessert) with instant 1-tap addition (`+ 2,50 €`) and a prominent, frictionless escape button (`"Non merci, continuer ➔"`).
+
+4. **Wheelchair / ADA Accessibility Mode (`♿ Mode Accessibilité`)**:
+   - Universal accessibility button in the bottom corner that temporarily shifts the active interactive UI into the lower 60% of the screen.
+
+---
+
+### 17.2 Screen-by-Screen Flagship Architecture
+
+#### Screen 1: Welcome & Attract Showcase
+- Full-bleed ambient atmosphere with warm gold spotlighting.
+- Auto-rotating specialty billboard with real photos and realistic shaded vector illustrations.
+- Luminous breathing CTA pill (`TOUCHER POUR COMMANDER ➔`).
+- Instant language flags (`FR`, `EN`, `AR`) and Theme switch.
+
+#### Screen 2: Service Fulfillment Choice
+- Side-by-side luxury cards for **Sur Place** (3D shaded metallic cloche with steam) and **À Emporter** (insulated kraft bag and cold beverage tumbler).
+- Centered highlight benefit bullets with glowing accent dots.
+
+#### Screen 3: Catalog with Ergonomic Left Sidebar Rail
+- **Left Navigation Rail (Width: 150px / 180px)**:
+  - Vertically stacked category tiles with large icons (`★ Tout`, `🍔 Burgers`, `🍕 Pizzas`, `🥗 Salades`, `🍝 Plats`, `🥤 Boissons`, `🍰 Desserts`).
+  - Active category indicator with glowing rounded pill and contrast highlight.
+  - Mirrored to the right in Arabic RTL mode.
+- **Main Products Viewport**:
+  - Floating hero food cards with warm ambient circular pedestal lighting.
+  - Dynamic badges: `★ POPULAIRE`, `✦ SÉLECTION DU CHEF`, `✓ VÉGÉ`.
+  - Elevated circular `+` button with tactile press feedback.
+- **Cyber Order Dock**:
+  - Live order drawer with item mini-cards, tactile `[-] [qty] [+]` steppers, clear item button, and giant checkout CTA.
+
+#### Screen 4: Interactive Meal & Modifier Modal (`ItemCustomizerDialog`)
+- Large hero food visual with live price updates.
+- Grouped modifier chips & checkboxes (e.g. *"Sans oignons"*, *"Extra fromage (+1,00 €)"*, *"Double steak (+3,00 €)"*).
+- Tactile quantity stepper and large confirmation CTA.
+
+#### Screen 5: Smart Suggestive Upselling Sheet ("Complétez votre commande")
+- 1-step modal before payment displaying 3–4 smart recommendations (Sides, Drinks, Desserts).
+- 1-tap addition and clean skip CTA.
+
+#### Screen 6: Holographic Confirmation & Printed Ticket
+- Giant order number callout (`COMMANDE #042`).
+- Digital ticket preview and animated return countdown.
+
+---
+
+### 17.3 Phased Implementation Plan
+
+- [x] **P17.1 Left Category Sidebar Rail Navigation Engine**:
+  - Replace top category chips with an ergonomic, touch-friendly vertical Left Category Rail.
+  - Implement smooth category selection with active pill illumination.
+  - Mirror to Right rail in Arabic RTL (`RightToLeft = Yes`).
+
+- [x] **P17.2 Floating Hero Cutout Food Presentation & Card Luster**:
+  - Upgrade `ProductCardPanel` to feature warm circular pedestal lighting under dishes.
+  - Enhance vector illustrations and photo cutouts with soft contact drop shadows.
+  - Add tactile press physics (slight scale bounce on tap).
+
+- [x] **P17.3 Smart Suggestive Upselling Screen (`UpsellDialog`)**:
+  - Create high-conversion modal triggered before checkout.
+  - Display complementary items (Sides, Beverages, Sweets) with instant 1-tap addition.
+  - Provide a clear, frictionless skip option (`"Non merci, finaliser la commande"`).
+
+- [x] **P17.4 Step-by-Step Item Customizer Enhancements**:
+  - Enhance `ItemCustomizerDialog` with visual category groups and animated price recalculation.
+
+- [x] **P17.5 Wheelchair & ADA Accessibility Mode**:
+  - Add `♿ Mode Accessibilité` toggle lowering the interactive UI to the lower 60% of the screen.
+
+- [x] **P17.6 Dual-TFM Compilation, Multi-Variant Packaging & Ship**:
+  - Verified 0 errors, 0 warnings across `net10.0-windows` and `net48`.
+  - Captured test snapshots for Dark, Light, Portrait, Arabic RTL, and Upsell flows.
+  - Published single-file Win10 x64, Win7 .NET 4.8, and tester builds.
+  - Updated all 4 release zips and verified zero forbidden files.
+
+### 17.4 Verification & Shipped Artifacts
+- **Snapshots**:
+  - `screen1_lock.png` (Attract welcome screen with gold ambient spotlighting)
+  - `screen2_service_choice.png` & `screen2_service_choice_light.png` (Sur Place cloche & À Emporter kraft bag on ambient pedestals)
+  - `screen3_catalog.png` & `screen3_catalog_light.png` (Ergonomic Left Category Sidebar Rail with active pills and ambient pedestal food cards)
+  - `screen3_catalog_portrait.png` (Adaptive vertical totem layout with sticky bottom checkout dock)
+  - `screen3_catalog_ar.png` (Arabic RTL layout with mirrored Right category rail)
+  - `screen5_upsell.png` (High-conversion suggestive selling modal with 1-tap add pills and instant skip)
+- **Release Packages Updated**:
+  - `publish-win10-x64\Vectron Kiosk.exe`
+  - `publish-win7\Vectron Kiosk.exe` + `Vectron Kiosk.exe.config`
+  - `tester-release\Windows\Vectron Kiosk.exe`
+  - `VectronPOS-v1.2.0-Win10-x64.zip`
+  - `VectronPOS-v1.2.0-Win7-x86-x64.zip`
+  - `VectronPOS-v1.2.0-Win7-Full-x86-x64.zip`
+  - `tester-release.zip`
+- **Security Check**: Verified 0 `.pdb`, 0 license files, 0 forbidden files across all archives. Live customer databases completely preserved.
+
+
+---
+
+## §18. Phase 18 — Porcelain Minimalist Flagship (Dribbble / Figma Café POS Redesign)
+
+### 18.1 Executive Summary & Target Vision
+Following the reference café/bakery POS design (`media_1793990950856_0f7f48ac.webp`), Phase 18 completely elevates `Vectron Kiosk.exe` from a standard touch terminal into a flagship, award-winning porcelain minimalist digital kiosk experience. Defaulting to an airy, clean Porcelain Light aesthetic while retaining an ultra-deep Cyber-Onyx Dark Mode, the kiosk achieves pixel-level fidelity with top-tier modern POS products.
+
+### 18.2 Key Visual & Technical Upgrades
+1. **Porcelain Light Theme & Architecture (`KioskSkin`)**:
+   - Canvas background: Soft off-white porcelain (`#F4F6FA`).
+   - Cards & surfaces: Pure white (`#FFFFFF`) with 16–20px rounded corners and subtle hairline borders (`#EAEFF6`).
+   - Primary Brand Accent: Vibrant electric Royal Blue (`#2D60FF`), with dark-mode counterpart Electric Cyan (`#38BDF8`).
+   - Typography: Clean slate hierarchy (`#1E293B` bold titles, `#64748B` muted subtitles).
+
+2. **Top Minimalist App Bar**:
+   - Clean hamburger menu pill (`[ ☰ ]`).
+   - Live date pill (`[ 📅 ven. 6 nov. 2026 ]`) and live clock pill (`[ 🕒 08:27 ]`) updating in real-time with zero flicker.
+   - Status, language switcher (`FR | EN | AR`), theme toggle, and red exit pill (`[ • Fermer ⏻ ]`).
+
+3. **Squarish Category Cards Row (`CategoryCardPanel`)**:
+   - Horizontal top bar of squarish cards (`130 × 84px`) with 16px rounded corners.
+   - 34px circular icon badge in center:
+     - Active: Royal Blue filled badge with crisp white vector icon and 2px Royal Blue active border.
+     - Inactive: Soft slate badge (`#F1F5F9`) with dark slate vector icon.
+   - 100% Vector Icon Engine: Zero emoji font dependencies; custom vector rendering for Cloche (All Menu), Bread Loaf (Breads), Cake Slice (Cakes), Donut (Donuts), Croissant (Pastries), Sandwich (Sandwich), Pizza (Pizza), and Tumbler (Drinks).
+   - Category name and item count subtitle badge (`15 articles`, `4 articles`).
+
+4. **Pill Search Bar (`txtSearch`)**:
+   - 46px height pill container with 14px rounded corners and subtle hairline border.
+   - Watermarked placeholder text (`"Search something sweet on your mind..."` / `"Rechercher une douceur ou un plat..."` / `"ابحث عن طبقك المفضل هنا..."`).
+   - Real-time instant product filtering.
+
+5. **Modern Food Cards with Cutout Presentation (`ProductCardPanel`)**:
+   - Organic diffuse contact drop shadow beneath food items (`FillEllipse` with multi-tier alpha gradient).
+   - Centered isolated food presentation: supports high-res photography via `CatalogImageCache` or procedural Master Culinary Vector Art:
+     - **Buttermelt Croissant**: Golden layered crescent spindle with baked ridges and butter glaze.
+     - **Egg Tart**: Golden fluted pastry cup with caramelized custard and brûlée blister spots.
+     - **Cheesy Cheesecake**: Creamy New York wedge with graham cracker crust and berry drops.
+     - **Sliced Black Forest**: Dark chocolate sponge cake with Bavarian cream and maraschino cherry.
+     - **Beef Crowich**: Croissant sandwich with wavy green lettuce, tomato, seared beef, melted cheddar.
+     - **Cheezy Sourdough & Pan Bread**: Artisan boule with white flour scoring cuts.
+     - **Cereal Cream Donut**: Glazed donut ring with rainbow crunch sprinkles.
+     - **Spinchoco Roll**: Golden pastry horn with dark chocolate swirl.
+     - **Classic Burger & Crispy Chicken**: Brioche bun with sesame seeds, lettuce frills, and seared patty.
+     - **Margherita Pizza**: Crispy crust with melted cheese and pepperoni rounds.
+     - **Fresh House Lemonade**: Iced tumbler with lemon wheel garnish and straw.
+     - **Garden Bowl**: White ceramic bowl with fresh greens, tomatoes, and avocado.
+   - Bottom row: Left pastel appetite chip (`[Pastries]`, `[Cakes]`, `[Sandwich]`, `[Donuts]`, `[Breads]`) + Right bold price (`4,00 EUR`).
+
+6. **Sleek Right Order & Checkout Dock (`basketPanel`)**:
+   - Pure white card (`#FFFFFF`) with 22px rounded corners and subtle shadow.
+   - Customer header: `Client`, `Commande #042`, and close button `[ ✕ ]`.
+   - Selector pills: `[ Choisir table ▼ ]` and `[ 🍽️ Sur Place ]`.
+   - Empty state: `"Aucun article sélectionné"` / `"No Item Selected"`.
+   - Populated state: Compact card rows with item name, price, rounded quantity stepper pills `[-] [ qty ] [+]`, and remove button `[ ✕ ]`.
+   - Dotted divider line separating subtotal & tax from bold `TOTAL`.
+   - Promo voucher pill (`[ 🏷️ Code promo ou bon ]`) + Payment method button.
+   - Full-width primary CTA pill button: `[ Valider la commande (14,58 EUR) ➔ ]`.
+
+7. **Multi-Language & Orientation Support**:
+   - French, English, and full Arabic RTL layout (mirrored Right-to-Left category flow, search bar, and left-docked cart).
+   - Adaptive Landscape (`1920 × 1080`) and Portrait Totem (`1080 × 1920`) responsive docking.
+
+### 18.3 Verification & Shipped Artifacts
+- **Snapshots**:
+  - `screen1_lock.png` — Luminous ambient attract screen with porcelain aura.
+  - `screen2_service_choice.png` — Luxury fulfillment choice cards (Sur Place cloche & À Emporter bag).
+  - `screen3_catalog.png` & `screen3_catalog_light.png` — Porcelain Minimalist Catalog with populated order dock.
+  - `screen3_catalog_empty.png` — Clean empty catalog state matching the reference Dribbble mockup.
+  - `screen3_catalog_dark.png` — Cyber-Onyx Dark Mode with electric cyan accents.
+  - `screen3_catalog_portrait.png` — Responsive vertical totem kiosk mode.
+  - `screen3_catalog_ar.png` — Arabic RTL catalog layout.
+  - `screen5_upsell.png` — Suggestive selling modal with 1-tap add cards and skip button.
+- **Dual-TFM Build Status**: 0 warnings, 0 errors across `net10.0-windows` and `net48`.
+- **Shipped Release Packages**:
+  - `publish-win10-x64\Vectron Kiosk.exe` updated.
+  - `publish-win7\Vectron Kiosk.exe` + `Vectron Kiosk.exe.config` updated.
+  - `tester-release\Windows\Vectron Kiosk.exe` updated.
+  - `VectronPOS-v1.2.0-Win10-x64.zip` updated.
+  - `VectronPOS-v1.2.0-Win7-x86-x64.zip` updated.
+  - `VectronPOS-v1.2.0-Win7-Full-x86-x64.zip` updated.
+  - `tester-release.zip` updated.
+- **Safety Validation**: Verified 0 `.pdb`, 0 license files, 0 forbidden files across all zip archives. Live customer databases completely untouched.
+
+### 18.4 Lockscreen Full-Screen Immersion & Checkout Simplification (Nov 2026)
+- **Buttons Removed**:
+  - **Payment Method Button**: Removed from checkout dock; orders flow directly from `[ Valider la commande ]` into upsell/payment dispatch.
+  - **Promo Code Button**: Removed from checkout dock; expanded basket item scroll view vertically for clearer order line inspection.
+  - **Disabled Mode Button**: Removed accessibility toggle from the top catalog header; remaining header pills (`Close Order`, `Theme`, `AR`, `EN`, `FR`) smoothly realigned.
+- **Full-Screen Background on Lockscreen**:
+  - Promo posters/photos now cover the entire canvas (`1920 × 1080` cover-fit).
+  - High-res images downsampled on load with bilinear interpolation, cutting RAM consumption by 98% and ensuring instant rendering.
+  - Static memory caching for loaded promo images (`cachedPromoImages`), eliminating disk thrashing across language and theme toggles.
+  - Removed obstructive center white box; full promotional graphics, titles, and photography remain 100% visible and unblocked.
+  - Floating top-left frosted dark glass brand pill (`◈ VECTRON RESTAURANT`).
+  - Floating bottom frosted tagline banner (`★ SUR PLACE OU À EMPORTER • PRÉPARÉ À LA COMMANDE • COMMANDEZ ICI EN QUELQUES TOUCHES`).
+  - Giant royal blue luminous breathing CTA pill button (`[ TOUCHER POUR COMMANDER ➔ ]`).
+  - Touching anywhere on the screen wakes the kiosk and navigates to fulfillment choice.
+- **Release Verification**:
+  - Tested and verified on all 4 release targets (`publish-win10-x64\`, `publish-win7\`, `tester-release\Windows\`, and all 4 release zips).
+  - 0 warnings, 0 errors, 0 forbidden files (`.pdb`, licenses, or customer databases).
+
+### 18.5 Kiosk Security Lockdown: Taskbar Shield & Alt+F4 Interception (Nov 2026)
+- **Windows Taskbar Lockdown**:
+  - Implemented `KioskTaskbar` Win32 controller (`FindWindow` + `ShowWindow` `SW_HIDE`/`SW_SHOW`) targeting `Shell_TrayWnd`, `Button/Start`, and `Shell_SecondaryTrayWnd`.
+  - Configured `KioskMainForm` with `TopMost = true`, `FormBorderStyle = FormBorderStyle.None`, `WindowState = FormWindowState.Normal`, and `Bounds = Screen.PrimaryScreen.Bounds`, eliminating desktop working area margins and covering 100% of the display.
+  - Implemented automatic focus recapture in `OnDeactivate`: if any external process or notification attempts to steal focus, the kiosk immediately reasserts `TopMost` and calls `Activate()`.
+  - Safely restores taskbar visibility upon authorized manager exit and in `AppDomain.CurrentDomain.ProcessExit`.
+- **System Shortcut & Alt+F4 Interception**:
+  - Implemented `KioskKeyboardLockdown` using Windows Low-Level Keyboard Hook (`WH_KEYBOARD_LL = 13` via `SetWindowsHookEx`).
+  - Swallows and blocks:
+    - `Alt + F4` (prevents customers/scanners from closing the app).
+    - `VK_LWIN`, `VK_RWIN` (Windows keys - prevents Start menu activation).
+    - `VK_APPS` (context menu key).
+    - `Alt + Tab` and `Alt + Esc` (prevents switching applications).
+    - `Ctrl + Esc` (prevents Start menu activation).
+    - `Ctrl + Shift + Esc` (prevents opening Task Manager).
+  - Multi-tier defense: additionally intercepted in WinForms `ProcessCmdKey` and canceled in `OnFormClosing` (`e.Cancel = true` for `CloseReason.UserClosing`).
+  - Authorized exit path preserved: entering the Manager PIN via the secret 5-tap logo gesture sets `isAuthorizedExit = true`, uninstalls hooks, restores the taskbar, and exits cleanly.
+- **Verification & Deployment**:
+  - Verified on both `net10.0-windows` and `net48` with 0 warnings and 0 errors.
+  - Shipped to all 4 release targets: `publish-win10-x64\`, `publish-win7\`, `tester-release\Windows\`, and all 4 zip archives (`Win10-x64`, `Win7-x86-x64`, `Win7-Full`, `tester-release.zip`).
+
+### 18.6 Physical Keyboard Input Restoration & On-Screen Virtual Touch Keyboard (Nov 2026)
+- **Physical Keyboard Input Fix**:
+  - Identified root cause of physical keyboard failure: when modal dialogs (such as Manager PIN prompt or Upsell modal) were displayed, `KioskMainForm.OnDeactivate` was continuously re-asserting `TopMost = true; BringToFront(); Activate();`, which stole keyboard focus away from the dialog's `TextBox` and dropped physical keystrokes into the void.
+  - Added `isModalOpen` state flag and `SetModalState(bool open)` to `KioskMainForm`: focus recapture is suppressed while modal child dialogs or the virtual touch keyboard are open.
+  - Intercepted `Alt + F4` at both the low-level hook and `ProcessCmdKey`: instead of silently dropping the key, `Alt + F4` triggers `PromptExitViaPin()`, immediately opening the Manager PIN prompt. This allows technicians and store managers with physical keyboards to exit cleanly without needing touch gestures, while preventing unauthorized customers from closing the application.
+- **Manager PIN Screen Ergonomics**:
+  - Full physical keyboard listener handling digits `0-9`, Numpad digits, `Backspace`, `Enter` (validate and submit), and `Escape` (dismiss).
+  - Large touch keypad with 112 x 62px buttons (`1-9`, `0`, `C`, `⌫`) styled with high contrast pill cards.
+  - Prominent red action button (`⏻ Quitter l'application`) and blue configuration button (`⚙ Configuration`) for direct kiosk control upon entering the authorized PIN.
+- **On-Screen Virtual Touch Keyboard (`KioskTouchKeyboard`)**:
+  - Implemented an integrated virtual keyboard modeled after `OnScreenKeyboard` in `Program.cs`.
+  - Non-activating top-level popup (`WS_EX_NOACTIVATE = 0x08000000`, `WS_EX_TOPMOST = 0x00000008`) preventing focus loss from the target input control.
+  - Global `IMessageFilter` (`KioskKeyboardMessageFilter`) detecting touch taps and clicks on any `TextBox` control, automatically floating the virtual keyboard directly below or above the active input field.
+  - Layouts:
+    - **Alpha mode**: Full QWERTY layout with `Caps Lock` toggle, space bar, backspace, and Enter.
+    - **Numeric mode**: 0-9 digits and math symbols.
+    - **Symbols mode**: Punctuation and currency symbols.
+    - **Special keys**: Clear, Hide, and Enter keys with primary accent styling.
+  - Smooth slide/fade dismiss when clicking outside or pressing Enter/Escape.
+  - Opt-out tag (`Tag = "NoTouchKeyboard"`) for controls with dedicated touch keypads (such as the Manager PIN keypad).
+- **Dual-TFM Build Status**:
+  - `net10.0-windows`: 0 warnings, 0 errors.
+  - `net48`: 0 warnings, 0 errors.
+- **Shipped Release Packages**:
+  - `publish-win10-x64\Vectron Kiosk.exe` updated.
+  - `publish-win7\Vectron Kiosk.exe` + `Vectron Kiosk.exe.config` updated.
+  - `tester-release\Windows\Vectron Kiosk.exe` updated.
+  - `VectronPOS-v1.2.0-Win10-x64.zip` updated.
+  - `VectronPOS-v1.2.0-Win7-x86-x64.zip` updated.
+  - `VectronPOS-v1.2.0-Win7-Full-x86-x64.zip` updated.
+  - `tester-release.zip` updated.
+- **Safety Validation**:
+  - All archives scanned and validated: 0 `.pdb`, 0 license files, 0 forbidden files.
+  - Live customer databases completely untouched.
+
+### 18.7 Kiosk Checkout Upsell Fix, Custom Background Images & Main POS Light Mode (Nov 2026)
+- **Kiosk Confirmation & Upsell Dialog Lockup Fix**:
+  - Identified root cause of unclickable buttons in the Upsell Dialog (*"Envie d'autre chose ?"*): `SetModalState(true)` was not called before `upsellDialog.ShowDialog(this)`. When `ShowDialog` deactivated the main window, `KioskMainForm.OnDeactivate` pulled the fullscreen main form in front of the dialog, causing all clicks to be intercepted and dropped by the modal-disabled main form.
+  - Wrapped `UpsellDialog.ShowDialog(this)` with `SetModalState(true)` and `finally { SetModalState(false); }`.
+  - Added `Shown` bringing `UpsellDialog` to front, and hooked `Escape` to cleanly dismiss/confirm.
+- **Table Selection Modal (`OpenTableSelectorDialog`)**:
+  - Connected the previously unhandled *"Choisir table"* button on the catalog order dock.
+  - Added a touch modal dialog (`OpenTableSelectorDialog`) allowing customers ordering for *Sur Place* (Dine-in) to select table numbers (Tables 01–24), updating the selected table and the order dock badge.
+- **Lockscreen Background Source Choice (Products vs Custom PC Folder)**:
+  - Added `LockscreenBackgroundMode` (`"Products"` or `"CustomFolder"`) and `LockscreenCustomFolder` to `KioskConfig` (`kiosk-config.json`).
+  - Added touch controls to Kiosk Settings (`BuildSettingsScreen`):
+    - Mode selector: `🍔 Photos des produits (Catalogue)` vs `📁 Dossier d'images sur PC`.
+    - Path display with an on-screen `[ 📂 Parcourir... ]` button triggering `FolderBrowserDialog` with `SetModalState(true)` protection.
+  - Enhanced `LockScreenPanel.LoadPromoImages()`:
+    - In `"CustomFolder"` mode: loads and downscales photos directly from the manager's chosen PC directory.
+    - In `"Products"` mode: loads catalog product images from disk and generates full-screen product hero presentation slides with food vector/photo, category badge, and formatted price.
+- **Main POS Light Mode Fix (`Vectron POS.exe`)**:
+  - Identified root cause in `SettingsForm`: selecting Light Mode only toggled the button states without calling `Skin.Apply()`, without updating `PosForm`, and without prompting for a restart.
+  - Connected `SetPosTheme()` in `SettingsForm` to persist `"Theme": "light"`, invoke `Skin.Apply(features)`, and prompt an instant restart via `Application.Restart()`, matching the existing Language change workflow.
+  - Added a 1-click Theme toggle item (`🌙 Mode Sombre` / `☀️ Mode Clair`) to the top App Bar overflow menu (`⋯`).
+  - Added translations in English, French, and Arabic in `Lang.cs`.
+- **Verification & Dual-TFM Release**:
+  - Both `VectronPOS.csproj` and `VectronKiosk.csproj` compile with **0 errors, 0 warnings** on dual targets (`net10.0-windows` and `net48`).
+  - Shipped to all 4 release targets: `publish-win10-x64\`, `publish-win7\`, `tester-release\Windows\`, and all 4 zip archives (`Win10-x64`, `Win7-x86-x64`, `Win7-Full`, `tester-release.zip`).
+  - Strict security validation: 0 `.pdb`, 0 license files, 0 customer database touches.
+### 18.8 Dribbble-Grade Kiosk Graphics Overhaul (Studio Food Assets, 4-Column Grid, Porcelain Depth & Unicode Sanitization) (Nov 2026)
+- **High-Resolution Photorealistic Food Assets**:
+  - Acquired and generated 18 studio-lit, mouthwatering food and drink assets:
+    - 7 bakery studio masterpieces: `beef_crowich.png`, `buttermelt_croissant.png`, `cereal_cream_donut.png`, `cheesy_cheesecake.png`, `cheezy_sourdough.png`, `egg_tart.png`, `grains_pan_bread.png`.
+    - 6 studio food & beverage items: `classic_burger.png`, `margherita_pizza.png`, `crispy_chicken.png`, `garden_bowl.png`, `fresh_lemonade.png`, `origin_espresso.png`.
+    - 5 clean-cropped bakery items with text boundaries eliminated: `spinchoco_roll.png`, `choco_donut.png`, `sliced_black_forest.png`, `solo_floss_bread.png`, `zoguma_pan_bread.png`.
+  - Background transparency processing: applied smooth alpha feathering to eliminate JPEG boundary boxes, seamlessly blending assets into pure white (`#FFFFFF`) porcelain cards.
+  - Deployed across all 4 release targets: `images/kiosk/`, `publish-win10-x64/images/kiosk/`, `publish-win7/images/kiosk/`, and `tester-release/Windows/images/kiosk/`.
+- **4-Column Grid Calibration & Geometry**:
+  - Calibrated product card dimensions to 325 x 340px with 6px margins, achieving exactly 4 generous, luxurious columns per row in landscape (1920x1080) with 0 horizontal scrollbar.
+  - Multi-step ambient elevation shadows (`Color.FromArgb(10, 20, 45, 90)` and `Color.FromArgb(18, 20, 45, 90)`) with soft radial food contact shadows (`DrawFoodContactShadow`).
+  - HighQualityBicubic image rendering with HighQuality pixel offset mode.
+- **Cart Dock Ergonomics & Unicode Cleansing**:
+  - Widened cart outer dock to 460px with 396px cart rows, completely resolving item title and price label truncation ("4,00 EUR", "3,75 EUR", "5,50 EUR" fully displayed with no clipping).
+  - Replaced decompilation surrogate question mark artifacts with crisp Unicode symbols and custom vector graphics:
+    - Cart header: sleek vector document card (`Client / Commande #042`) with `✕` clear button.
+    - Selectors: `Choisir table ▾` and `Sur Place ▾` dropdown pills.
+    - Cart item row: clean quantity steppers (`- 1 +`) and red `✕` delete button.
+    - Checkout action button: `Valider la commande (14,58 EUR) ➔` with directional forward arrow.
+    - Top bar: clean date/time pills without broken emoji glyphs, universal moon/sun toggle (`☾` / `☀`), and `● Fermer`.
+- **Dual-TFM Build Status**:
+  - `net10.0-windows`: 0 warnings, 0 errors.
+  - `net48`: 0 warnings, 0 errors.
+- **Shipped Release Packages**:
+  - `publish-win10-x64\Vectron Kiosk.exe` + `.dll` + `.deps.json` + `.runtimeconfig.json` updated.
+  - `publish-win7\Vectron Kiosk.exe` + `Vectron Kiosk.exe.config` updated.
+  - `tester-release\Windows\Vectron Kiosk.exe` + single-file dependencies updated.
+  - `VectronPOS-v1.2.0-Win10-x64.zip` updated with new binary and 25 kiosk images.
+  - `VectronPOS-v1.2.0-Win7-x86-x64.zip` updated with new binary and 25 kiosk images.
+  - `VectronPOS-v1.2.0-Win7-Full-x86-x64.zip` updated with new binary and 25 kiosk images.
+  - `tester-release.zip` updated with new binary and 25 kiosk images.
+- **Safety Validation**:
+  - All archives scanned and validated: 0 `.pdb`, 0 license files, 0 forbidden files.
+  - Live customer databases completely untouched.
+
+### 18.9 Standalone Single-File Kiosk Bundling & Safe POS Restart Architecture (Crash-Free Theme Switching) (Nov 2026)
+- **Standalone Single-File Kiosk Bundling**:
+  - **Root Cause**: In the previous deployment, `Vectron Kiosk.exe` in `publish-win10-x64\` was overwritten by the 162KB framework-dependent launcher stub instead of the published single-file bundle. When launched on a PC without .NET 10 desktop runtime, Windows displayed the "Download .NET" dialog (`hostpolicy.dll not found in C:\Program Files\dotnet\`).
+  - **Resolution**: Published full self-contained single-file release via `dotnet publish VectronKiosk\VectronKiosk.csproj -c Release -f net10.0-windows -r win-x64 --self-contained true -p:PublishSingleFile=true`.
+  - **Verification**: `Vectron Kiosk.exe` size confirmed at 116,246,694 bytes (~116MB). Verified standalone execution without .NET runtime dependencies.
+- **Main POS Theme Switching Crash & Deadlock Elimination**:
+  - **Root Cause**: Windows Error Reporting analysis (`AppHangB1` and exception `e0434352`) revealed that invoking `Application.Restart()` from within `SettingsForm` (an embedded child control) prevented WinForms cooperative message loop shutdown. Simultaneously, the newly spawned `Vectron POS.exe` collided with port 8080 (`QrOrderServer`) and port 9100 (`TcpPrintServer`) held by the old instance, triggering socket exceptions and cross-process deadlocks (`AppHangXProcB1`).
+  - **Resolution**:
+    - Created `Program.SafeRestart()`: proactively unbinds `QrOrderServer` and `TcpPrintServer`, spawns the fresh process, and invokes `Environment.Exit(0)` for clean, immediate OS process teardown with no lingering locks.
+    - Added `SocketOptionName.ReuseAddress` and retry loops in both `QrOrderServer.Start()` and `TcpPrintServer.Start()` so transient port releases never trigger crash alerts.
+    - Replaced all 5 occurrences of `Application.Restart()` across `Program.cs` (`SetPosTheme`, App Bar overflow theme toggle, language switch, database restores) with `Program.SafeRestart()`.
+    - Removed an empty rogue root folder (`" "`) that triggered MSBuild MSB3552 resx globbing errors.
+- **Verification & Dual-TFM Release**:
+  - Both `VectronPOS.csproj` and `VectronKiosk.csproj` compile cleanly with 0 errors on dual targets (`net10.0-windows` and `net48`).
+  - Shipped to all release targets: `publish-win10-x64\`, `publish-win7\`, `tester-release\Windows\`.
+  - Updated all 4 release zip packages (`VectronPOS-v1.2.0-Win10-x64.zip`, `VectronPOS-v1.2.0-Win7-x86-x64.zip`, `VectronPOS-v1.2.0-Win7-Full-x86-x64.zip`, `tester-release.zip`).
+  - Strict security verification confirmed: 0 `.pdb` files, 0 license files, live customer databases completely untouched.
+
+
+### 18.10 Kitchen Display System (KDS) Order Delivery Synchronization & Notification Actions (Nov 2026)
+- **KDS Ready State & Stable Ticket Positioning**:
+  - **Root Cause**: Previously, `KitchenDisplayForm.Render()` sorted open orders with `orderby o.Ready ? 1 : 0, o.Created`. When kitchen staff clicked `"✓ READY"`, the ticket instantly relocated to the very end of the horizontal ticket scroll, while a preparing ticket slid into its visual position. This created the illusion that the button had not responded or changed state.
+  - **Resolution**:
+    - Changed KDS ticket ordering to stable temporal sequence: `orderby o.Created`. Cards remain firmly in place upon status changes.
+    - Added dedicated visual states in `BuildCard`:
+      - Preparing (`!order.Ready`): prominent `"✓ READY"` action button styled with `Skin.Accent` (`mint`).
+      - Ready (`order.Ready`): status panel styled with `Skin.SuccessSurface` featuring `"✓ Deliver"` (`Skin.Success`, marking delivered and clearing from KDS pass) and `"↩ In prep"` (`Skin.TextDim`, returning the order to in-kitchen prep state).
+- **Data Model & Lifecycle Separation**:
+  - Added `bool Delivered = false` property and constructor parameter to `OpenOrder` record with full backward compatibility for existing `open-orders.json` files.
+  - Added `store.MarkOrderReady(room, table, orderNum, ready)` to update ready state, log prep duration, and synchronize guest alerts.
+  - Added `store.MarkOrderDelivered(room, table, orderNum)`: marks `Delivered = true`, dismisses alert banners, and persists data.
+  - KDS tickets filter on `where !o.Delivered`: delivered food disappears immediately from the kitchen display, while orders remain open at tables for bill settlement and payment.
+- **Waiter Order Delivery Action (Windows POS)**:
+  - Added `guestDeliverBtn` (`✓ Deliver` / `✓ Servir`) to `guestBar` in `PosForm`.
+  - Automatically displayed when `guestAlertItem.Kind == "ready"`.
+  - Clicking `guestDeliverBtn` invokes `store.MarkOrderDelivered()`, clears the alert, and removes the ticket from kitchen displays.
+- **Waiter Order Delivery Action (Android Waiter App)**:
+  - Added `ReadyInfo` DTO and `PosApi.DeliverOrder(room, table, orderNumber)` issuing `POST /api/tablet/order/deliver`.
+  - Added backend REST route `POST /api/tablet/order/deliver` with `TabletOrderDeliver` handler in `QrOrderServer` on port 8080.
+  - Updated `/api/tablet/alerts` ready query to filter `where o.Ready && !o.Delivered`.
+  - Updated `AlertsPage` to render `ReadyCard` with a prominent `[✓ Servir]` button that delivers the order, clears the ready notification, and immediately updates the pass.
+- **Multilingual Support**:
+  - Added translations in English, French, and Arabic in `Lang.cs` for `"READY"`, `"READY — WAITING FOR WAITER"`, `"Deliver"`, `"In prep"`, `"ORDER READY"`, `"Order delivered"`.
+- **Dual-TFM & Multiplatform Build Verification**:
+  - `net10.0-windows`: compiled with 0 errors.
+  - `net48`: compiled with 0 errors.
+  - `net10.0-android`: compiled `Vectron-Waiter-v1.2.0.apk` with 0 errors.
+- **Shipped Release Packages**:
+  - Shipped to `publish-win10-x64\`, `publish-win7\`, `tester-release\Windows\`, `tester-release\Android\`.
+  - Updated all 4 release zip packages (`VectronPOS-v1.2.0-Win10-x64.zip`, `VectronPOS-v1.2.0-Win7-x86-x64.zip`, `VectronPOS-v1.2.0-Win7-Full-x86-x64.zip`, `tester-release.zip`).
+  - Scanned and verified all 4 archives: 0 `.pdb` files, 0 license files, 0 forbidden files, customer databases untouched.
+
+
+## 19. Phase 19 — Kiosk Portrait Totem Ergonomics & Live Main-PC Product Image Sync (Nov 2026)
+
+### 19.1 Problem Statement & Root Cause Diagnosis
+
+#### Defect 1: Lockscreen Hero Slides Fail to Load Real Product Photos from Main PC
+1. **Sample Image Hijack in Local Scans**:
+   - In `LockScreenPanel.LoadPromoImages()` (`VectronKiosk\Program.cs` lines 996–1056), when `LockscreenBackgroundMode == "Products"`, the code unconditionally executes an `else` branch that scans local disk directories (`images\kiosk`, `images`, etc.) for image files.
+   - If 4 static sample files exist on disk (e.g., `beef_crowich.png`, `buttermelt_croissant.png`), it loads them into `promoImages` and hits `if (promoImages.Count >= 4) break;`, exiting before ever reading `mainForm.Products`.
+2. **Early Cache Freeze Prior to Network Synchronization**:
+   - `lockScreenPanel` is constructed during `KioskMainForm.BuildScreenContainer()` at kiosk application launch before `SyncFromPosAsync()` has connected to the main POS server.
+   - At startup, `mainForm.Products` is empty. The local sample images are saved into `cachedPromoImages`.
+   - When `SyncFromPosAsync()` completes and calls `lockScreenPanel.LoadPromoImages()`, line 946 executes:
+     ```csharp
+     if (cachedPromoImages.Count > 0)
+     {
+         promoImages.AddRange(cachedPromoImages);
+         return;
+     }
+     ```
+     Because `cachedPromoImages` was never cleared after menu synchronization, the live menu products are permanently ignored and stale demo images remain frozen on screen.
+3. **Procedural Vector Drawing Fallback Instead of Actual Food Photo**:
+   - In `GenerateProductHeroSlide(int w, int h, KioskProduct prod)`, line 1097 calls:
+     ```csharp
+     ProductCardPanel.DrawFoodVectorIllustration(g, foodRect, prod.Category, prod.Name, true);
+     ```
+     It renders a procedural geometric vector illustration (burger, pizza, coffee icon) rather than loading and rendering the actual food photography stored in `KioskProduct.Image` via `CatalogImageCache`.
+4. **Resolution Mismatch & Severe Portrait Cropping**:
+   - `GenerateProductHeroSlide` generates fixed 16:9 landscape slides at `1920 × 1080`.
+   - In `LockScreenPanel.OnPaint()`, the slide is scaled with `Math.Max(w / slide.Width, h / slide.Height)`.
+   - On a portrait totem display (`1080 × 1920`), scaling a 1920×1080 slide to cover 1920px height requires a 1.777× zoom. The slide width expands to 3,413px, clipping off 2,333 horizontal pixels (1,166px off both left and right). Food photography, titles, badges, and prices are cropped off the physical totem display.
+
+#### Defect 2: Incomplete Layout Adaptation on Vertical / Portrait Totem Displays (`Height > Width`)
+1. **Catalog Split-View Collapse via Stale Parent Docking**:
+   - In `BuildCatalogScreen()`: `basketOuter` is created as a local variable docked `DockStyle.Right` with fixed `Width = 460`.
+   - In `RelayoutCatalog(int w, int h, bool isPortrait)`: when `isPortrait` is true, the code modifies `basketPanel.Dock = DockStyle.Bottom; basketPanel.Height = 240;`.
+   - However, `basketOuter` remains docked to `DockStyle.Right` with `Width = 460`. On a 1080px wide vertical display, `basketOuter` consumes 460px along the right edge, squishing `prodGrid` into a cramped 620px slot.
+   - Meanwhile, inside `basketOuter` (460px × 1920px), `basketPanel` sits at the bottom with height 240px. Inside `basketPanel`, the header (`panel4`) requires 110px and the summary footer (`panel5`) requires 160px ($110 + 160 = 270\text{px} > 240\text{px}$), causing the cart items list to collapse completely and clipping the checkout CTA button.
+2. **Hardcoded Card Dimensions Degrading to Single-Column on Small Vertical Screens**:
+   - `ProductCardPanel` enforces a fixed constructor size of `325 × 340px` with `Margin = 6px` ($337\text{px}$ total slot width).
+   - On small vertical screens or compact vertical totems/tablets (e.g., width 540px–750px, or vertical tablet viewports), two cards require $2 \times 337\text{px} + 32\text{px}\text{ padding} = 706\text{px}$.
+   - Whenever the available width falls below 706px (or when the vertical scrollbar takes 20px), `prodGrid` drops to **only 1 single product card per row**, stranding 200–300px of dead space on the right and forcing customers to scroll endlessly.
+3. **Service Choice Screen Dead Zone**:
+   - In `RelayoutServiceChoice()`, in portrait mode (`1080 × 1920`), `dineInChoiceCard` and `takeawayChoiceCard` are given fixed bounds of $560 \times 380\text{px}$ positioned at $Y = 257$ and $Y = 661$.
+   - The bottom 879 pixels of the 1920px totem ($Y = 1041$ to $1920$) are left completely empty. On a standing physical totem, this forces customers to uncomfortably reach high up on the kiosk screen while leaving the lower half barren.
+
+---
+
+### 19.2 Design System & Human-Interface Guidelines (Synthesized from Installed Skills)
+
+Guided by `ui-ux-pro-max`, `frontend-design`, `emil-design-eng`, `break-ui`, and `ui-ux-designer`:
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                  PORTRAIT TOTEM ERGONOMIC REACH ZONES (1080 × 1920)           │
+├───────────────────────────────────────────────────────────────────────────────┤
+│ [Y: 0000 - 0280]  EYE LEVEL ZONE (Informational)                              │
+│                   - Brand Logo, Live Status Badge (Online/Offline), Clock     │
+│                   - Language Selector Pills (FR | EN | AR), Theme Toggle      │
+├───────────────────────────────────────────────────────────────────────────────┤
+│ [Y: 0280 - 1380]  PRIMARY REACH ZONE (Optimal Arm Extension & Browsing)       │
+│                   - Category Navigation Strip (Horizontal pill scroll)        │
+│                   - 3-Column Touch Product Grid (3 × 330px cards)             │
+│                   - High-contrast food photography, badges, + Add targets     │
+├───────────────────────────────────────────────────────────────────────────────┤
+│ [Y: 1380 - 1920]  PRIMARY INTERACTION & CHECKOUT ZONE (Fitts's Law Target)   │
+│                   - Docked Bottom Cart Bar & Order Drawer                     │
+│                   - High-visibility Order Total & Line Item Count             │
+│                   - Giant Primary Action Button (Height ≥ 64px, Full Width)   │
+│                   - "VALIDER LA COMMANDE ➔" / "CONFIRMER"                     │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Fitts's Law on Vertical Totem Displays (`ui-ux-pro-max` Priority 2: Touch & Interaction)**:
+   - Target size: minimum $48 \times 48\text{px}$ for small actions; primary conversion CTA button $\ge 64\text{px}$ height.
+   - Touch spacing: minimum $8\text{px}$ gap between clickable elements to prevent mis-taps.
+   - Reach ergonomics: place high-frequency checkout and cart interactions in the lower thumb/chest resting zone ($Y: 1380\text{–}1920$), keeping navigation and informational chrome in the upper eye-level zone ($Y: 0\text{–}280$).
+2. **Subject-Matter Grounding (`frontend-design`)**:
+   - The Vectron Kiosk uses the "Porcelain Minimalist" culinary aesthetic: clean porcelain surfaces, warm ambient drop shadows, crisp typographic hierarchy (Segoe UI Bold), and mouthwatering food presentation.
+   - Lockscreen hero slides must present actual culinary photography synchronized from the POS catalog rather than generic abstract vector shapes.
+3. **Invisible Craft & Motion (`emil-design-eng`)**:
+   - Organic soft drop shadows (`KioskSkin.DrawFoodContactShadow`, `KioskSkin.DrawCardShadow`).
+   - Tactile feedback: smooth press scale ($0.97\times$ on active touch).
+   - Zero layout thrashing: seamless transitions between catalog and cart drawer without jitter or clipping.
+4. **Adversarial Resilience (`break-ui`)**:
+   - Zero-item empty cart states with clear guidance.
+   - Extra-long product and category names in French and Arabic with clean text wrapping and ellipsis protection.
+   - Graceful offline fallback: if a product photo is missing or still downloading, display an elegant category pastel card with contact shadow, seamlessly upgrading to the live photo the moment the download finishes.
+
+---
+
+### 19.3 Architectural & Component Audit (Before vs. After)
+
+| Component / Subsystem | Before (Broken Behavior) | After (Phase 19 Target) | Design & Architectural Rationale |
+|---|---|---|---|
+| **Lockscreen Promo Image Source** | Scans local `images\kiosk` folder; stops after 4 sample bakery images. Ignores POS synced menu. | Prioritizes `mainForm.Products` with non-empty `Image`. Loads live food photos via `CatalogImageCache`. | Ensures the kiosk displays the restaurant's actual live menu items, not hardcoded dummy croissants. |
+| **Lockscreen Cache Invalidation** | `cachedPromoImages` populates at startup before POS sync; `LoadPromoImages` returns immediately if cache has items. | `ClearCache()` is called upon successful `SyncFromPosAsync()` completion, re-populating with freshly synced items. | Ensures live items appear immediately after POS connection without requiring manual kiosk reboot. |
+| **Lockscreen Hero Slide Rendering** | Draws generic procedural vector illustration (`Burger`, `Pizza`, `Coffee`). Fixed $1920 \times 1080$ size. | Dynamic aspect-ratio generator: renders real food photo with ambient contact shadow; produces native $1080 \times 1920$ portrait slides. | Eliminates 2,333px horizontal cropping on portrait totems. Displays stunning high-res food photos. |
+| **Catalog Basket Outer Panel (`basketOuter`)** | Local variable in `BuildCatalogScreen()` docked `DockStyle.Right` with fixed `Width = 460`. | Promoted to class field. Docks `DockStyle.Bottom` with full width in portrait mode; docks `DockStyle.Right`/`Left` in landscape. | Releases the full 1080px width for `prodGrid` in portrait mode, preventing 620px squish. |
+| **Product Grid (`prodGrid`) in Portrait** | Squished to 620px width; 325px cards clip into a single awkward column with 283px dead margin. | Receives full 1080px width; clean 3-column layout ($3 \times 330\text{px}$ cards with $12\text{px}$ margins) filling the display cleanly. | Maximizes screen real estate; users can browse 6–9 visible products simultaneously without excessive scrolling. |
+| **Product Card Fluidity on Small Vertical Screens** | Hardcoded $325 \times 340\text{px}$ size; collapses to 1 card per line whenever width $< 706\text{px}$. | Responsive card dimensions (`CalculateResponsiveCardSize`): guarantees **at least 2 products per line** on any small vertical screen ($W < 800\text{px}$), 3 cols on $1080\text{px}$ totems, 4–5 cols on landscape. Food photo, fonts, and pills scale proportionally. | Fulfills user requirement: small portrait screens always present an appetizing 2-column food catalog with 0 dead space and 0 single-column degradation. |
+| **Catalog Cart Dock / Drawer in Portrait** | Crammed into 240px height inside right-docked panel; $110\text{px} + 160\text{px} = 270\text{px}$ header/footer overflow clips checkout button. | Responsive portrait cart bar/drawer docked at bottom ($H \approx 280\text{–}320\text{px}$ or expandable sheet), horizontal header layout, prominent checkout CTA. | Fitts's law: checkout button is massive ($\ge 64\text{px}$), accessible in the natural hand resting zone, never clipped. |
+| **Service Choice Screen in Portrait** | Cards stacked in upper half ($Y = 257$ to $1041$); bottom 879px left as a massive dead void. | Cards sized to $640 \times 440\text{px}$ and centered vertically within the reach zone ($Y \approx 360\text{–}1400$). | Eliminates barren screen void; provides large, comfortable touch targets for customer service choice. |
+| **Top Bar Header Elements** | Fixed negative offsets from right edge (`w - 140`, `w - 198`, etc.) risking overlap on narrower portrait widths. | Dynamic right-to-left layout flow with minimum spacing and bounds collision protection against restaurant brand logo. | Prevents text overlap and visual clutter across English, French, and Arabic RTL. |
+
+---
+
+### 19.4 Detailed Technical Implementation Plan
+
+#### Subtask 19.4.1: Real POS Product Photo Loading & Cache Lifecycle (`LockScreenPanel`)
+1. **Refactor `LoadPromoImages()`**:
+   - Check `string mode = mainForm?.Config?.LockscreenBackgroundMode ?? "Products"`.
+   - If `mode == "CustomFolder"` and folder exists: load custom folder images (preserve existing functionality).
+   - If `mode == "Products"`:
+     - Query `mainForm?.Products` for items where `!string.IsNullOrWhiteSpace(p.Image)`.
+     - Filter out unavailable/out-of-stock items (`where !p.OutOfStock`).
+     - If products with images exist, select up to 8 candidate products.
+     - For each candidate product:
+       - Fetch image via `CatalogImageCache.GetImage(prod.Image, mainForm.Config.ServerUrl, mainForm.Config.ApiKey, onLoadedCallback)`.
+       - If image is cached locally, generate the hero slide with the real photo.
+       - If image is downloading asynchronously, register `onLoadedCallback` to refresh the slide when ready.
+     - If no products have images or catalog is empty: fall back to local sample images or procedural illustrations as a safe fallback.
+2. **Post-Sync Cache Invalidation**:
+   - In `KioskMainForm.SyncFromPosAsync()`:
+     - After categories and products are populated from POS, call `LockScreenPanel.ClearCache()`.
+     - Invoke `lockScreenPanel.LoadPromoImages()`.
+     - Call `lockScreenPanel.Invalidate()`.
+   - Ensure `cachedPromoImages.Clear()` is also invoked when the user updates kiosk settings or changes background mode.
+
+#### Subtask 19.4.2: Aspect-Ratio Responsive Hero Slide Generator
+1. **Refactor `GenerateProductHeroSlide`**:
+   - Signature: `private static Bitmap GenerateProductHeroSlide(int w, int h, KioskProduct prod, Image? realImage, bool isPortrait)`.
+   - **Portrait Totem Slide ($w < h$, e.g., $1080 \times 1920$)**:
+     - Background: Porcelain subtle vertical gradient with soft gold/cream radial glow.
+     - Upper Zone ($Y \approx 80\text{–}140$): Centered Restaurant Brand Pill (`KioskSkin.RoundRect`, subtle border, white text).
+     - Hero Showcase Zone ($Y \approx 260\text{–}980$):
+       - If `realImage != null`: compute cover/contain rect ($580 \times 580\text{px}$) with bilinear high-quality interpolation. Render organic soft contact shadow (`KioskSkin.DrawFoodContactShadow`) on ambient pedestal.
+       - If `realImage == null`: render category vector illustration with soft shadow.
+     - Product Info Card ($Y \approx 1040\text{–}1260$):
+       - Centered card ($W = 760\text{px}, H = 140\text{px}$) with rounded corners and frosted glass border.
+       - Category badge pill with pastel background.
+       - Product Title in bold typography ($24\text{pt}$ Segoe UI Bold).
+       - Prominent price callout ($28\text{pt}$ Segoe UI Bold with currency symbol).
+     - Call-to-Action Zone ($Y \approx 1600\text{–}1740$):
+       - Pulsating primary pill button ($W = 620\text{px}, H = 84\text{px}$) centered horizontally in the lower reach zone.
+       - Text: `KioskLang.T("TapToOrder")` ("TOUCHER POUR COMMANDER" / "اضغط للطلب").
+   - **Landscape Slide ($w \ge h$, e.g., $1920 \times 1080$)**:
+     - Maintain balanced horizontal hierarchy with food showcase in center-left and product card/price in center-right.
+2. **Aspect-Ratio Aware Slide Caching**:
+   - Track `lastSlideWidth` and `lastSlideHeight`. If orientation changes (e.g., window resized or rotated from landscape to portrait), invalidate slide cache and regenerate slides for the current aspect ratio.
+
+#### Subtask 19.4.3: Vertical Screen Catalog Architecture (`basketOuter` & `prodGrid`)
+1. **Promote `basketOuter` to Class Field**:
+   - In `KioskMainForm`, define `private Panel basketOuter;`.
+2. **Calibrate `RelayoutCatalog(int w, int h, bool isPortrait)`**:
+   - **Landscape Mode (`!isPortrait`)**:
+     - `basketOuter.Dock = (isAr ? DockStyle.Left : DockStyle.Right);`
+     - `basketOuter.Width = Math.Min(460, Math.Max(380, (int)(w * 0.28)));`
+     - `basketPanel.Dock = DockStyle.Fill;`
+     - `prodGrid.Padding = new Padding(20, 16, 20, 16);`
+   - **Portrait Mode (`isPortrait`, e.g., $1080 \times 1920$)**:
+     - `basketOuter.Dock = DockStyle.Bottom;`
+     - `basketOuter.Height = 290;` (calibrated to hold header, items, and checkout footer comfortably).
+     - `basketOuter.Width = w;`
+     - `basketPanel.Dock = DockStyle.Fill;`
+     - Inside `basketPanel`:
+       - Layout header controls (`panel4`) horizontally across the full 1080px width: Table button, Order type pill ("Sur Place" / "À Emporter"), and Clear Cart button side-by-side.
+       - Set `panel4.Height = 56`.
+       - Cart summary footer (`panel5`): set `Height = 110`. Total label on left/center, giant full-width checkout CTA button on bottom ($H = 64\text{px}$).
+       - `basketList` (cart items list): `Dock = DockStyle.Fill` with clean horizontal/vertical scrolling.
+     - In `prodGrid`:
+       - `prodGrid.Padding = new Padding(18, 12, 18, 12);`
+       - **Fluid Responsive Card Sizing & Minimum 2-Column Guarantee**:
+         ```csharp
+         int gridW = prodGrid.ClientSize.Width > 0 ? prodGrid.ClientSize.Width : w;
+         int padX = prodGrid.Padding.Left + prodGrid.Padding.Right; // e.g. 36px
+         int availW = Math.Max(320, gridW - padX);
+         
+         // Determine optimal column count:
+         int cols;
+         if (isPortrait)
+         {
+             // On vertical/portrait displays: guarantee AT LEAST 2 columns on small screens!
+             if (availW >= 980) cols = 3;       // 1080px totem: 3 clean columns
+             else cols = 2;                      // Small vertical screens (500-979px): at least 2 columns!
+         }
+         else
+         {
+             // Landscape displays: 3 to 5 columns based on width
+             cols = Math.Max(3, Math.Min(6, availW / 340));
+         }
+         
+         int cardMargin = cols >= 3 ? 6 : 4;
+         int totalMargins = (cols * 2) * cardMargin;
+         int cardW = Math.Max(220, (availW - totalMargins) / cols);
+         int cardH = (int)(cardW * 1.05f); // Maintain harmonious ~1:1.05 aspect ratio
+         ```
+       - Apply `card.Size = new Size(cardW, cardH)` and `card.Margin = new Padding(cardMargin)` across all `ProductCardPanel` instances.
+       - In `ProductCardPanel.OnPaint`:
+         - Scale food photo container proportionally: `int photoH = (int)(Height * 0.58f);` (replacing hardcoded 200px).
+         - Dynamically scale title font size (11pt to 13.5pt) and category badge size so text never wraps awkwardly or clips.
+         - Ensure the "+ Add" touch target and price badge fit cleanly even at narrower 2-column card widths ($240\text{–}280\text{px}$).
+       - **Result**: Small portrait screens always display at least 2 products per row side-by-side with zero dead space. Standard 1080px totems display 3 columns cleanly. Zero horizontal scrolling.
+
+#### Subtask 19.4.4: Portrait Totem Touch Ergonomics for Service Choice & Top Bar
+1. **Service Choice Screen (`RelayoutServiceChoice`)**:
+   - In portrait mode ($w < h$):
+     - Increase card width: `int cardW = Math.Min(680, w - 80);`
+     - Increase card height: `int cardH = Math.Min(440, (h - num2 - 80) / 2);`
+     - Calculate vertical starting offset to center cards comfortably within the primary interaction zone ($Y \approx 380\text{–}1420$):
+       ```csharp
+       int totalCardsH = cardH * 2 + 32;
+       int startY = num2 + Math.Max(20, (h - num2 - totalCardsH - 60) / 2);
+       dineInChoiceCard.SetBounds((w - cardW) / 2, startY, cardW, cardH);
+       takeawayChoiceCard.SetBounds((w - cardW) / 2, startY + cardH + 32, cardW, cardH);
+       ```
+     - Enhances service choice presence, eliminating the 880px empty void.
+2. **Top Bar Responsive Alignment**:
+   - In portrait mode (1080px), lay out header pills (`scCancelBtn`, `scThemeBtn`, `scArBtn`, `scEnBtn`, `scFrBtn`, `scStatusBadge`) using a fluid right-to-left layout loop.
+   - Guard against left-aligned brand logo collision: if pills approach `serviceChoiceBrandLogo.Right + 16`, truncate brand text or scale font to guarantee zero overlap.
+
+#### Subtask 19.4.5: Adversarial Edge Case Handling (`break-ui` Protocol)
+1. **Catalog Edge Cases**:
+   - Product with missing image on server: graceful fallback to procedural vector illustration with category pastel badge.
+   - Long product names (e.g., "Assiette Mixte Grillades Extra Sauce Blanche & Frites"): clean 2-line wrapping with auto-ellipsis.
+   - Extreme prices (e.g., "99 999,00 DZD"): ensure price tag bounding box accommodates up to 8 digits without overlapping the "+ Add" button.
+2. **Cart Edge Cases**:
+   - Empty cart: clean centered illustration and "Votre panier est vide" prompt.
+   - High item count (15+ lines): smooth scroll performance in `basketList` with zero layout stutter.
+
+---
+
+### 19.5 Verification & Acceptance Criteria
+
+1. **Lockscreen Image Sync Verification**:
+   - Launch Kiosk with `LockscreenBackgroundMode == "Products"`.
+   - Verify network sync with POS PC downloads real product photos.
+   - Verify lockscreen hero slides display actual food photos with drop shadows, category badges, and correct prices.
+   - Verify 0 dummy bakery images appear when live products are available.
+2. **Portrait Totem (1080 × 1920) & Small Vertical Screen Verification**:
+   - Verify `basketOuter` docks to bottom spanning full width without eating side space.
+   - Verify standard 1080px totem displays clean 3-column product grid with 0 horizontal scrollbar.
+   - **Small Vertical Screen Test (e.g., width 540–768px)**: Verify `prodGrid` scales cards dynamically and guarantees **at least 2 products per line** (never degrades to 1 product).
+   - Verify `basketPanel` at bottom shows order type, table selector, scrollable cart items, subtotal, and checkout CTA with 0 clipped buttons.
+   - Verify `ServiceChoicePanel` centers the two cards elegantly between $Y = 360$ and $Y = 1450$ with zero dead void.
+   - Verify lockscreen slides in portrait mode display full content without horizontal cropping.
+3. **Landscape (1920 × 1080) Regression Check**:
+   - Verify landscape mode retains standard right-docked basket, 4-column product grid, and horizontal service choice cards.
+4. **Arabic RTL Verification**:
+   - Switch language to Arabic. Verify mirror layout in both portrait and landscape modes.
+
+---
+
+### 19.6 Build & Multiplatform Packaging Checklist
+
+- [x] Compile `VectronKiosk.csproj` in Release configuration (`dotnet build -c Release`).
+- [x] Compile dual-target Windows POS (`net10.0-windows` and `net48`) via `.opencode\tools\build-win.ps1 -Tfm all`.
+- [x] Verify 0 compilation warnings or errors across all targets.
+- [x] Run headless layout snapshots across all resolutions (1920×1080 landscape, 1080×1920 totem portrait, and 600×960 small portrait).
+- [x] Responsive product grid verified: guarantees at least 2 products per row side-by-side on small vertical screens.
+- [x] Update release artifacts in `publish-win10-x64\`, `publish-win7\`, `tester-release\Windows\`.
+- [x] Live customer database and images in `publish-win10-x64\client database\` preserved intact with zero contamination.
+
+---
+
+### 19.7 Resolution: Live Product Image Import Bug Fix (Nov 8, 2026)
+
+1. **Root Cause Analysis**:
+   - POS endpoint `/api/kiosk/image` (served by `TabletImage(query)`) returns a JSON payload with Base64-encoded image: `{"ok":true,"name":"...","mime":"image/jpeg","data":"<base64>"}`.
+   - Kiosk `CatalogImageCache.GetImage` treated the HTTP response body directly as raw binary bytes and wrote the JSON UTF-8 string to `images\cache\<file>`.
+   - `new Bitmap(stream)` failed with `ArgumentException: Parameter is not valid`.
+   - The corrupt 39-byte error strings (e.g. `{"ok":false,"error":"Invalid API key."}`) or JSON strings stayed on disk, permanently blocking future image decodes.
+   - On the lock screen, failure to load images combined with an aggressive fallback that scanned `..\..\..\tester-release\Windows\images` caused unrelated test images to appear as random products.
+
+2. **Implemented Fixes**:
+   - **JSON / Base64 Decoding**: `CatalogImageCache` detects JSON responses (`{` or `application/json`), parses with `JsonDocument`, extracts `"data"`, decodes via `Convert.FromBase64String`, and writes pure binary JPEG/PNG bytes to disk. Also seamlessly supports raw binary bytes if returned directly.
+   - **Self-Healing Disk Cache**: When reading cached files from disk, checks if the first byte is `{`. If so, automatically parses and extracts Base64 or deletes the corrupted file so it re-downloads cleanly.
+   - **Thread-Safe Deduplication & Callbacks**: Added `PendingDownloads` HashSet and `PendingCallbacks` list so concurrent requests for the same image share a single network call and all UI listeners are notified upon completion.
+   - **Product Priority on Lockscreen**: Lockscreen hero slide generator now prioritizes products that actually have photos (`mainForm.Products.Where(p => !string.IsNullOrWhiteSpace(p.Image))`).
+   - **Elimination of Arbitrary Directory Climbing**: Removed directory climbing into `tester-release` folders. Lockscreen now strictly displays real synced products or the branded fallback hero slide.
+   - **Instant Redraw**: Added `lockScreenPanel.Invalidate()` right after `LoadPromoImages()` in `SyncFromPosAsync`.
+
+3. **Verification**:
+   - Tested isolated client terminal sandbox with zero local images: Kiosk connected to live POS at `http://127.0.0.1:8080`, successfully fetched menu, downloaded all 3 product images (`2b0f...PNG` 22,352 bytes, `79a8...png` 11,116 bytes, `d332...PNG` 22,103 bytes), verified bitmap decodes with 100% success.
+   - Binaries deployed to `publish-win10-x64\Vectron Kiosk.exe`, `tester-release\Windows`, and `publish-win7\`.
+
+---
+
+### 19.8 Resolution: Mock Bakery Elimination & Dynamic POS Menu Synchronization (Nov 8, 2026)
+
+1. **Root Cause Analysis**:
+   - `LoadLocalCache()` in `VectronKiosk\Program.cs` contained hardcoded mock bakery catalog items (`Buttermelt Croissant`, `Cheesy Cheesecake`, `Cereal Cream Donut`, `Beef Crowich`, `Cheezy Sourdough`, `Egg Tart`, `Grains Pan Bread`, `Spinchoco Roll`, `Sliced Black Forest`, `Margherita Pizza`, `Fresh House Lemonade`, `Pure Origin Espresso`) and fake category tabs (`Breads`, `Cakes`, `Donuts`, `Pastries`, `Sandwich`, `Pizza`).
+   - On startup, the Kiosk always populated memory with these mock items. If sync had latency or took a few seconds, or on disconnected runs, users saw these fake items mixed in or displayed.
+   - `SyncFromPosAsync()` did not persist the synced menu JSON to disk, forcing a re-fetch every startup with no persistent local cache of the real POS database.
+   - Category and family tab generation added all families returned by the server (e.g. `Food`) even if they contained 0 products in the POS database, and redundantly showed `General` alongside `AllMenu` ("Tout le menu").
+
+2. **Implemented Changes**:
+   - **Completely Eliminated Mock Data**: Removed all 15 mock bakery products and 7 fake categories from `VectronKiosk\Program.cs`.
+   - **Persistent Menu Cache (`kiosk-menu-cache.json`)**:
+     - When `SyncFromPosAsync()` receives `/api/kiosk/menu`, it immediately writes the clean JSON to `kiosk-menu-cache.json` in `AppContext.BaseDirectory`.
+     - On launch, `LoadLocalCache()` first attempts to restore `kiosk-menu-cache.json`.
+     - In same-PC mode, it falls back to reading `client database\products.json` and `families.json`.
+     - On a completely fresh client PC before its first sync, product lists start empty, displaying an informative waiting state instead of fake items.
+   - **Clean Family & Category Tab Filtering**:
+     - Tabs are created exclusively for families/categories that have at least one product (`famCount > 0`).
+     - Suppressed redundant `General` tab when all items share that single default family.
+   - **Dynamic Cart Testing**: Updated `AddTestCartItems()` to select real products from the imported catalog dynamically rather than looking up hardcoded croissant/crowich strings.
+
+3. **Build & Verification**:
+   - Rebuilt `VectronKiosk.csproj` for both `net10.0-windows` and `net48` (0 warnings, 0 errors).
+   - Executed live headless verification against POS server (PID 5840 at `http://127.0.0.1:8080`).
+   - Verified that `kiosk-menu-cache.json` generated 2,633 bytes containing all 17 real POS products (`Margherita`, `Crispy Chicken`, `Garden Bowl`, etc.) and exactly 0 mock bakery items.
+   - Verified that all snapshots rendered only real POS products and active categories (`Popular`, `Mains`, `Drinks`, `Desserts`).
+   - Deployed updated binaries to `publish-win10-x64\Vectron Kiosk.exe`, `tester-release\Windows\`, and `publish-win7\`.
+
+---
+
+### 19.9 Resolution: Right-Docked Portrait Basket, LAN Auto-Connect, Clean Glyphs & Full Physical Touch Keyboard (Nov 8, 2026)
+
+1. **Right-Docked Basket Panel in Vertical Mode**:
+   - Updated `RelayoutCatalog`: Basket panel is now anchored on the right side (`DockStyle.Right` in LTR, `DockStyle.Left` in Arabic RTL) in both portrait (vertical totem) and landscape orientations.
+   - Set responsive portrait width `Math.Min(400, Math.Max(320, (int)(w * 0.34)))` ensuring the catalog area maintains at least 2 generous product columns per row.
+   - Full basket height displays order type, table picker, items, subtotal, tax, TOTAL, and full-width checkout button without clipping.
+
+2. **LAN Auto-Connect Discovery (`KioskDiscovery`)**:
+   - Implemented fast background asynchronous subnet scanner in `KioskDiscovery`. Probes `ServerUrl`, loopback `127.0.0.1:8080`, and iterates all active local network interfaces (`192.168.1.x`, `192.168.0.x`, etc.) in parallel batches of 32.
+   - Validates server signature via `/api/kiosk/bootstrap` or `/api/tablet/bootstrap`.
+   - Wired to automatic background retry in `StartupConnectAsync` and added a `[ 🔍 Détecter PC ]` button in the Kiosk configuration dialog.
+
+3. **Complete Elimination of `???` Symbols & Glyph Restoration**:
+   - Replaced missing glyphs with anti-aliased GDI+ vector graphics:
+     - Header Back button: vector-drawn left arrow `←`.
+     - Header Theme button: vector-drawn crescent moon (Dark) and glowing sun (Light).
+     - Header Close button: `✕ Fermer`.
+     - Cart item remove button: `✕`.
+     - Basket clear button: vector-drawn trash can icon.
+     - Checkout button: removed trailing `" ?"` across all instances (`"Valider la commande"`).
+   - Manager PIN dialog: `txtPin.PasswordChar = '●'`, keypad Backspace `"⌫"`, `"✕ Quitter l'application"`, `"⚙ Configuration"`, `"🔒 ACCÈS GESTIONNAIRE"`.
+   - Language dictionaries: restored full French accents and completely re-authored Arabic translations from scratch, removing all corrupted `????` placeholders.
+
+4. **Complete Physical-Grade Virtual Touch Keyboard**:
+   - Expanded `KioskKeyboardForm` (960×396px) with a full physical key layout:
+     - Number row (`1`–`0`, `-`, `=`) with shifted symbols (`~`, `!`, `@`, `#`, `$`, `%`, `^`, `&`, `*`, `(`, `)`, `_`, `+`).
+     - Function & modifier keys: `Esc`, `Tab ⇥`, `Caps Lock`, `Shift ⇧`, `Enter ↵`, `Ctrl`, `Alt`, `AltGr`, `Espace`, `Masquer ✕`.
+     - Full navigation cluster: Arrow keys `←`, `→`, `↑`, `↓`, plus `Home`, `End`, `Del`, `Backspace ⌫`, and `Clear`.
+     - Real-time caret cursor positioning: Interactive preview box renders insertion cursor `|`, moving accurately with arrow keys and inserting/deleting at cursor position.
+     - Enhanced numeric keypad with left/right arrow navigation.
+
+5. **Build & Deployment**:
+   - Compiled for dual-target `net10.0-windows` and `net48` (0 warnings, 0 errors).
+   - Verified automated headless snapshot suite across all 12 screens.
+   - Deployed updated binaries to `publish-win10-x64\Vectron Kiosk.exe`, `tester-release\Windows\`, and `publish-win7\`.
+
+
+
+
+---
+
+### 19.10 Resolution: Top Bar Full-Width Layout, Families Bar Visibility, Touch-Drag Scrolling & Sleek Modern Scrollbars (Nov 8, 2026)
+
+1. **Top Bar Full-Width Layout & Zero Overlap**:
+   - **Root Cause**: `basketPanel.SendToBack()` gave `DockStyle.Right` priority over `DockStyle.Top`, confining `topBar` to the left catalog column (~700px in portrait). In this restricted width, the Time pill ($X=254..379$) overlapped `FR` and `EN` language buttons ($X=356$).
+   - **Resolution**:
+     - Docked `catalogTopBar` at the root of `catalogPanel` before the basket (`catalogTopBar.SendToBack()`), making it span the full 1080px (portrait) and 1920px (landscape) screen width above both catalog and basket.
+     - Dynamic layout in `catalogTopBar.Resize` positions right buttons (`Close`, `Theme`, `AR`, `EN`, `FR`) from the right screen edge with safe collision bounds. In portrait mode, left pills end at $X=379$ and `FR` begins at $X=709$, creating a generous 330px buffer of clean whitespace. Date and Time pills remain fully visible and beautifully separated under all orientations.
+
+2. **Families Bar Visibility & Clipping Elimination**:
+   - **Root Cause**: `categoryCardsBar.Height` was 88px while `CategoryCardPanel.Height` was 84px. When categories overflowed horizontally, WinForms inserted a 17px native scrollbar, shrinking usable height to 71px, which clipped the bottom text ("17 articles") and spawned vertical scrollbars. Additionally, `panel2.Height = 148px` caused the search box to overlap category cards.
+   - **Resolution**:
+     - Increased `panel2.Height` from 148px to 168px with `Padding(16, 6, 16, 8)`.
+     - Set `categoryCardsBar.Height = 100px` and `CategoryCardPanel.Size = new Size(130, 88)` with `Margin(0, 4, 12, 4)`.
+     - Subtitle rectangle adjusted to $Y=64, H=18$, leaving 6px of breathing room at the bottom of each card.
+     - Entire card, vector category icons, and "17 articles" text are now 100% visible with zero clipping.
+
+3. **Kinetic Touch-Drag Scrolling Across Cards & Buttons (`KioskTouchScrollFilter`)**:
+   - **Root Cause**: WinForms child controls (`ProductCardPanel`, `CategoryCardPanel`, Buttons) captured mouse messages on `WM_LBUTTONDOWN` and did not forward drag gestures to parent `FlowLayoutPanel`, forcing users to hunt for empty gaps between cards to scroll.
+   - **Resolution**:
+     - Implemented `KioskTouchScrollFilter : IMessageFilter` registered in `Program.Main()`.
+     - Intercepts `WM_LBUTTONDOWN`, `WM_MOUSEMOVE`, `WM_LBUTTONUP`, and `WM_MOUSEWHEEL` globally.
+     - When finger/mouse movement exceeds 10px, it calls Win32 `ReleaseCapture()`, sets `isDragging = true`, and directly scrolls `AutoScrollPosition` smoothly in real time.
+     - On release (`WM_LBUTTONUP`), the message is absorbed (`return true`), preventing accidental clicks/item selection after a drag. Normal taps ($\le 10$px) pass through with instantaneous click responsiveness.
+
+4. **Sleek Modern Scrollbars (`KioskCleanFlowPanel` & `KioskSleekScrollBar`)**:
+   - **Resolution**:
+     - Subclassed `FlowLayoutPanel` as `KioskCleanFlowPanel`, intercepting `WM_NCPAINT` to invoke Win32 `ShowScrollBar(Handle, SB_BOTH, false)`, completely suppressing native 17px Windows 95 scrollbars on `prodGrid`, `categoryCardsBar`, and `basketList`.
+     - Created `KioskSleekScrollBar`: a modern 6px floating overlay with a 4px semi-transparent anti-aliased rounded pill (`Color.FromArgb(85, ...)` in dark mode, `Color.FromArgb(75, ...)` in light mode).
+     - Features smooth drag-tracking, mouse wheel synchronization, and auto-hiding when content fits on screen without scrolling.
+
+5. **Build & Deployment**:
+   - Compiled for dual-target `net10.0-windows` and `net48` (0 warnings, 0 errors).
+   - Validated complete snapshot suite (`screen3_catalog_portrait.png`, `screen3_catalog.png`, etc.) verifying clean 330px gap between time and language pills, no scrollbars on families bar, and visible items count.
+   - Deployed updated binaries to:
+     - `publish-win10-x64\Vectron Kiosk.exe` (116,263,078 bytes self-contained single-file)
+     - `tester-release\Windows\Vectron Kiosk.exe` (116,263,078 bytes)
+     - `publish-win7\Vectron Kiosk.exe` (162,816 bytes net48)
+   - Preserved all customer database directories intact and kept POS PID 5840 operational.

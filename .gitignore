@@ -44,3 +44,7 @@ scratch/
 .opencode/skills/
 .opencode/scripts/
 antigravity skills/
+
+# Python cache
+__pycache__/
+*.pyc

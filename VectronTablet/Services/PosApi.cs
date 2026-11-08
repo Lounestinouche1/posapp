@@ -155,6 +155,15 @@ public class PosApi
 
     public Task<SimpleResult> Dismiss(DismissRequest req) =>
         Post<SimpleResult>("/api/tablet/alerts/dismiss", req);
+
+    public Task<SimpleResult> DeliverOrder(string room, string table, int orderNumber) =>
+        Post<SimpleResult>("/api/tablet/order/deliver", new { room, table, order = orderNumber });
+
+    public Task<SimpleResult> ConfirmKioskOrder(int orderNumber, string op) =>
+        Post<SimpleResult>("/api/tablet/kiosk-confirm", new { order = orderNumber, confirmed_by = op });
+
+    public Task<SimpleResult> RejectKioskOrder(int orderNumber, string reason, string op) =>
+        Post<SimpleResult>("/api/tablet/kiosk-reject", new { order = orderNumber, reason = reason, rejected_by = op });
 }
 
 public class PosApiException : Exception

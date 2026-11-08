@@ -34,6 +34,54 @@ namespace VectronPOS;
 
 internal static class Program
 {
+	public static PosForm? ActivePosForm { get; set; }
+
+	public static void SafeRestart()
+	{
+		try
+		{
+			ActivePosForm?.StopQrServer();
+		}
+		catch { }
+
+		try
+		{
+			TcpPrintServer.Stop();
+		}
+		catch { }
+
+		try
+		{
+			Thread.Sleep(100);
+		}
+		catch { }
+
+		try
+		{
+			string exePath = Application.ExecutablePath;
+#if NETCOREAPP
+			if (!string.IsNullOrEmpty(Environment.ProcessPath))
+			{
+				exePath = Environment.ProcessPath;
+			}
+#endif
+			ProcessStartInfo psi = new ProcessStartInfo
+			{
+				FileName = exePath,
+				WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
+				UseShellExecute = true
+			};
+			Process.Start(psi);
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show("Failed to restart Vectron POS:\n" + ex.Message, "Restart", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			return;
+		}
+
+		Environment.Exit(0);
+	}
+
 	[STAThread]
 	private static void Main()
 	{
@@ -124,7 +172,7 @@ internal sealed record Sale(DateTime Time, decimal Total, string Table, string O
     public Sale _003CClone_003E_0024() => this with {};
 }
 
-internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false, int FiredCourse = 0, string Source = "", string DeliveryAddress = "")
+internal sealed record OpenOrder(string Room, string Table, string Operator, DateTime Created, List<SoldLine> Items, string Note = "", int OrderNumber = 0, int BillNumber = 0, string OrderType = "Dine-in", string CustomerName = "", int SeatCount = 0, bool Ready = false, int FiredCourse = 0, string Source = "", string DeliveryAddress = "", bool Delivered = false)
 {
     public string Room { get; set; } = Room;
     public string Table { get; set; } = Table;
@@ -141,6 +189,7 @@ internal sealed record OpenOrder(string Room, string Table, string Operator, Dat
     public int FiredCourse { get; set; } = FiredCourse;
     public string Source { get; set; } = Source;
     public string DeliveryAddress { get; set; } = DeliveryAddress;
+    public bool Delivered { get; set; } = Delivered;
     public OpenOrder _003CClone_003E_0024() => this with {};
 }
 
@@ -398,6 +447,10 @@ internal sealed record ParkedOrder(string Id, string Room, string Table, string 
 internal sealed record ComboComponent(string Product, int Qty);
 internal sealed record ComboDeal(string Name, decimal Price, List<ComboComponent> Items);
 internal sealed record GuestAlertItem(string Id, string Room, string Table, string Kind, DateTime Time);
+internal sealed record PendingKioskOrder(int OrderNumber, DateTime Created, string OrderType, List<SoldLine> Items, decimal Total, string KioskId = "", string Status = "Pending", string CustomerName = "", string Table = "", string Note = "")
+{
+    public PendingKioskOrder _003CClone_003E_0024() => this with {};
+}
 internal sealed record ReportLine(string Text, int Style);
 
 internal static class ReportLineStyles
@@ -621,6 +674,14 @@ internal sealed class FeatureSettings
 		public bool QuickSaleMode { get; set; }
 
 		public bool KioskMode { get; set; }
+
+		public bool KioskRequireConfirmation { get; set; } = true;
+
+		public int KioskAutoVoidMinutes { get; set; } = 10;
+
+		public string KioskPrinterName { get; set; } = "";
+
+		public bool KioskPrintCustomerSlip { get; set; } = true;
 
 		public bool CustomerDisplay { get; set; }
 
@@ -885,6 +946,8 @@ internal sealed class PosStore
 
 		private string countersFile => Path.Combine(dataFolder, "daily-counters.json");
 
+		private string pendingKioskOrdersFile => Path.Combine(dataFolder, "pending-kiosk-orders.json");
+
 		private string floorPlanFile => Path.Combine(dataFolder, "floor-plan.json");
 
 		public List<PrinterDestination> PrinterDestinations { get; private set; } = new List<PrinterDestination>();
@@ -916,6 +979,10 @@ internal sealed class PosStore
 		public List<string> CourseNames { get; private set; } = new List<string>();
 
 		public List<GuestAlertItem> GuestAlerts { get; private set; } = new List<GuestAlertItem>();
+
+		public List<PendingKioskOrder> PendingKioskOrders { get; private set; } = new List<PendingKioskOrder>();
+
+		public event Action? PendingKioskOrdersChanged;
 
 		public List<GiftCard> GiftCards { get; private set; } = new List<GiftCard>();
 
@@ -1136,6 +1203,17 @@ internal sealed class PosStore
 				if (featureSettings != null)
 				{
 					CopyFeatures(featureSettings, Features);
+				}
+			}
+			if (File.Exists(pendingKioskOrdersFile))
+			{
+				try
+				{
+					PendingKioskOrders = JsonSerializer.Deserialize<List<PendingKioskOrder>>(File.ReadAllText(pendingKioskOrdersFile), JsonOptions) ?? new List<PendingKioskOrder>();
+				}
+				catch
+				{
+					PendingKioskOrders = new List<PendingKioskOrder>();
 				}
 			}
 			if (File.Exists(modifiersFile))
@@ -1914,6 +1992,68 @@ internal sealed class PosStore
 			GuestAlertRaised?.Invoke();
 		}
 
+		public void SavePendingKioskOrders()
+		{
+			suppressWatcher = true;
+			try
+			{
+				File.WriteAllText(pendingKioskOrdersFile, JsonSerializer.Serialize(PendingKioskOrders, JsonOptions));
+			}
+			catch {}
+			suppressWatcher = false;
+		}
+
+		public void AddPendingKioskOrder(PendingKioskOrder order)
+		{
+			PendingKioskOrders.Add(order);
+			SavePendingKioskOrders();
+			RaiseGuestAlert("Kiosk", $"#{order.OrderNumber}", "kiosk_order");
+			PendingKioskOrdersChanged?.Invoke();
+		}
+
+		public PendingKioskOrder? GetPendingKioskOrder(int orderNumber)
+		{
+			return PendingKioskOrders.FirstOrDefault((PendingKioskOrder o) => o.OrderNumber == orderNumber && o.Status == "Pending");
+		}
+
+		public bool RejectPendingKioskOrder(int orderNumber, string reason = "")
+		{
+			PendingKioskOrder? order = GetPendingKioskOrder(orderNumber);
+			if (order == null) return false;
+			PendingKioskOrders.Remove(order);
+			PendingKioskOrders.Add(order with { Status = "Rejected", Note = reason });
+			SavePendingKioskOrders();
+			DismissGuestAlerts("Kiosk", $"#{orderNumber}", "kiosk_order");
+			if (Features.AuditLog)
+			{
+				LogAudit("Kiosk", "Order rejected", $"Order #{orderNumber} rejected: {reason}");
+			}
+			PendingKioskOrdersChanged?.Invoke();
+			return true;
+		}
+
+		public void CleanExpiredKioskOrders()
+		{
+			int limit = (Features.KioskAutoVoidMinutes > 0) ? Features.KioskAutoVoidMinutes : 10;
+			DateTime now = DateTime.Now;
+			List<PendingKioskOrder> list = PendingKioskOrders.Where((PendingKioskOrder o) => o.Status == "Pending" && (now - o.Created).TotalMinutes >= (double)limit).ToList();
+			if (list.Count > 0)
+			{
+				foreach (PendingKioskOrder item in list)
+				{
+					PendingKioskOrders.Remove(item);
+					PendingKioskOrders.Add(item with { Status = "AutoVoided", Note = $"Timed out after {limit}m" });
+					DismissGuestAlerts("Kiosk", $"#{item.OrderNumber}", "kiosk_order");
+					if (Features.AuditLog)
+					{
+						LogAudit("Kiosk", "Order auto-voided", $"Order #{item.OrderNumber} auto-voided after {limit} min");
+					}
+				}
+				SavePendingKioskOrders();
+				PendingKioskOrdersChanged?.Invoke();
+			}
+		}
+
 		public void AddOpenOrder(OpenOrder order)
 		{
 			OpenOrders.Add(order);
@@ -1978,6 +2118,54 @@ internal sealed class PosStore
 		public OpenOrder? GetOpenOrder(string room, string table)
 		{
 			return OpenOrders.FirstOrDefault((OpenOrder o) => o.Room == room && o.Table == table);
+		}
+
+		public OpenOrder? GetOpenOrder(string room, string table, int orderNumber)
+		{
+			if (orderNumber > 0)
+			{
+				OpenOrder? match = OpenOrders.FirstOrDefault((OpenOrder o) => o.Room == room && o.Table == table && o.OrderNumber == orderNumber);
+				if (match != null) return match;
+				return OpenOrders.FirstOrDefault((OpenOrder o) => o.OrderNumber == orderNumber);
+			}
+			return GetOpenOrder(room, table);
+		}
+
+		public void MarkOrderReady(string room, string table, int orderNumber, bool ready)
+		{
+			OpenOrder? target = (orderNumber > 0)
+				? OpenOrders.FirstOrDefault((OpenOrder o) => o.OrderNumber == orderNumber)
+				: OpenOrders.FirstOrDefault((OpenOrder o) => o.Room == room && o.Table == table);
+			if (target == null) return;
+
+			target.Ready = ready;
+			if (ready)
+			{
+				int prepMins = (int)Math.Round((DateTime.Now - target.Created).TotalMinutes);
+				if (prepMins >= 0 && prepMins < 600)
+				{
+					AddPrepTime(prepMins);
+				}
+				RaiseGuestAlert(target.Room, target.Table, "ready");
+			}
+			else
+			{
+				DismissGuestAlerts(target.Room, target.Table, "ready");
+			}
+			SaveOpenOrders();
+		}
+
+		public void MarkOrderDelivered(string room, string table, int orderNumber = 0)
+		{
+			OpenOrder? target = (orderNumber > 0)
+				? OpenOrders.FirstOrDefault((OpenOrder o) => o.OrderNumber == orderNumber)
+				: OpenOrders.FirstOrDefault((OpenOrder o) => o.Room == room && o.Table == table && !o.Delivered);
+			if (target != null)
+			{
+				target.Delivered = true;
+				SaveOpenOrders();
+			}
+			DismissGuestAlerts(room, table, "ready");
 		}
 	}
 
@@ -3083,34 +3271,70 @@ internal static class Skin
 			{
 				button.Region = new Region(RoundRect(new Rectangle(0, 0, width, height), num));
 			}
-			button.Tag = button.BackColor;
+			Color baseColor = (button.BackColor.IsEmpty || button.BackColor == SystemColors.Control)
+				? Skin.SidebarItem
+				: button.BackColor;
+			button.Tag = baseColor;
+			bool isHover = false;
+			bool isDown = false;
+			bool updatingInternal = false;
 			Color? disabledFore = null;
+
+			button.BackColorChanged += (s, e) =>
+			{
+				if (!updatingInternal && !isHover && !isDown)
+				{
+					if (!button.BackColor.IsEmpty && button.BackColor != SystemColors.Control)
+					{
+						baseColor = button.BackColor;
+						button.Tag = baseColor;
+					}
+				}
+			};
+
 			button.MouseEnter += (object _, EventArgs _) =>
 			{
-				if (button.Enabled && button.Tag is Color c)
+				if (button.Enabled)
 				{
+					isHover = true;
+					Color c = (button.Tag is Color tc && tc != SystemColors.Control && !tc.IsEmpty) ? tc : baseColor;
+					updatingInternal = true;
 					button.BackColor = Step(c, 0.1);
+					updatingInternal = false;
 				}
 			};
 			button.MouseDown += (object _, MouseEventArgs e) =>
 			{
-				if (e.Button == MouseButtons.Left && button.Enabled && button.Tag is Color c)
+				if (e.Button == MouseButtons.Left && button.Enabled)
 				{
+					isDown = true;
+					Color c = (button.Tag is Color tc && tc != SystemColors.Control && !tc.IsEmpty) ? tc : baseColor;
+					updatingInternal = true;
 					button.BackColor = Step(c, 0.17);
+					updatingInternal = false;
 				}
 			};
 			button.MouseUp += (object _, MouseEventArgs _) =>
 			{
-				if (button.Enabled && button.Tag is Color c)
+				if (button.Enabled)
 				{
-					button.BackColor = Step(c, 0.1);
+					isDown = false;
+					Color c = (button.Tag is Color tc && tc != SystemColors.Control && !tc.IsEmpty) ? tc : baseColor;
+					updatingInternal = true;
+					button.BackColor = isHover ? Step(c, 0.1) : c;
+					updatingInternal = false;
 				}
 			};
 			button.MouseLeave += (object _, EventArgs _) =>
 			{
-				if (button.Enabled && button.Tag is Color backColor)
+				if (button.Enabled)
 				{
+					isHover = false;
+					isDown = false;
+					Color backColor = (button.Tag is Color tc && tc != SystemColors.Control && !tc.IsEmpty) ? tc : baseColor;
+					updatingInternal = true;
 					button.BackColor = backColor;
+					updatingInternal = false;
 				}
 			};
 			button.EnabledChanged += (object _, EventArgs _) =>
@@ -3396,6 +3620,9 @@ internal class SettingsSubForm : Form
 		protected readonly Button backBtn = new Button();
 		protected readonly Button doneBtn = new Button();
 
+		[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+		public Action? OnBackAction { get; set; }
+
 		private string breadcrumb = "";
 		[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 		public string Breadcrumb
@@ -3513,7 +3740,14 @@ internal class SettingsSubForm : Form
 
 		protected virtual void Back()
 		{
-			Close();
+			if (OnBackAction != null)
+			{
+				OnBackAction();
+			}
+			else
+			{
+				Close();
+			}
 		}
 
 		protected virtual void Done()
@@ -3951,6 +4185,87 @@ internal sealed class LoginForm : Form
 
 internal sealed class NetworkSettingsForm : SettingsSubForm
 	{
+		private static async Task<string?> ScanForMainPcShareAsync()
+		{
+			List<string> subnets = new List<string>();
+			try
+			{
+				foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+				{
+					if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+					if (ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+					var ipProps = ni.GetIPProperties();
+					foreach (var ua in ipProps.UnicastAddresses)
+					{
+						if (ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+						{
+							string ip = ua.Address.ToString();
+							if (ip.StartsWith("127.")) continue;
+							int lastDot = ip.LastIndexOf('.');
+							if (lastDot > 0)
+							{
+								string prefix = ip.Substring(0, lastDot + 1);
+								if (!subnets.Contains(prefix)) subnets.Add(prefix);
+							}
+						}
+					}
+				}
+			}
+			catch {}
+
+			if (subnets.Count == 0)
+			{
+				subnets.Add("192.168.1.");
+				subnets.Add("192.168.0.");
+			}
+
+			string? foundIp = null;
+			foreach (var prefix in subnets)
+			{
+				var candidates = Enumerable.Range(1, 254).Select(i => prefix + i).ToList();
+				for (int i = 0; i < candidates.Count; i += 32)
+				{
+					var batch = candidates.Skip(i).Take(32);
+					var tasks = batch.Select(async host =>
+					{
+						using var h = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMilliseconds(450) };
+						try
+						{
+							string u = $"http://{host}:8080/api/kiosk/bootstrap";
+							var str = await h.GetStringAsync(u);
+							if (str.Contains("restaurant_name") || str.Contains("ok")) return host;
+						}
+						catch {}
+						return null;
+					}).ToList();
+
+					var results = await Task.WhenAll(tasks);
+					foundIp = results.FirstOrDefault(r => !string.IsNullOrEmpty(r));
+					if (foundIp != null) break;
+				}
+				if (foundIp != null) break;
+			}
+
+			if (string.IsNullOrEmpty(foundIp)) return null;
+
+			string uncIp = $@"\\{foundIp}\client database";
+			if (Directory.Exists(uncIp)) return uncIp;
+
+			try
+			{
+				var hostEntry = System.Net.Dns.GetHostEntry(foundIp);
+				if (!string.IsNullOrEmpty(hostEntry.HostName))
+				{
+					string uncHost = $@"\\{hostEntry.HostName}\client database";
+					if (Directory.Exists(uncHost)) return uncHost;
+				}
+			}
+			catch {}
+
+			return uncIp;
+		}
+
+
 		public NetworkSettingsForm(Color background, Color panelLight, Color mint, RegisterSettings settings, Action<RegisterSettings> save)
 		{
 			NetworkSettingsForm networkSettingsForm = this;
@@ -4007,9 +4322,51 @@ internal sealed class NetworkSettingsForm : SettingsSubForm
 				BorderStyle = BorderStyle.FixedSingle,
 				Text = settings.NetworkPath
 			};
+			Button btnAutoDetect = new Button
+			{
+				Text = Tr.T("🔍 Auto-detect Main PC"),
+				Location = new Point(260, 152),
+				Size = new Size(190, 28),
+				BackColor = panelLight,
+				ForeColor = mint,
+				FlatStyle = FlatStyle.Flat,
+				Font = new Font("Segoe UI Semibold", 9f),
+				Enabled = !settings.IsMainPc,
+				Cursor = Cursors.Hand
+			};
+			btnAutoDetect.FlatAppearance.BorderSize = 0;
+			btnAutoDetect.Click += async (object _, EventArgs _) =>
+			{
+				btnAutoDetect.Enabled = false;
+				btnAutoDetect.Text = Tr.T("Scanning...");
+				try
+				{
+					string detected = await ScanForMainPcShareAsync();
+					if (!string.IsNullOrEmpty(detected))
+					{
+						pathBox.Text = detected;
+						btnAutoDetect.Text = Tr.T("✓ Found Main PC");
+						MessageBox.Show(Tr.T("Main PC database detected at:\n") + detected, Tr.T("Auto-detect"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+					}
+					else
+					{
+						btnAutoDetect.Text = Tr.T("🔍 Auto-detect Main PC");
+						MessageBox.Show(Tr.T("Could not auto-detect Main PC on the local network.\nEnsure Vectron POS is open on the Main PC and 'client database' folder is shared on the network."), Tr.T("Auto-detect"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+					}
+				}
+				catch (Exception ex)
+				{
+					btnAutoDetect.Text = Tr.T("🔍 Auto-detect Main PC");
+					MessageBox.Show(Tr.T("Detection error: ") + ex.Message, Tr.T("Auto-detect"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+				}
+				finally
+				{
+					btnAutoDetect.Enabled = !mainPc.Checked;
+				}
+			};
 			Label label4 = new Label
 			{
-				Text = Tr.T("Example: \\\\MAIN-PC\\client database"),
+				Text = Tr.T(@"Example: \\MAIN-PC\client database"),
 				AutoSize = true,
 				ForeColor = Skin.TextDim,
 				Location = new Point(20, 220)
@@ -4018,6 +4375,7 @@ internal sealed class NetworkSettingsForm : SettingsSubForm
 			mainPc.CheckedChanged += (object _, EventArgs _) =>
 			{
 				pathBox.Enabled = !mainPc.Checked;
+				btnAutoDetect.Enabled = !mainPc.Checked;
 			};
 			Button button = new Button
 			{
@@ -4036,7 +4394,7 @@ internal sealed class NetworkSettingsForm : SettingsSubForm
 				networkSettingsForm.DialogResult = DialogResult.OK;
 				networkSettingsForm.Close();
 			};
-			Controls.AddRange(new Control[8] { label, label2, mainPc, radioButton, label3, pathBox, label4, button });
+			Controls.AddRange(new Control[9] { label, label2, mainPc, radioButton, label3, btnAutoDetect, pathBox, label4, button });
 			doneBtn.Click += (s, e) => button.PerformClick();
 			ShiftBodyDown(72);
 			Rtl.Apply(this);
@@ -4059,6 +4417,8 @@ internal sealed class PosForm : Form
 		private readonly Label auto86Label = new Label();
 		private readonly Button auto86Btn = new Button();
 		private readonly Button stockPill = new Button();
+		private readonly Label brandTitle = new Label();
+		private readonly Label brandSubtitle = new Label();
 		private readonly FlowLayoutPanel productGrid = new FlowLayoutPanel();
 
 		private readonly FlowLayoutPanel basketList = new FlowLayoutPanel();
@@ -4199,6 +4559,18 @@ internal sealed class PosForm : Form
 			Font = new Font("Segoe UI Semibold", 10f)
 		};
 
+		private readonly Button guestDeliverBtn = new Button
+		{
+			Text = "✓ " + Tr.T("Deliver"),
+			Dock = DockStyle.Right,
+			Width = 110,
+			FlatStyle = FlatStyle.Flat,
+			ForeColor = Skin.OnFill,
+			BackColor = Skin.Success,
+			Font = new Font("Segoe UI Semibold", 9.5f),
+			Visible = false
+		};
+
 		private readonly Button guestDismissBtn = new Button
 		{
 			Text = Tr.T("Dismiss all"),
@@ -4273,6 +4645,7 @@ internal sealed class PosForm : Form
 
 		public PosForm()
 		{
+			Program.ActivePosForm = this;
 			Skin.Apply(store.Features);
 			OnScreenKeyboard.IsEnabled = () => store.Features.OnScreenKeyboard;
 			Tr.Lang = (string.IsNullOrWhiteSpace(store.Features.Language) ? "en" : store.Features.Language);
@@ -4309,6 +4682,7 @@ internal sealed class PosForm : Form
 			}
 			FormClosing += (object _, FormClosingEventArgs _) =>
 			{
+				Program.ActivePosForm = null;
 				TcpPrintServer.Stop();
 			};
 			FormClosing += (object _, FormClosingEventArgs _) =>
@@ -4322,12 +4696,13 @@ internal sealed class PosForm : Form
 			RenderProducts();
 			RenderBasket();
 			TicketLayout.CourseNames = store.CourseNames.ToArray();
-			if ((store.Features.QROrdering || store.Features.ApiEnabled || store.Features.CloudSync) && !isOrderPc)
+			if ((store.Features.QROrdering || store.Features.ApiEnabled || store.Features.CloudSync || store.Features.KioskMode) && !isOrderPc)
 			{
 				StartQrServer();
 			}
 			StartBackupScheduler();
 			StartCloudSyncScheduler();
+			StartKioskAutoVoidScheduler();
 			store.DataChanged += OnDataChanged;
 			store.GuestAlertRaised += OnGuestAlertRaised;
 			if (!Skin.IsHigh)
@@ -4368,6 +4743,7 @@ internal sealed class PosForm : Form
 			{
 				try
 				{
+					try { System.Media.SystemSounds.Asterisk.Play(); } catch {}
 					BeginInvoke(new Action(UpdateGuestAlertBar));
 					return;
 				}
@@ -4388,13 +4764,21 @@ internal sealed class PosForm : Form
 				GuestAlertItem guestAlertItem = guestAlerts[guestAlerts.Count - 1];
 				if (guestAlertItem.Kind == "ready")
 				{
+					guestDeliverBtn.Visible = true;
 					guestBar.BackColor = Skin.Success;
-					guestLabel.Text = string.Format("  \ud83c\udf89 {0} / {1} — ORDER READY ({2:HH:mm}){3}", guestAlertItem.Room, guestAlertItem.Table, guestAlertItem.Time, (guestAlerts.Count > 1) ? $"   +{guestAlerts.Count - 1} more" : "");
+					guestLabel.Text = string.Format("  🎉 {0} / {1} — " + Tr.T("ORDER READY") + " ({2:HH:mm}){3}", guestAlertItem.Room, guestAlertItem.Table, guestAlertItem.Time, (guestAlerts.Count > 1) ? $"   +{guestAlerts.Count - 1} more" : "");
+				}
+				else if (guestAlertItem.Kind == "kiosk_order")
+				{
+					guestDeliverBtn.Visible = false;
+					guestBar.BackColor = Skin.Accent;
+					guestLabel.Text = string.Format(Tr.T("  🛎 KIOSK ORDER {0} AWAITING CONFIRMATION ({1:HH:mm}){2}"), guestAlertItem.Table, guestAlertItem.Time, (guestAlerts.Count > 1) ? $"   +{guestAlerts.Count - 1} more" : "");
 				}
 				else
 				{
+					guestDeliverBtn.Visible = false;
 					guestBar.BackColor = Skin.Warning;
-					guestLabel.Text = string.Format("  \ud83d\udd14 {0} / {1} — WAITER CALLED ({2:HH:mm}){3}", guestAlertItem.Room, guestAlertItem.Table, guestAlertItem.Time, (guestAlerts.Count > 1) ? $"   +{guestAlerts.Count - 1} more" : "");
+					guestLabel.Text = string.Format("  🔔 {0} / {1} — WAITER CALLED ({2:HH:mm}){3}", guestAlertItem.Room, guestAlertItem.Table, guestAlertItem.Time, (guestAlerts.Count > 1) ? $"   +{guestAlerts.Count - 1} more" : "");
 				}
 			}
 		}
@@ -4504,28 +4888,23 @@ internal sealed class PosForm : Form
 				using Pen pen = new Pen(Skin.AppBarBorder);
 				e.Graphics.DrawLine(pen, 0, appBar.Height - 1, appBar.Width, appBar.Height - 1);
 			};
+			appBar.Tag = "manual-appbar";
 			brandMark = new VectronMark
 			{
 				Location = new Point(22, 19),
 				Size = new Size(34, 34)
 			};
-			Label label = new Label
-			{
-				Text = "VECTRON",
-				AutoSize = true,
-				Font = new Font("Segoe UI Semibold", 15f),
-				ForeColor = Skin.Text,
-				Location = new Point(66, 14)
-			};
-			Label label2 = new Label
-			{
-				Text = "P O S",
-				AutoSize = true,
-				Font = new Font("Segoe UI Semibold", 8f),
-				ForeColor = Skin.Accent,
-				Location = new Point(68, 42)
-			};
-			appBar.Controls.AddRange(new Control[3] { brandMark, label, label2 });
+			brandTitle.Text = "VECTRON";
+			brandTitle.AutoSize = true;
+			brandTitle.Font = new Font("Segoe UI Semibold", 15f);
+			brandTitle.ForeColor = Skin.Text;
+			brandTitle.Location = new Point(66, 14);
+			brandSubtitle.Text = "P O S";
+			brandSubtitle.AutoSize = true;
+			brandSubtitle.Font = new Font("Segoe UI Semibold", 8f);
+			brandSubtitle.ForeColor = Skin.Accent;
+			brandSubtitle.Location = new Point(68, 42);
+			appBar.Controls.AddRange(new Control[3] { brandMark, brandTitle, brandSubtitle });
 			pillOrder.Text = Tr.T("Order");
 			pillRooms.Text = Tr.T("Rooms");
 			pillOperator.Text = Tr.T("Operator");
@@ -4612,6 +4991,7 @@ internal sealed class PosForm : Form
 			stockPill.FlatAppearance.BorderSize = 0;
 			stockPill.Cursor = Cursors.Hand;
 			stockPill.Visible = false;
+			stockPill.Location = new Point(9999, 19);
 			ApplyPillRegion(stockPill, 16);
 			stockPill.Click += (object _, EventArgs _) => ShowStockConsole();
 			appBar.Controls.Add(stockPill);
@@ -5001,7 +5381,20 @@ internal sealed class PosForm : Form
 			{
 				if (e.KeyCode == Keys.Return && !string.IsNullOrWhiteSpace(barcodeSearch.Text))
 				{
-					Product product = products.FirstOrDefault((Product p) => p.Barcode == barcodeSearch.Text.Trim());
+					string rawScan = barcodeSearch.Text.Trim();
+					string cleanScan = rawScan.TrimStart('#').Trim();
+					if (cleanScan.StartsWith("KIOSK-", StringComparison.OrdinalIgnoreCase)) cleanScan = cleanScan.Substring(6);
+					if (int.TryParse(cleanScan, out int kScanNum))
+					{
+						PendingKioskOrder? pendingKiosk = store.GetPendingKioskOrder(kScanNum);
+						if (pendingKiosk != null)
+						{
+							barcodeSearch.Text = "";
+							ShowKioskOrderReview(pendingKiosk);
+							return;
+						}
+					}
+					Product product = products.FirstOrDefault((Product p) => p.Barcode == rawScan);
 					if (product != null)
 					{
 						AddProduct(product);
@@ -5030,7 +5423,50 @@ internal sealed class PosForm : Form
 			{
 				store.ClearGuestAlerts();
 			};
+			guestDeliverBtn.FlatAppearance.BorderSize = 0;
+			Skin.FlatStates(guestDeliverBtn);
+			guestDeliverBtn.Click += (object _, EventArgs _) =>
+			{
+				var alerts = store.GuestAlerts;
+				if (alerts.Count > 0)
+				{
+					var top = alerts[alerts.Count - 1];
+					if (top.Kind == "ready")
+					{
+						store.MarkOrderDelivered(top.Room, top.Table);
+					}
+				}
+				UpdateGuestAlertBar();
+			};
+			guestLabel.Cursor = Cursors.Hand;
+			guestLabel.Click += (object _, EventArgs _) =>
+			{
+				var alerts = store.GuestAlerts;
+				if (alerts.Count > 0)
+				{
+					var last = alerts[alerts.Count - 1];
+					if (last.Kind == "kiosk_order")
+					{
+						string cln = last.Table.TrimStart('#').Trim();
+						if (int.TryParse(cln, out int onum))
+						{
+							var pk = store.GetPendingKioskOrder(onum);
+							if (pk != null)
+							{
+								ShowKioskOrderReview(pk);
+								return;
+							}
+						}
+					}
+				}
+				var pendingList = store.PendingKioskOrders.Where((PendingKioskOrder o) => o.Status == "Pending").ToList();
+				if (pendingList.Count > 0)
+				{
+					ShowKioskOrderReview(pendingList[0]);
+				}
+			};
 			guestBar.Controls.Add(guestLabel);
+			guestBar.Controls.Add(guestDeliverBtn);
 			guestBar.Controls.Add(guestDismissBtn);
 			menuPanel.Controls.Add(guestBar);
 			trainingLabel.Dock = DockStyle.Fill;
@@ -5226,6 +5662,20 @@ internal sealed class PosForm : Form
 					overflowMenu.Items.Add(toolStripMenuItem);
 				}
 			}
+			overflowMenu.Items.Add(new ToolStripSeparator());
+			ToolStripMenuItem themeItem = new ToolStripMenuItem(Skin.IsLight ? ("🌙 " + Tr.T("Dark Mode")) : ("☀️ " + Tr.T("Light Mode")));
+			themeItem.Click += (s, e) =>
+			{
+				string newTheme = Skin.IsLight ? "dark" : "light";
+				store.Features.Theme = newTheme;
+				store.SaveFeatures(store.Features);
+				Skin.Apply(store.Features);
+				if (MessageBox.Show(Tr.T("Theme changed. Vectron POS will now restart to apply the new theme."), Tr.T("Theme"), MessageBoxButtons.OK, MessageBoxIcon.Information) == DialogResult.OK)
+				{
+					Program.SafeRestart();
+				}
+			};
+			overflowMenu.Items.Add(themeItem);
 			if (overflowMenu.Items.Count != 0)
 			{
 				overflowMenu.Show(overflowButton, new Point(overflowButton.Width, overflowButton.Height + 8), ToolStripDropDownDirection.BelowLeft);
@@ -5243,54 +5693,126 @@ internal sealed class PosForm : Form
 			{
 				return;
 			}
-			int num2 = num - 20;
-			overflowButton.Size = new Size(38, 34);
-			overflowButton.Location = new Point(num2 - 38, 19);
-			ApplyPillRegion(overflowButton, 10);
-			num2 -= 46;
-			int num3 = Math.Max(140, Math.Min(300, TextRenderer.MeasureText(operatorButton.Text + "  ", operatorButton.Font).Width + 34));
-			operatorButton.Size = new Size(num3, 36);
-			operatorButton.Location = new Point(num2 - num3, 18);
-			ApplyPillRegion(operatorButton, 18);
-			num2 -= num3 + 10;
-			bool flag = num >= 1020;
-			salesChip.Visible = flag;
-			if (flag)
+
+			bool isRtl = Tr.Lang == "ar";
+			if (isRtl)
 			{
-				int val = TextRenderer.MeasureText(salesCaption.Text, salesCaption.Font).Width;
-				int val2 = TextRenderer.MeasureText(salesLabel.Text, salesLabel.Font).Width;
-				int num4 = Math.Max(96, Math.Max(val, val2) + 30);
-				salesChip.Size = new Size(num4, 44);
-				salesChip.Location = new Point(num2 - num4, 14);
-				salesCaption.Location = new Point(15, 6);
-				salesLabel.Location = new Point(15, 21);
-				num2 -= num4 + 14;
-			}
-		if (stockPill.Visible)
-		{
-			stockPill.Location = new Point(num2 - stockPill.Width, 19);
-			num2 -= stockPill.Width + 10;
-		}
-			bool flag2 = num >= 1180;
-			statusText.Visible = flag2;
-			int num5 = TextRenderer.MeasureText(statusDot.Text, statusDot.Font).Width;
-			int num6 = (flag2 ? TextRenderer.MeasureText(statusText.Text, statusText.Font).Width : 0);
-			int num7 = num5 + (flag2 ? (num6 + 8) : 0);
-			int num8 = num2 - num7;
-			statusDot.Location = new Point(num8, 27);
-			statusText.Location = new Point(num8 + num5 + 8, 27);
-			num2 -= num7 + 16;
-			int num9 = 206;
-			Button[] array = new Button[4] { pillOrder, pillRooms, pillOperator, pillSettings };
-			foreach (Button button in array)
-			{
-				if (button.Visible)
+				int curX = 20;
+				overflowButton.Size = new Size(38, 34);
+				overflowButton.Location = new Point(curX, 19);
+				ApplyPillRegion(overflowButton, 10);
+				curX += 46;
+
+				int opW = Math.Max(140, Math.Min(300, TextRenderer.MeasureText(operatorButton.Text + "  ", operatorButton.Font).Width + 34));
+				operatorButton.Size = new Size(opW, 36);
+				operatorButton.Location = new Point(curX, 18);
+				ApplyPillRegion(operatorButton, 18);
+				curX += opW + 10;
+
+				bool showSales = num >= 1020;
+				salesChip.Visible = showSales;
+				if (showSales)
 				{
-					int num10 = TextRenderer.MeasureText(button.Text, button.Font).Width + 38;
-					button.Size = new Size(num10, 36);
-					button.Location = new Point(num9, 18);
-					ApplyPillRegion(button, 18);
-					num9 += num10 + 6;
+					int val = TextRenderer.MeasureText(salesCaption.Text, salesCaption.Font).Width;
+					int val2 = TextRenderer.MeasureText(salesLabel.Text, salesLabel.Font).Width;
+					int num4 = Math.Max(96, Math.Max(val, val2) + 30);
+					salesChip.Size = new Size(num4, 44);
+					salesChip.Location = new Point(curX, 14);
+					salesCaption.Location = new Point(15, 6);
+					salesLabel.Location = new Point(15, 21);
+					curX += num4 + 14;
+				}
+
+				if (stockPill.Visible)
+				{
+					stockPill.Location = new Point(curX, 19);
+					curX += stockPill.Width + 10;
+				}
+
+				bool flag2 = num >= 1180;
+				statusText.Visible = flag2;
+				int num5 = TextRenderer.MeasureText(statusDot.Text, statusDot.Font).Width;
+				statusDot.Location = new Point(curX, 27);
+				if (flag2)
+				{
+					statusText.Location = new Point(curX + num5 + 8, 27);
+				}
+
+				brandMark.Location = new Point(num - 22 - 34, 19);
+				int brandTitleW = TextRenderer.MeasureText(brandTitle.Text, brandTitle.Font).Width;
+				brandTitle.Location = new Point(brandMark.Left - brandTitleW - 10, 14);
+				brandSubtitle.Location = new Point(brandMark.Left - brandTitleW - 8, 42);
+
+				int navX = brandTitle.Left - 20;
+				Button[] array = new Button[4] { pillOrder, pillRooms, pillOperator, pillSettings };
+				foreach (Button button in array)
+				{
+					if (button.Visible)
+					{
+						int num10 = TextRenderer.MeasureText(button.Text, button.Font).Width + 38;
+						button.Size = new Size(num10, 36);
+						navX -= num10;
+						button.Location = new Point(navX, 18);
+						ApplyPillRegion(button, 18);
+						navX -= 6;
+					}
+				}
+			}
+			else
+			{
+				brandMark.Location = new Point(22, 19);
+				brandTitle.Location = new Point(66, 14);
+				brandSubtitle.Location = new Point(68, 42);
+
+				int num2 = num - 20;
+				overflowButton.Size = new Size(38, 34);
+				overflowButton.Location = new Point(num2 - 38, 19);
+				ApplyPillRegion(overflowButton, 10);
+				num2 -= 46;
+				int num3 = Math.Max(140, Math.Min(300, TextRenderer.MeasureText(operatorButton.Text + "  ", operatorButton.Font).Width + 34));
+				operatorButton.Size = new Size(num3, 36);
+				operatorButton.Location = new Point(num2 - num3, 18);
+				ApplyPillRegion(operatorButton, 18);
+				num2 -= num3 + 10;
+				bool flag = num >= 1020;
+				salesChip.Visible = flag;
+				if (flag)
+				{
+					int val = TextRenderer.MeasureText(salesCaption.Text, salesCaption.Font).Width;
+					int val2 = TextRenderer.MeasureText(salesLabel.Text, salesLabel.Font).Width;
+					int num4 = Math.Max(96, Math.Max(val, val2) + 30);
+					salesChip.Size = new Size(num4, 44);
+					salesChip.Location = new Point(num2 - num4, 14);
+					salesCaption.Location = new Point(15, 6);
+					salesLabel.Location = new Point(15, 21);
+					num2 -= num4 + 14;
+				}
+				if (stockPill.Visible)
+				{
+					stockPill.Location = new Point(num2 - stockPill.Width, 19);
+					num2 -= stockPill.Width + 10;
+				}
+				bool flag2 = num >= 1180;
+				statusText.Visible = flag2;
+				int num5 = TextRenderer.MeasureText(statusDot.Text, statusDot.Font).Width;
+				int num6 = (flag2 ? TextRenderer.MeasureText(statusText.Text, statusText.Font).Width : 0);
+				int num7 = num5 + (flag2 ? (num6 + 8) : 0);
+				int num8 = num2 - num7;
+				statusDot.Location = new Point(num8, 27);
+				statusText.Location = new Point(num8 + num5 + 8, 27);
+				num2 -= num7 + 16;
+				int num9 = 206;
+				Button[] array = new Button[4] { pillOrder, pillRooms, pillOperator, pillSettings };
+				foreach (Button button in array)
+				{
+					if (button.Visible)
+					{
+						int num10 = TextRenderer.MeasureText(button.Text, button.Font).Width + 38;
+						button.Size = new Size(num10, 36);
+						button.Location = new Point(num9, 18);
+						ApplyPillRegion(button, 18);
+						num9 += num10 + 6;
+					}
 				}
 			}
 		}
@@ -5366,14 +5888,14 @@ internal sealed class PosForm : Form
 			foreach (Room room in store.Rooms)
 			{
 				bool flag = room.Name == store.Rooms[0].Name;
-				Button button = ActionButton(room.Name, 0, 0, 145, 38, flag ? mint : Skin.Kpi);
+				Button button = ActionButton(Tr.T(room.Name), 0, 0, 145, 38, flag ? mint : Skin.Kpi);
 				button.ForeColor = (flag ? Skin.OnAccent : Skin.TextDim);
 				button.FlatAppearance.MouseOverBackColor = (flag ? Skin.AccentPressed : Skin.PillHover);
 				ApplyPillRegion(button, 19);
 				button.Click += (object _, EventArgs _) =>
 				{
 					selectedRoom = room.Name;
-					selectedTable = "No table selected";
+					selectedTable = Tr.T("No table selected");
 					orderLabel.Text = OrderContextText();
 					RenderTableMap(room);
 				};
@@ -5440,7 +5962,7 @@ internal sealed class PosForm : Form
 			};
 			Label label = new Label
 			{
-				Text = room.Name,
+				Text = Tr.T(room.Name),
 				AutoSize = true,
 				Font = new Font("Segoe UI Semibold", 15f),
 				Location = new Point(16, 8),
@@ -5461,11 +5983,11 @@ internal sealed class PosForm : Form
 				int tableIndex = i;
 				string tableName = TableName(room.Name, tableIndex);
 				bool flag = store.GetOpenOrder(room.Name, tableName) != null;
-				string text2 = (flag ? "Taken" : "Available");
+				string text2 = (flag ? Tr.T("Taken") : Tr.T("Available"));
 				Reservation reservation = (store.Features.Reservations ? store.Reservations.FirstOrDefault((Reservation r) => r.Status == "Booked" && r.Room == room.Name && r.Table == tableName && r.When.Date == DateTime.Today) : null);
 				if (reservation != null && !flag)
 				{
-					text2 = $"{reservation.When:HH:mm} booked";
+					text2 = $"{reservation.When:HH:mm} " + Tr.T("booked");
 				}
 				Color color;
 				if (flag)
@@ -5593,7 +6115,7 @@ internal sealed class PosForm : Form
 		{
 			if (!store.FloorPlan.TryGetValue(roomName, out Dictionary<string, FloorTable> value) || !value.TryGetValue(index.ToString(), out var value2) || string.IsNullOrWhiteSpace(value2.Name))
 			{
-				return "Table " + index;
+				return Tr.T("Table") + " " + index;
 			}
 			return value2.Name;
 		}
@@ -5775,6 +6297,20 @@ internal sealed class PosForm : Form
 			menuPanel.Visible = false;
 			roomsPanel.Visible = false;
 			viewPanel.Controls.Clear();
+			SettingsSubForm? sub = content.Controls.OfType<SettingsSubForm>().FirstOrDefault();
+			if (sub != null)
+			{
+				sub.OnBackAction = onBack ?? ShowSettings;
+				sub.FormClosed += (s, e) => (onBack ?? ShowSettings)();
+			}
+			else
+			{
+				Form? form = content.Controls.OfType<Form>().FirstOrDefault();
+				if (form != null)
+				{
+					form.FormClosed += (s, e) => (onBack ?? ShowSettings)();
+				}
+			}
 			SkinPanel skinPanel = new SkinPanel
 			{
 				Dock = DockStyle.Top,
@@ -5799,7 +6335,7 @@ internal sealed class PosForm : Form
 			};
 			Button button = new Button
 			{
-				Text = Tr.T("←  Back"),
+				Text = Tr.T("← Back"),
 				Location = new Point(viewPanel.ClientSize.Width - 120, 15),
 				Size = new Size(104, 34),
 				BackColor = Skin.Kpi,
@@ -5833,10 +6369,10 @@ internal sealed class PosForm : Form
 			skinPanel.Controls.Add(button);
 			skinPanel.Controls.Add(value3);
 			content.Dock = DockStyle.Fill;
-			content.Padding = (title == "Settings") ? Padding.Empty : new Padding(16);
+			content.Padding = (title == "Settings" || sub != null) ? Padding.Empty : new Padding(16);
 			content.BackColor = background;
 			viewPanel.Controls.Add(content);
-			if (title != "Settings")
+			if (title != "Settings" && sub == null)
 			{
 				viewPanel.Controls.Add(skinPanel);
 			}
@@ -5868,6 +6404,7 @@ internal sealed class PosForm : Form
 			if (!store.Features.InventoryAlerts)
 			{
 				stockPill.Visible = false;
+				LayoutAppBar();
 				return;
 			}
 			int low = StockEngine.Low(store).Count;
@@ -6631,6 +7168,128 @@ internal sealed class PosForm : Form
 			barcodeBox?.Focus();
 		}
 
+				private void ShowKioskLinkDialog()
+		{
+			Form f = ReportShell(Tr.T("Kiosk & Waiter Tablet Linking"), 620, 500);
+			try
+			{
+				Label title = new Label
+				{
+					Text = Tr.T("Link External Kiosks & Waiter Tablets:"),
+					AutoSize = true,
+					Location = new Point(20, 16),
+					ForeColor = mint,
+					Font = new Font("Segoe UI Semibold", 12f)
+				};
+				Label ipLbl = new Label
+				{
+					Text = Tr.T("Main POS Server Address (Wi-Fi / LAN):"),
+					AutoSize = true,
+					Location = new Point(20, 48),
+					ForeColor = Skin.Text,
+					Font = new Font("Segoe UI", 9.5f)
+				};
+				TextBox ipTxt = new TextBox
+				{
+					Text = "http://" + TcpPrintServer.LocalIp + ":8080",
+					Location = new Point(20, 72),
+					Size = new Size(420, 30),
+					ReadOnly = true,
+					BackColor = panelLight,
+					ForeColor = mint,
+					Font = new Font("Consolas", 11f, FontStyle.Bold)
+				};
+				Button copyIpBtn = ReportButton(Tr.T("Copy"), new Point(450, 70), new Size(110, 34), panelLight, Skin.Text);
+				copyIpBtn.Click += (s, e) =>
+				{
+					try { Clipboard.SetText(ipTxt.Text); MessageBox.Show(Tr.T("Server address copied to clipboard."), Tr.T("Link Kiosk"), MessageBoxButtons.OK, MessageBoxIcon.Information); } catch {}
+				};
+
+				Label keyLbl = new Label
+				{
+					Text = Tr.T("API Key (from Settings > Network):"),
+					AutoSize = true,
+					Location = new Point(20, 114),
+					ForeColor = Skin.Text,
+					Font = new Font("Segoe UI", 9.5f)
+				};
+				TextBox keyTxt = new TextBox
+				{
+					Text = string.IsNullOrEmpty(store.Features.ApiKey) ? "(None required)" : store.Features.ApiKey,
+					Location = new Point(20, 138),
+					Size = new Size(420, 30),
+					ReadOnly = true,
+					BackColor = panelLight,
+					ForeColor = Skin.Text,
+					Font = new Font("Consolas", 10f)
+				};
+				Button copyKeyBtn = ReportButton(Tr.T("Copy"), new Point(450, 136), new Size(110, 34), panelLight, Skin.Text);
+				copyKeyBtn.Click += (s, e) =>
+				{
+					if (!string.IsNullOrEmpty(store.Features.ApiKey))
+					{
+						try { Clipboard.SetText(store.Features.ApiKey); MessageBox.Show(Tr.T("API key copied."), Tr.T("Link Kiosk"), MessageBoxButtons.OK, MessageBoxIcon.Information); } catch {}
+					}
+				};
+
+				PictureBox qrPic = new PictureBox
+				{
+					Location = new Point(20, 180),
+					Size = new Size(130, 130),
+					SizeMode = PictureBoxSizeMode.Zoom,
+					BackColor = Color.White
+				};
+				try
+				{
+					qrPic.Image = QrCode.ToBitmap("http://" + TcpPrintServer.LocalIp + ":8080", 4);
+				}
+				catch {}
+
+				Label instrLbl = new Label
+				{
+					Text = Tr.T("How to link a standalone Kiosk totem or tablet:\n" +
+					            "1. Run 'Vectron Kiosk.exe' on your touchscreen totem or PC.\n" +
+					            "2. On the Kiosk setup screen, tap 'Auto-Detect' or enter the address above.\n" +
+					            "3. The Kiosk automatically synchronizes menu & orders straight to this POS!"),
+					Location = new Point(165, 180),
+					Size = new Size(420, 100),
+					ForeColor = Skin.TextMuted,
+					Font = new Font("Segoe UI", 9.5f)
+				};
+
+				Label statusLbl = new Label
+				{
+					Text = "● " + (TcpPrintServer.IsRunning ? Tr.T("Kiosk & REST Server: ONLINE (:8080)") : Tr.T("Server: Offline")),
+					Location = new Point(165, 285),
+					AutoSize = true,
+					ForeColor = TcpPrintServer.IsRunning ? mint : Skin.Danger,
+					Font = new Font("Segoe UI Semibold", 10f)
+				};
+
+				Button launchLocalBtn = ReportButton(Tr.T("Launch Kiosk on this PC"), new Point(20, 335), new Size(240, 42), panelLight, mint);
+				launchLocalBtn.Click += (s, e) =>
+				{
+					f.Close();
+					string exePath = Path.Combine(AppContext.BaseDirectory, "Vectron Kiosk.exe");
+					if (File.Exists(exePath))
+					{
+						try { System.Diagnostics.Process.Start(exePath); return; } catch {}
+					}
+					LaunchKiosk();
+				};
+
+				Button closeBtn = ReportButton(Tr.T("Close"), new Point(430, 335), new Size(130, 42), mint, background);
+				closeBtn.Click += (s, e) => f.Close();
+
+				f.Controls.AddRange(new Control[] { title, ipLbl, ipTxt, copyIpBtn, keyLbl, keyTxt, copyKeyBtn, qrPic, instrLbl, statusLbl, launchLocalBtn, closeBtn });
+				f.ShowDialog(this);
+			}
+			finally
+			{
+				f?.Dispose();
+			}
+		}
+
 		private void LaunchKiosk()
 		{
 			if (kioskForm != null && !kioskForm.IsDisposed)
@@ -7257,7 +7916,7 @@ internal sealed class PosForm : Form
 					text = "\n" + Tr.T("Source:") + " " + openOrder.Source;
 				}
 			}
-			return Tr.T("Operator:") + " " + currentOperator.Name + BranchSuffix() + "\n" + Tr.T("Room:") + " " + selectedRoom + "  •  " + selectedTable + "\n" + Tr.T("Dine in") + text;
+			return Tr.T("Operator:") + " " + currentOperator.Name + BranchSuffix() + "\n" + Tr.T("Room:") + " " + Tr.T(selectedRoom) + "  •  " + Tr.T(selectedTable) + "\n" + Tr.T("Dine in") + text;
 		}
 
 		private void RenderSeatBar()
@@ -8525,6 +9184,17 @@ internal sealed class PosForm : Form
 			decimal cashDiscPct = (store.Features.CashDiscount ? feeSettings.CashDiscPct : 0m);
 			decimal cardSurchPct = (store.Features.CardSurcharge ? feeSettings.SurchargePct : 0m);
 			bool anyFees = svcPct > 0m || cashDiscPct > 0m || cardSurchPct > 0m;
+			string CanonicalMethod(string? displayed)
+			{
+				if (string.IsNullOrWhiteSpace(displayed)) return "Cash";
+				if (displayed == Tr.T("Cash") || displayed == "Cash") return "Cash";
+				if (displayed == Tr.T("Card") || displayed == "Card") return "Card";
+				if (displayed == Tr.T("Transfer") || displayed == "Transfer") return "Transfer";
+				if (displayed == Tr.T("Mobile") || displayed == "Mobile") return "Mobile";
+				if (displayed == Tr.T("Tab") || displayed == "Tab") return "Tab";
+				if (displayed == Tr.T("Deposit") || displayed == "Deposit") return "Deposit";
+				return displayed;
+			}
 			if (anyFees)
 			{
 				num2++;
@@ -8601,14 +9271,14 @@ internal sealed class PosForm : Form
 					ForeColor = Skin.Text,
 					Location = new Point(0, 4)
 				};
-				List<string> list = new List<string> { "Cash", "Card", "Transfer", "Mobile" };
+				List<string> list = new List<string> { Tr.T("Cash"), Tr.T("Card"), Tr.T("Transfer"), Tr.T("Mobile") };
 				if (store.Features.ChargeTabs)
 				{
-					list.Add("Tab");
+					list.Add(Tr.T("Tab"));
 				}
 				if (store.Features.Layaway)
 				{
-					list.Add("Deposit");
+					list.Add(Tr.T("Deposit"));
 				}
 				ComboBox.ObjectCollection items = paymentCombo.Items;
 				int num3 = 0;
@@ -8914,23 +9584,23 @@ internal sealed class PosForm : Form
 								return;
 							}
 						}
-						else if (paymentCombo.Text == "Cash" && tenderedInput.Value > 0m && tenderedInput.Value < num28)
+						else if (CanonicalMethod(paymentCombo.Text) == "Cash" && tenderedInput.Value > 0m && tenderedInput.Value < num28)
 						{
 							MessageBox.Show(string.Format(Tr.T("Cash received ({0}) is less than the amount due ({1})."), $"{tenderedInput.Value:C}", $"{num28:C}"), Tr.T("Payment"), MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
 							return;
 						}
 						Customer customer3 = ((customerCombo.Text == "(none)") ? null : store.Customers.FirstOrDefault((Customer x) => x.Name == customerCombo.Text));
-						if (paymentCombo.Text == "Tab" && customer3 == null)
+						if (CanonicalMethod(paymentCombo.Text) == "Tab" && customer3 == null)
 						{
 							MessageBox.Show(Tr.T("Select a customer before charging to a tab."), Tr.T("Payment"), MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
 						}
-						else if (paymentCombo.Text == "Tab" && customer3 != null && customer3.CreditLimit > 0m && customer3.TabDue + num27 > customer3.CreditLimit)
+						else if (CanonicalMethod(paymentCombo.Text) == "Tab" && customer3 != null && customer3.CreditLimit > 0m && customer3.TabDue + num27 > customer3.CreditLimit)
 						{
 							MessageBox.Show(string.Format(Tr.T("{0}'s credit limit is {1}.\nCurrent tab due: {2} — this payment would exceed it."), customer3.Name, $"{customer3.CreditLimit:C}", $"{customer3.TabDue:C}"), Tr.T("Payment"), MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
 						}
 						else
 						{
-							if (paymentCombo.Text == "Deposit")
+							if (CanonicalMethod(paymentCombo.Text) == "Deposit")
 							{
 								if (num27 <= 0m)
 								{
@@ -8956,12 +9626,13 @@ internal sealed class PosForm : Form
 				};
 				payForm.Controls.Add(payOk);
 				payForm.AcceptButton = payOk;
+				Rtl.Apply(payForm);
 				if (payForm.ShowDialog() != DialogResult.OK)
 				{
 					return;
 				}
 				num = tipInput.Value;
-				text = paymentCombo.Text;
+				text = CanonicalMethod(paymentCombo.Text);
 				customerName = ((customerCombo.Text == "(none)") ? "" : customerCombo.Text);
 				if (flag)
 				{
@@ -9209,7 +9880,7 @@ internal sealed class PosForm : Form
 			{
 				if (splitTenders == null)
 				{
-					return paymentCombo.Text;
+					return CanonicalMethod(paymentCombo.Text);
 				}
 				return "Split";
 			}
@@ -9283,7 +9954,7 @@ internal sealed class PosForm : Form
 			}
 			decimal RoundCash(decimal d)
 			{
-				if (!store.Features.CashRounding || splitTenders != null || paymentCombo.Text != "Cash" || d <= 0m)
+				if (!store.Features.CashRounding || splitTenders != null || CanonicalMethod(paymentCombo.Text) != "Cash" || d <= 0m)
 				{
 					return d;
 				}
@@ -9331,7 +10002,7 @@ internal sealed class PosForm : Form
 			{
 				if (tenderPanel != null)
 				{
-					tenderPanel.Visible = splitTenders == null && paymentCombo.Text == "Cash";
+					tenderPanel.Visible = splitTenders == null && CanonicalMethod(paymentCombo.Text) == "Cash";
 					splitBtn.Text = ((splitTenders == null) ? "Split…" : $"{splitTenders.Count} tenders ✓");
 					paymentCombo.Enabled = splitTenders == null;
 				}
@@ -9424,10 +10095,21 @@ internal sealed class PosForm : Form
 
 		private List<(string Method, decimal Amount)>? ShowSplitPayment(decimal due)
 		{
+			string CanonicalMethod(string? displayed)
+			{
+				if (string.IsNullOrWhiteSpace(displayed)) return "Cash";
+				if (displayed == Tr.T("Cash") || displayed == "Cash") return "Cash";
+				if (displayed == Tr.T("Card") || displayed == "Card") return "Card";
+				if (displayed == Tr.T("Transfer") || displayed == "Transfer") return "Transfer";
+				if (displayed == Tr.T("Mobile") || displayed == "Mobile") return "Mobile";
+				if (displayed == Tr.T("Tab") || displayed == "Tab") return "Tab";
+				if (displayed == Tr.T("Deposit") || displayed == "Deposit") return "Deposit";
+				return displayed;
+			}
 			List<(ComboBox Box, NumericUpDown Amount)> chosen = new List<(ComboBox, NumericUpDown)>();
 			Form form = new Form
 			{
-				Text = $"Split payment — due {due:C}",
+				Text = $"{Tr.T("Split payment")} — {Tr.T("Total:")} {due:C}",
 				Size = new Size(470, 440),
 				StartPosition = FormStartPosition.CenterParent,
 				BackColor = background,
@@ -9476,7 +10158,7 @@ internal sealed class PosForm : Form
 					string text;
 					if (chosen.Count <= 0)
 					{
-						text = "Cash";
+						text = Tr.T("Cash");
 					}
 					else
 					{
@@ -9488,7 +10170,7 @@ internal sealed class PosForm : Form
 				};
 				Label label = new Label
 				{
-					Text = $"Amount due: {due:C}  —  methods must add up to it",
+					Text = $"{Tr.T("Total:")} {due:C}  —  {Tr.T("must equal the amount due")}",
 					AutoSize = true,
 					ForeColor = Skin.TextMuted,
 					Location = new Point(14, 16)
@@ -9506,7 +10188,7 @@ internal sealed class PosForm : Form
 				okBtn.FlatAppearance.BorderSize = 0;
 				okBtn.Click += (object _, EventArgs _) =>
 				{
-					result = chosen.Select(((ComboBox Box, NumericUpDown Amount) c) => (Text: c.Box.Text, Value: c.Amount.Value)).ToList();
+					result = chosen.Select(((ComboBox Box, NumericUpDown Amount) c) => (Method: CanonicalMethod(c.Box.Text), Amount: c.Amount.Value)).ToList();
 					form.DialogResult = DialogResult.OK;
 				};
 				Button button2 = new Button
@@ -9526,7 +10208,8 @@ internal sealed class PosForm : Form
 				form.Controls.AddRange(new Control[6] { listFlow, remainingLabel, label, button, okBtn, button2 });
 				form.AcceptButton = okBtn;
 				form.CancelButton = button2;
-				AddRow("Cash", Math.Max(0m, due));
+				AddRow(Tr.T("Cash"), Math.Max(0m, due));
+				Rtl.Apply(form);
 				return (form.ShowDialog() == DialogResult.OK && result != null) ? result : null;
 			}
 			finally
@@ -9552,8 +10235,11 @@ internal sealed class PosForm : Form
 					BackColor = panelLight,
 					ForeColor = Skin.Text
 				};
-				box.Items.AddRange(new object[4] { "Cash", "Card", "Transfer", "Mobile" });
-				box.SelectedItem = (box.Items.Contains(method) ? method : "Cash");
+				box.Items.AddRange(new object[4] { Tr.T("Cash"), Tr.T("Card"), Tr.T("Transfer"), Tr.T("Mobile") });
+				string locMethod = (method == "Card" || method == Tr.T("Card")) ? Tr.T("Card") :
+				                   (method == "Transfer" || method == Tr.T("Transfer")) ? Tr.T("Transfer") :
+				                   (method == "Mobile" || method == Tr.T("Mobile")) ? Tr.T("Mobile") : Tr.T("Cash");
+				box.SelectedItem = (box.Items.Contains(locMethod) ? locMethod : Tr.T("Cash"));
 				NumericUpDown amt = new NumericUpDown
 				{
 					BackColor = panelLight,
@@ -10289,15 +10975,16 @@ internal sealed class PosForm : Form
 				SettingsForm settingsForm = new SettingsForm(background, panelLight, mint, ShowOperatorManager, ShowProducts, ShowFamilies, ShowRoomManager, ShowSales, ShowCurrencySettings, ShowPrinterManager, EndDay, ShowNetworkSettings, HasPermission("Manage operators"), HasPermission("Manage products"), HasPermission("Manage rooms"), HasPermission("View sales"), store.Features, (FeatureSettings features) =>
 				{
 					store.SaveFeatures(features);
+					Skin.Apply(features);
 					ApplyPermissions();
 					seatBar.Visible = features.SeatOrdering;
 					orderHeader.Height = (features.SeatOrdering ? 116 : 102);
 					RenderSeatBar();
-					if ((features.QROrdering || features.ApiEnabled || features.CloudSync) && !isOrderPc)
+					if ((features.QROrdering || features.ApiEnabled || features.CloudSync || features.KioskMode) && !isOrderPc)
 					{
 						StartQrServer();
 					}
-					else if (!features.QROrdering && !features.ApiEnabled && !features.CloudSync)
+					else if (!features.QROrdering && !features.ApiEnabled && !features.CloudSync && !features.KioskMode)
 					{
 						StopQrServer();
 					}
@@ -10310,7 +10997,7 @@ internal sealed class PosForm : Form
 				{
 					floorPlanEdit = true;
 					ShowRooms();
-				}, ShowEmailSettings, ManageCourseNames, ManageComboDeals, LaunchKiosk, ShowCustomerDisplay, ShowFeeSettings, () =>
+				}, ShowEmailSettings, ManageCourseNames, ManageComboDeals, ShowKioskLinkDialog, ShowCustomerDisplay, ShowFeeSettings, () =>
 				{
 					ShowFindReceipt();
 				}, ShowSpecialOrders, ShowOfflineQueue, ShowVirtualTerminal, DispatchReport, ShowOrder, ShowStockConsole, () => ShowRecipeEditor(), ShowIngredientManager, ShowPurchases);
@@ -12758,6 +13445,22 @@ internal sealed class PosForm : Form
 			}
 		}
 
+		private void StartKioskAutoVoidScheduler()
+		{
+			System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 30000 };
+			timer.Tick += (object _, EventArgs _) =>
+			{
+				try
+				{
+					store.CleanExpiredKioskOrders();
+				}
+				catch
+				{
+				}
+			};
+			timer.Start();
+		}
+
 		private void StartBackupScheduler()
 		{
 			Check();
@@ -13265,7 +13968,7 @@ internal sealed class PosForm : Form
 						else
 						{
 							MessageBox.Show(Tr.T("Backup restored.\nThe application will now restart to load the restored data."), Tr.T("Restore from home"), MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
-							Application.Restart();
+							Program.SafeRestart();
 						}
 					}));
 				}
@@ -13362,7 +14065,7 @@ internal sealed class PosForm : Form
 					{
 						PosZip.ExtractOverwrite(openFileDialog.FileName, store.DataFolder);
 						MessageBox.Show(Tr.T("Backup restored.\nThe application will now restart to load the restored data."), Tr.T("Restore"), MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
-						Application.Restart();
+						Program.SafeRestart();
 					}
 					catch (Exception ex)
 					{
@@ -19052,19 +19755,35 @@ internal sealed class PosForm : Form
 			{
 				qrServer.Start();
 			}
-			catch (Exception ex)
+			catch (Exception)
 			{
-				qrServer = null;
-				MessageBox.Show(Tr.T("QR ordering server could not start on port 8080:\n") + ex.Message, Tr.T("QR ordering"), MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+				try
+				{
+					Thread.Sleep(300);
+					qrServer = new QrOrderServer(8080, HandleQrRequest);
+					qrServer.Start();
+				}
+				catch
+				{
+					qrServer = null;
+				}
 			}
 			UpdateQrBanner();
 		}
 
-		private void StopQrServer()
+		public void StopQrServer()
 		{
-			qrServer?.Stop();
+			try
+			{
+				qrServer?.Stop();
+			}
+			catch { }
 			qrServer = null;
-			UpdateQrBanner();
+			try
+			{
+				UpdateQrBanner();
+			}
+			catch { }
 		}
 
 		private string? HandleQrRequest(string method, string path, string body)
@@ -19085,6 +19804,24 @@ internal sealed class PosForm : Form
 						path = path.Substring(0, num);
 					}
 					return RouteTablet(method, path, query, body);
+				}
+				catch
+				{
+					return null;
+				}
+			}
+			if (path.StartsWith("/api/kiosk/", StringComparison.Ordinal))
+			{
+				try
+				{
+					string query = "";
+					int num = path.IndexOf('?');
+					if (num >= 0)
+					{
+						query = path.Substring(num + 1);
+						path = path.Substring(0, num);
+					}
+					return RouteKiosk(method, path, query, body);
 				}
 				catch
 				{
@@ -19808,6 +20545,253 @@ internal sealed class PosForm : Form
 			return "";
 		}
 
+		private string RouteKiosk(string method, string path, string query, string body)
+		{
+			if (!store.Features.ApiEnabled && !store.Features.KioskMode)
+			{
+				return JsonResponse(new { ok = false, error = "Kiosk mode or API is disabled in Settings." });
+			}
+			if (!string.IsNullOrWhiteSpace(store.Features.ApiKey) && TabletQ(query, "key") != store.Features.ApiKey)
+			{
+				return JsonResponse(new { ok = false, error = "Invalid API key." });
+			}
+			store.CleanExpiredKioskOrders();
+			JsonDocument? jsonDocument = null;
+			try
+			{
+				if (method == "POST" && !string.IsNullOrWhiteSpace(body))
+				{
+					try { jsonDocument = JsonDocument.Parse(body); }
+					catch (Exception ex) { return JsonResponse(new { ok = false, error = "Invalid JSON: " + ex.Message }); }
+				}
+				return path switch
+				{
+					"/api/kiosk/bootstrap" => KioskBootstrap(),
+					"/api/kiosk/menu" => KioskMenu(),
+					"/api/kiosk/image" => TabletImage(query),
+					"/api/kiosk/order" => KioskPostOrder(jsonDocument),
+					"/api/kiosk/orders/pending" => KioskGetPending(),
+					"/api/kiosk/orders/confirm" => KioskConfirm(method, jsonDocument),
+					"/api/kiosk/orders/reject" => KioskReject(method, jsonDocument),
+					_ => JsonResponse(new { ok = false, error = "Unknown kiosk endpoint." })
+				};
+			}
+			finally
+			{
+				jsonDocument?.Dispose();
+			}
+		}
+
+		private string KioskBootstrap()
+		{
+			store.CleanExpiredKioskOrders();
+			PrinterDestination? printDest = store.PrinterDestinations.FirstOrDefault((PrinterDestination d) => d.Name == "Payment");
+			return JsonResponse(new
+			{
+				ok = true,
+				restaurant_name = (printDest?.Header ?? "VECTRON RESTAURANT"),
+				currency = store.RegisterSettings.Currency,
+				tva_rate = store.RegisterSettings.TvaRate,
+				confirmation_required = store.Features.KioskRequireConfirmation,
+				auto_void_minutes = ((store.Features.KioskAutoVoidMinutes > 0) ? store.Features.KioskAutoVoidMinutes : 10),
+				printer_name = store.Features.KioskPrinterName,
+				print_customer_slip = store.Features.KioskPrintCustomerSlip,
+				server_time = DateTime.Now.ToString("o")
+			});
+		}
+
+		private string KioskMenu()
+		{
+			return JsonResponse(new
+			{
+				ok = true,
+				families = store.Families.Select((ProductFamily f) => f.Name).Where((string s) => !string.IsNullOrWhiteSpace(s)).Distinct().ToList(),
+				categories = store.Products.Select((Product p) => p.Category).Where((string s) => !string.IsNullOrWhiteSpace(s)).Distinct().ToList(),
+				products = store.Products.Select((Product p) => new
+				{
+					name = p.Name,
+					category = p.Category,
+					family = p.Family,
+					price = p.Price,
+					color = p.Color,
+					image = ProductImageName(p),
+					out_of_stock = Is86(store, p.Name),
+					variants = store.ProductVariants.Where((ProductVariant v) => v.Product == p.Name).Select((ProductVariant v) => new
+					{
+						name = v.Name,
+						price = v.Price,
+						barcode = v.Barcode
+					}).ToList()
+				}).ToList(),
+				modifiers = store.ModifierGroups.Select((ModifierGroup m) => new
+				{
+					name = m.Name,
+					items = m.Options.Select((ModifierOption o) => new { name = o.Name, price = o.Price }).ToList()
+				}).ToList()
+			});
+		}
+
+		private string KioskPostOrder(JsonDocument? doc)
+		{
+			if (doc == null) return JsonResponse(new { ok = false, error = "Missing JSON order body." });
+			JsonElement root = doc.RootElement;
+			string orderType = (root.TryGetProperty("order_type", out var ot) ? (ot.GetString() ?? "") : "Takeaway");
+			if (string.IsNullOrWhiteSpace(orderType)) orderType = "Takeaway";
+			string table = (root.TryGetProperty("table", out var tb) ? (tb.GetString() ?? "") : "");
+			string kioskId = (root.TryGetProperty("kiosk_id", out var kid) ? (kid.GetString() ?? "") : "Kiosk 1");
+			string custName = (root.TryGetProperty("customer_name", out var cn) ? (cn.GetString() ?? "") : "");
+			string note = (root.TryGetProperty("note", out var nt) ? (nt.GetString() ?? "") : "");
+
+			List<SoldLine> lines = new List<SoldLine>();
+			if (root.TryGetProperty("items", out var itemsElem) && itemsElem.ValueKind == JsonValueKind.Array)
+			{
+				foreach (JsonElement item in itemsElem.EnumerateArray())
+				{
+					string name = item.TryGetProperty("name", out var nm) ? (nm.GetString() ?? "") : "";
+					int qty = item.TryGetProperty("qty", out var q) ? q.GetInt32() : 1;
+					decimal price = item.TryGetProperty("price", out var pr) ? pr.GetDecimal() : 0m;
+					string fam = item.TryGetProperty("family", out var fm) ? (fm.GetString() ?? "") : "";
+					string cat = item.TryGetProperty("category", out var ct) ? (ct.GetString() ?? "") : "";
+					string lineNote = item.TryGetProperty("note", out var ln) ? (ln.GetString() ?? "") : "";
+					int course = item.TryGetProperty("course", out var cs) ? cs.GetInt32() : 0;
+
+					Product? prod = store.Products.FirstOrDefault((Product p) => p.Name == name);
+					if (prod != null)
+					{
+						if (price <= 0m) price = prod.Price;
+						if (string.IsNullOrEmpty(fam)) fam = prod.Family;
+						if (string.IsNullOrEmpty(cat)) cat = prod.Category;
+					}
+					if (!string.IsNullOrEmpty(name) && qty > 0)
+					{
+						lines.Add(new SoldLine(name, fam, qty, price, cat, ResolvePrinter(prod ?? new Product(name, cat, price, "#47D6AE", fam)), lineNote, "", 0m, "", 0, course));
+					}
+				}
+			}
+
+			if (lines.Count == 0) return JsonResponse(new { ok = false, error = "Order contains no items." });
+			int orderNum = store.NextOrderNumber();
+			decimal total = lines.Sum((SoldLine l) => l.UnitPrice * (decimal)l.Quantity);
+
+			if (store.Features.KioskRequireConfirmation)
+			{
+				PendingKioskOrder pending = new PendingKioskOrder(
+					OrderNumber: orderNum,
+					Created: DateTime.Now,
+					OrderType: orderType,
+					Items: lines,
+					Total: total,
+					KioskId: kioskId,
+					Status: "Pending",
+					CustomerName: custName,
+					Table: table,
+					Note: note
+				);
+				store.AddPendingKioskOrder(pending);
+				UpdateQrBanner();
+				return JsonResponse(new
+				{
+					ok = true,
+					order = orderNum,
+					status = "pending",
+					order_type = orderType,
+					total = total,
+					message = "Order received. Please present your ticket to the waiter or cashier to confirm."
+				});
+			}
+			else
+			{
+				string room = "Kiosk";
+				string tbl = string.IsNullOrEmpty(table) ? $"Kiosk #{orderNum}" : table;
+				OpenOrder oo = new OpenOrder(room, tbl, "Kiosk", DateTime.Now, lines, note, orderNum, orderNum, orderType, custName, 0, Ready: false, 0, "Kiosk");
+				store.AddOpenOrder(oo);
+				PrintTickets(lines, orderNum, 0, orderType, room, tbl);
+				if (store.Features.AuditLog)
+				{
+					store.LogAudit("Kiosk", "Order sent direct", $"{tbl}: {lines.Sum((SoldLine l) => l.Quantity)} items, order #{orderNum}");
+				}
+				UpdateQrBanner();
+				return JsonResponse(new
+				{
+					ok = true,
+					order = orderNum,
+					status = "confirmed",
+					order_type = orderType,
+					total = total,
+					message = "Order sent to kitchen."
+				});
+			}
+		}
+
+		private string KioskGetPending()
+		{
+			store.CleanExpiredKioskOrders();
+			int limit = ((store.Features.KioskAutoVoidMinutes > 0) ? store.Features.KioskAutoVoidMinutes : 10);
+			var pending = store.PendingKioskOrders.Where((PendingKioskOrder o) => o.Status == "Pending").Select((PendingKioskOrder o) => new
+			{
+				order = o.OrderNumber,
+				time = o.Created.ToString("o"),
+				minutes_left = Math.Max(0, (int)Math.Round((double)limit - (DateTime.Now - o.Created).TotalMinutes)),
+				order_type = o.OrderType,
+				kiosk_id = o.KioskId,
+				table = o.Table,
+				customer = o.CustomerName,
+				total = o.Total,
+				items = o.Items.Select((SoldLine l) => new
+				{
+					name = l.Product,
+					qty = l.Quantity,
+					price = l.UnitPrice,
+					note = l.Note
+				}).ToList()
+			}).ToList();
+
+			return JsonResponse(new { ok = true, count = pending.Count, orders = pending });
+		}
+
+		private string KioskConfirm(string method, JsonDocument? doc)
+		{
+			if (method != "POST" || doc == null) return JsonResponse(new { ok = false, error = "POST JSON {order, confirmed_by} expected." });
+			int orderNum = doc.RootElement.TryGetProperty("order", out var on) ? on.GetInt32() : 0;
+			string confirmedBy = doc.RootElement.TryGetProperty("confirmed_by", out var cb) ? (cb.GetString() ?? "Staff") : "Staff";
+			if (orderNum <= 0) return JsonResponse(new { ok = false, error = "Invalid order number." });
+
+			PendingKioskOrder? pending = store.GetPendingKioskOrder(orderNum);
+			if (pending == null) return JsonResponse(new { ok = false, error = "Order not found or already processed." });
+
+			store.PendingKioskOrders.Remove(pending);
+			store.PendingKioskOrders.Add(pending with { Status = "Confirmed", Note = $"Confirmed by {confirmedBy}" });
+			store.SavePendingKioskOrders();
+			store.DismissGuestAlerts("Kiosk", $"#{orderNum}", "kiosk_order");
+
+			string room = "Kiosk";
+			string table = string.IsNullOrEmpty(pending.Table) ? $"Kiosk #{orderNum}" : pending.Table;
+			OpenOrder oo = new OpenOrder(room, table, confirmedBy, DateTime.Now, pending.Items, pending.Note, orderNum, orderNum, pending.OrderType, pending.CustomerName, 0, Ready: false, 0, "Kiosk");
+			store.AddOpenOrder(oo);
+
+			PrintTickets(pending.Items, orderNum, 0, pending.OrderType, room, table, confirmedBy);
+			if (store.Features.AuditLog)
+			{
+				store.LogAudit(confirmedBy, "Kiosk order confirmed", $"Order #{orderNum} confirmed & fired to kitchen");
+			}
+			UpdateQrBanner();
+			return JsonResponse(new { ok = true, order = orderNum, status = "confirmed" });
+		}
+
+		private string KioskReject(string method, JsonDocument? doc)
+		{
+			if (method != "POST" || doc == null) return JsonResponse(new { ok = false, error = "POST JSON {order, reason, rejected_by} expected." });
+			int orderNum = doc.RootElement.TryGetProperty("order", out var on) ? on.GetInt32() : 0;
+			string reason = doc.RootElement.TryGetProperty("reason", out var rs) ? (rs.GetString() ?? "Rejected by staff") : "Rejected by staff";
+			string rejectedBy = doc.RootElement.TryGetProperty("rejected_by", out var rb) ? (rb.GetString() ?? "Staff") : "Staff";
+			if (orderNum <= 0) return JsonResponse(new { ok = false, error = "Invalid order number." });
+
+			bool ok = store.RejectPendingKioskOrder(orderNum, $"{reason} (by {rejectedBy})");
+			if (!ok) return JsonResponse(new { ok = false, error = "Order not found or already processed." });
+			UpdateQrBanner();
+			return JsonResponse(new { ok = true, order = orderNum, status = "rejected" });
+		}
+
 		private string RouteTablet(string method, string path, string query, string body)
 		{
 			if (!store.Features.ApiEnabled)
@@ -19870,6 +20854,10 @@ internal sealed class PosForm : Form
 					"/api/tablet/line-edit" => TabletLineEdit(method, jsonDocument), 
 					"/api/tablet/alerts" => TabletAlerts(query), 
 					"/api/tablet/alerts/dismiss" => TabletAlertDismiss(method, jsonDocument), 
+					"/api/tablet/order/deliver" => TabletOrderDeliver(method, jsonDocument), 
+					"/api/tablet/kiosk-orders" => KioskGetPending(), 
+					"/api/tablet/kiosk-confirm" => KioskConfirm(method, jsonDocument), 
+					"/api/tablet/kiosk-reject" => KioskReject(method, jsonDocument), 
 					_ => JsonResponse(new
 					{
 						ok = false,
@@ -20569,7 +21557,7 @@ internal sealed class PosForm : Form
 					time = a.Time.ToString("o")
 				}).ToList();
 			var ready = (from o in store.OpenOrders
-				where o.Ready
+				where o.Ready && !o.Delivered
 				select new
 				{
 					room = o.Room,
@@ -20577,13 +21565,38 @@ internal sealed class PosForm : Form
 					order = o.OrderNumber,
 					total = o.Items.Sum((SoldLine l) => l.UnitPrice * (decimal)l.Quantity)
 				}).ToList();
+			store.CleanExpiredKioskOrders();
+			var pendingKiosk = store.PendingKioskOrders.Where((PendingKioskOrder o) => o.Status == "Pending").Select((PendingKioskOrder o) => new
+			{
+				order = o.OrderNumber,
+				time = o.Created.ToString("o"),
+				order_type = o.OrderType,
+				total = o.Total,
+				items_count = o.Items.Sum((SoldLine i) => i.Quantity)
+			}).ToList();
 			return JsonResponse(new
 			{
 				ok = true,
 				server_time = DateTime.Now.ToString("o"),
 				alerts = alerts,
-				ready = ready
+				ready = ready,
+				pending_kiosk = pendingKiosk
 			});
+		}
+
+		private string TabletOrderDeliver(string method, JsonDocument? doc)
+		{
+			if (method != "POST" || doc == null)
+			{
+				return JsonResponse(new { ok = false, error = "POST JSON { room, table, order } expected." });
+			}
+			JsonElement root = doc.RootElement;
+			string room = root.TryGetProperty("room", out var r) ? (r.GetString() ?? "") : "";
+			string table = root.TryGetProperty("table", out var t) ? (t.GetString() ?? "") : "";
+			int orderNum = root.TryGetProperty("order", out var o) ? o.GetInt32() : 0;
+
+			store.MarkOrderDelivered(room, table, orderNum);
+			return JsonResponse(new { ok = true, message = "Order delivered" });
 		}
 
 		private string TabletAlertDismiss(string method, JsonDocument? doc)
@@ -20865,6 +21878,35 @@ internal sealed class PosForm : Form
 				}
 				return "";
 			}
+		}
+
+		private void ShowKioskOrderReview(PendingKioskOrder order)
+		{
+			using KioskOrderReviewForm dlg = new KioskOrderReviewForm(order, store.RegisterSettings.Currency, () =>
+			{
+				store.PendingKioskOrders.Remove(order);
+				store.PendingKioskOrders.Add(order with { Status = "Confirmed", Note = $"Confirmed by {currentOperator.Name}" });
+				store.SavePendingKioskOrders();
+				store.DismissGuestAlerts("Kiosk", $"#{order.OrderNumber}", "kiosk_order");
+
+				string room = "Kiosk";
+				string table = string.IsNullOrEmpty(order.Table) ? $"Kiosk #{order.OrderNumber}" : order.Table;
+				OpenOrder oo = new OpenOrder(room, table, currentOperator.Name, DateTime.Now, order.Items, order.Note, order.OrderNumber, order.OrderNumber, order.OrderType, order.CustomerName, 0, Ready: false, 0, "Kiosk");
+				store.AddOpenOrder(oo);
+
+				PrintTickets(order.Items, order.OrderNumber, 0, order.OrderType, room, table, currentOperator.Name);
+				if (store.Features.AuditLog)
+				{
+					store.LogAudit(currentOperator.Name, "Kiosk order confirmed", $"Order #{order.OrderNumber} confirmed & fired to kitchen");
+				}
+				UpdateQrBanner();
+				MessageBox.Show(string.Format(Tr.T("Order #{0} confirmed and sent to kitchen."), order.OrderNumber), Tr.T("Kiosk order"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+			}, (reason) =>
+			{
+				store.RejectPendingKioskOrder(order.OrderNumber, $"{reason} (by {currentOperator.Name})");
+				UpdateQrBanner();
+			});
+			dlg.ShowDialog(this);
 		}
 
 		private void ShowQROrders()
@@ -23651,6 +24693,8 @@ internal sealed class SettingsForm : Form
 					Tag = key,
 					Size = new Size(200, 38),
 					Location = new Point(12, curY),
+					BackColor = Skin.SidebarItem,
+					ForeColor = Skin.TextMuted,
 					FlatStyle = FlatStyle.Flat,
 					TextAlign = ContentAlignment.MiddleLeft,
 					Font = new Font("Segoe UI Semibold", 9.5f),
@@ -23708,6 +24752,7 @@ internal sealed class SettingsForm : Form
 			Cursor = Cursors.Hand
 		};
 		exitBtn.FlatAppearance.BorderSize = 0;
+		Skin.FlatStates(exitBtn);
 		ApplyNavPillRegion(exitBtn, 10);
 		exitBtn.Click += (s, e) => Application.Exit();
 		navRail.Controls.Add(exitBtn);
@@ -23745,7 +24790,7 @@ internal sealed class SettingsForm : Form
 		foreach (var kv in navPills)
 		{
 			bool active = kv.Key == key;
-			kv.Value.BackColor = active ? Skin.Accent : Skin.SidebarItem;
+			Skin.SetFlatBase(kv.Value, active ? Skin.Accent : Skin.SidebarItem);
 			kv.Value.ForeColor = active ? Skin.OnAccent : Skin.TextMuted;
 		}
 
@@ -23850,24 +24895,37 @@ internal sealed class SettingsForm : Form
 		themeCard.Controls.Add(new Label { Text = Tr.T("Color Theme"), Font = new Font("Segoe UI Semibold", 11f), ForeColor = Skin.Text, Location = new Point(16, 12), AutoSize = true });
 		themeCard.Controls.Add(new Label { Text = Tr.T("Switch between Dark and Light palette (contrast checked)"), Font = new Font("Segoe UI", 9f), ForeColor = Skin.TextDim, Location = new Point(16, 36), Size = new Size(410, 24), AutoEllipsis = true });
 
-		Button darkBtn = new Button { Text = Tr.T("Dark"), Size = new Size(84, 34), Location = new Point(448, 18), FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
+		Button darkBtn = new Button { Text = Tr.T("Dark"), Size = new Size(84, 34), Location = new Point(448, 18), BackColor = Skin.PanelLight, ForeColor = Skin.Text, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
 		darkBtn.FlatAppearance.BorderSize = 0;
 		Skin.FlatStates(darkBtn);
-		Button lightBtn = new Button { Text = Tr.T("Light"), Size = new Size(84, 34), Location = new Point(540, 18), FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
+		Button lightBtn = new Button { Text = Tr.T("Light"), Size = new Size(84, 34), Location = new Point(540, 18), BackColor = Skin.PanelLight, ForeColor = Skin.Text, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
 		lightBtn.FlatAppearance.BorderSize = 0;
 		Skin.FlatStates(lightBtn);
 
 		void RefreshTheme()
 		{
 			bool isDark = (features.Theme ?? "dark") == "dark";
-			darkBtn.BackColor = isDark ? Skin.Accent : Skin.PanelLight;
+			Skin.SetFlatBase(darkBtn, isDark ? Skin.Accent : Skin.PanelLight);
 			darkBtn.ForeColor = isDark ? Skin.OnAccent : Skin.Text;
-			lightBtn.BackColor = !isDark ? Skin.Accent : Skin.PanelLight;
+			Skin.SetFlatBase(lightBtn, !isDark ? Skin.Accent : Skin.PanelLight);
 			lightBtn.ForeColor = !isDark ? Skin.OnAccent : Skin.Text;
 		}
 
-		darkBtn.Click += (s, e) => { features.Theme = "dark"; saveFeatures(features); RefreshTheme(); };
-		lightBtn.Click += (s, e) => { features.Theme = "light"; saveFeatures(features); RefreshTheme(); };
+		void SetPosTheme(string theme)
+		{
+			if (string.Equals(features.Theme, theme, StringComparison.OrdinalIgnoreCase)) return;
+			features.Theme = theme;
+			saveFeatures(features);
+			Skin.Apply(features);
+			RefreshTheme();
+			if (MessageBox.Show(Tr.T("Theme changed. Vectron POS will now restart to apply the new theme."), Tr.T("Theme"), MessageBoxButtons.OK, MessageBoxIcon.Information) == DialogResult.OK)
+			{
+				Program.SafeRestart();
+			}
+		}
+
+		darkBtn.Click += (s, e) => { SetPosTheme("dark"); };
+		lightBtn.Click += (s, e) => { SetPosTheme("light"); };
 		RefreshTheme();
 		themeCard.Controls.Add(darkBtn);
 		themeCard.Controls.Add(lightBtn);
@@ -23881,24 +24939,24 @@ internal sealed class SettingsForm : Form
 		Label gqResolved = new Label { Text = string.Format(Tr.T("Resolved: {0} ({1})"), Skin.Quality, Skin.QualityReason), Font = new Font("Segoe UI Semibold", 9f), ForeColor = Skin.Accent, Location = new Point(16, 62), AutoSize = true };
 		gqCard.Controls.Add(gqResolved);
 
-		Button autoBtn = new Button { Text = Tr.T("Auto"), Size = new Size(74, 34), Location = new Point(386, 18), FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
+		Button autoBtn = new Button { Text = Tr.T("Auto"), Size = new Size(74, 34), Location = new Point(386, 18), BackColor = Skin.PanelLight, ForeColor = Skin.Text, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
 		autoBtn.FlatAppearance.BorderSize = 0;
 		Skin.FlatStates(autoBtn);
-		Button highBtn = new Button { Text = Tr.T("High"), Size = new Size(74, 34), Location = new Point(468, 18), FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
+		Button highBtn = new Button { Text = Tr.T("High"), Size = new Size(74, 34), Location = new Point(468, 18), BackColor = Skin.PanelLight, ForeColor = Skin.Text, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
 		highBtn.FlatAppearance.BorderSize = 0;
 		Skin.FlatStates(highBtn);
-		Button liteBtn = new Button { Text = Tr.T("Lite"), Size = new Size(74, 34), Location = new Point(550, 18), FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
+		Button liteBtn = new Button { Text = Tr.T("Lite"), Size = new Size(74, 34), Location = new Point(550, 18), BackColor = Skin.PanelLight, ForeColor = Skin.Text, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI Semibold", 9.5f), Cursor = Cursors.Hand };
 		liteBtn.FlatAppearance.BorderSize = 0;
 		Skin.FlatStates(liteBtn);
 
 		void RefreshGq()
 		{
 			string gq = (features.GraphicsQuality ?? "auto").ToLowerInvariant();
-			autoBtn.BackColor = gq == "auto" ? Skin.Accent : Skin.PanelLight;
+			Skin.SetFlatBase(autoBtn, gq == "auto" ? Skin.Accent : Skin.PanelLight);
 			autoBtn.ForeColor = gq == "auto" ? Skin.OnAccent : Skin.Text;
-			highBtn.BackColor = gq == "high" ? Skin.Accent : Skin.PanelLight;
+			Skin.SetFlatBase(highBtn, gq == "high" ? Skin.Accent : Skin.PanelLight);
 			highBtn.ForeColor = gq == "high" ? Skin.OnAccent : Skin.Text;
-			liteBtn.BackColor = gq == "lite" ? Skin.Accent : Skin.PanelLight;
+			Skin.SetFlatBase(liteBtn, gq == "lite" ? Skin.Accent : Skin.PanelLight);
 			liteBtn.ForeColor = gq == "lite" ? Skin.OnAccent : Skin.Text;
 			gqResolved.Text = string.Format(Tr.T("Resolved: {0} ({1})"), Skin.Quality, Skin.QualityReason);
 		}
@@ -23954,7 +25012,7 @@ internal sealed class SettingsForm : Form
 			saveFeatures(features);
 			if (MessageBox.Show(Tr.T("Language changed. Vectron POS will now restart."), Tr.T("Language"), MessageBoxButtons.OK, MessageBoxIcon.Asterisk) == DialogResult.OK)
 			{
-				Application.Restart();
+				Program.SafeRestart();
 			}
 		}
 	}
@@ -24001,6 +25059,7 @@ internal sealed class SettingsForm : Form
 		AddActionCard(Tr.T("Rooms & Dining Areas"), Tr.T("Configure room names, table numbers and visual floor plan"), Tr.T("Manage rooms →"), () => _mRooms?.Invoke(), actionText2: Tr.T("Floor plan editor →"), onAction2: () => _editFloorPlan?.Invoke());
 		AddActionCard(Tr.T("Product Catalog"), Tr.T("Add products, prices, categories, barcodes, variants and images"), Tr.T("Manage products →"), () => _mProd?.Invoke());
 		AddActionCard(Tr.T("Product Families"), Tr.T("Group catalog items into families and assign kitchen printer routing"), Tr.T("Manage families →"), () => _mFam?.Invoke());
+		AddToggleCard(Tr.T("Product Variants"), Tr.T("Offer size, flavor or portion options with individual pricing and barcodes"), "ProductVariants", onAction: () => _mProd?.Invoke(), actionText: Tr.T("Manage variants →"), isActionVisible: () => features.ProductVariants);
 
 		AddToggleCard(Tr.T("Modifiers & Add-ons"), Tr.T("Item choices, meat temperature, extra toppings and sides"), "Modifiers", onAction: () => _showMod?.Invoke(), actionText: Tr.T("Manage modifiers →"), isActionVisible: () => features.Modifiers);
 		AddToggleCard(Tr.T("Happy Hour Specials"), Tr.T("Time-of-day drink specials and automated discount schedules"), "HappyHour", onAction: () => _showHappy?.Invoke(), actionText: Tr.T("Happy hour rules →"), isActionVisible: () => features.HappyHour);
@@ -24020,7 +25079,8 @@ internal sealed class SettingsForm : Form
 
 		AddToggleCard(Tr.T("Kitchen Display Screen (KDS)"), Tr.T("Touch screen order flow for line cooks and prep stations"), "KitchenDisplay");
 		AddToggleCard(Tr.T("KDS Late Alarm"), Tr.T("Audible beep and flashing indicator when order exceeds prep threshold"), "KdsLateAlarm", onAction: () => _report?.Invoke("PrepAnalytics"), actionText: Tr.T("Prep analytics →"), isActionVisible: () => features.KdsLateAlarm);
-		AddToggleCard(Tr.T("Self-Ordering Kiosk"), Tr.T("Full-screen customer self-ordering mode with out-of-stock guard"), "KioskMode", onAction: () => _showKiosk?.Invoke(), actionText: Tr.T("Launch kiosk →"), isActionVisible: () => features.KioskMode);
+		AddToggleCard(Tr.T("Self-Ordering Kiosk"), Tr.T("Full-screen customer self-ordering mode with out-of-stock guard"), "KioskMode", onAction: () => _showKiosk?.Invoke(), actionText: Tr.T("Kiosk & link setup  ➔"), isActionVisible: () => features.KioskMode);
+		AddToggleCard(Tr.T("Kiosk Staff Confirmation"), Tr.T("Hold kiosk orders for cashier/waiter approval before printing to kitchen (prevents fake orders; 10 min auto-void)"), "KioskRequireConfirmation");
 		AddToggleCard(Tr.T("86 Board / Out of Stock"), Tr.T("Quickly mark unavailable items to prevent staff taking orders"), "EightySixBoard");
 		AddToggleCard(Tr.T("QR Table Ordering"), Tr.T("Generate QR table codes for digital customer menu browsing"), "QROrdering");
 	}
@@ -24293,7 +25353,8 @@ internal sealed class KitchenDisplayForm : Form
 			tickets.SuspendLayout();
 			tickets.Controls.Clear();
 			List<OpenOrder> list = (from o in store.OpenOrders
-				orderby o.Ready ? 1 : 0, o.Created
+				where !o.Delivered
+				orderby o.Created
 				select o).ToList();
 			if (list.Count == 0)
 			{
@@ -24414,23 +25475,68 @@ internal sealed class KitchenDisplayForm : Form
 					Margin = new Padding(flag ? 16 : 0, 1, 0, flag ? 5 : 2)
 				});
 			}
-			Button button = new Button
+			panel.Controls.AddRange(new Control[2] { flowLayoutPanel, panel2 });
+			if (!order.Ready)
 			{
-				Text = (order.Ready ? "↩  Put back" : "✓  READY"),
-				Location = new Point(0, 298),
-				Size = new Size(280, 42),
-				FlatStyle = FlatStyle.Flat,
-				ForeColor = Skin.Text,
-				Font = new Font("Segoe UI Semibold", 11f),
-				BackColor = (order.Ready ? Skin.Neutral : mint),
-				Cursor = Cursors.Hand
-			};
-			button.FlatAppearance.BorderSize = 0;
-			button.Click += (object _, EventArgs _) =>
+				Button readyBtn = new Button
+				{
+					Text = "✓  " + Tr.T("READY"),
+					Location = new Point(0, 296),
+					Size = new Size(280, 44),
+					FlatStyle = FlatStyle.Flat,
+					ForeColor = Skin.OnAccent,
+					Font = new Font("Segoe UI Semibold", 11.5f),
+					BackColor = mint,
+					Cursor = Cursors.Hand
+				};
+				readyBtn.FlatAppearance.BorderSize = 0;
+				readyBtn.Click += (s, e) => ToggleReady(order);
+				panel.Controls.Add(readyBtn);
+			}
+			else
 			{
-				ToggleReady(order);
-			};
-			panel.Controls.AddRange(new Control[3] { flowLayoutPanel, panel2, button });
+				Panel readyActions = new Panel
+				{
+					Location = new Point(0, 296),
+					Size = new Size(280, 44),
+					BackColor = Skin.SuccessSurface
+				};
+				Button deliverBtn = new Button
+				{
+					Text = "✓  " + Tr.T("Deliver"),
+					Location = new Point(0, 0),
+					Size = new Size(185, 44),
+					FlatStyle = FlatStyle.Flat,
+					ForeColor = Skin.OnFill,
+					BackColor = Skin.Success,
+					Font = new Font("Segoe UI Semibold", 11f),
+					Cursor = Cursors.Hand
+				};
+				deliverBtn.FlatAppearance.BorderSize = 0;
+				deliverBtn.Click += (s, e) =>
+				{
+					store.MarkOrderDelivered(order.Room, order.Table, order.OrderNumber);
+					Render();
+				};
+
+				Button revertBtn = new Button
+				{
+					Text = "↩ " + Tr.T("In prep"),
+					Location = new Point(187, 0),
+					Size = new Size(93, 44),
+					FlatStyle = FlatStyle.Flat,
+					ForeColor = Skin.TextDim,
+					BackColor = panelLight,
+					Font = new Font("Segoe UI", 9.5f),
+					Cursor = Cursors.Hand
+				};
+				revertBtn.FlatAppearance.BorderSize = 0;
+				revertBtn.Click += (s, e) => ToggleReady(order);
+
+				readyActions.Controls.Add(deliverBtn);
+				readyActions.Controls.Add(revertBtn);
+				panel.Controls.Add(readyActions);
+			}
 			UpdateTimer(order, label4);
 			cards.Add((order, label4));
 			return panel;
@@ -24438,34 +25544,173 @@ internal sealed class KitchenDisplayForm : Form
 
 		private void ToggleReady(OpenOrder order)
 		{
-			OpenOrder openOrder = store.GetOpenOrder(order.Room, order.Table);
-			if (openOrder == null)
-			{
-				Render();
-				return;
-			}
-			store.RemoveOpenOrder(order.Room, order.Table);
-			PosStore posStore = store;
-			OpenOrder openOrder2 = openOrder._003CClone_003E_0024();
-			openOrder2.Ready = !openOrder.Ready;
-			posStore.AddOpenOrder(openOrder2);
-			if (!openOrder.Ready)
-			{
-				int num = (int)Math.Round((DateTime.Now - openOrder.Created).TotalMinutes);
-				if (num >= 0 && num < 600)
-				{
-					store.AddPrepTime(num);
-				}
-				alarmed.Remove((openOrder.OrderNumber, openOrder.Created.Ticks));
-				store.RaiseGuestAlert(order.Room, order.Table, "ready");
-			}
-			else
-			{
-				store.DismissGuestAlerts(order.Room, order.Table, "ready");
-			}
+			alarmed.Remove((order.OrderNumber, order.Created.Ticks));
+			store.MarkOrderReady(order.Room, order.Table, order.OrderNumber, !order.Ready);
 			Render();
 		}
 	}
+
+internal sealed class KioskOrderReviewForm : Form
+{
+	public KioskOrderReviewForm(PendingKioskOrder order, string currency, Action onConfirm, Action<string> onReject)
+	{
+		Text = $"{Tr.T("Kiosk order")} #{order.OrderNumber}";
+		FormBorderStyle = FormBorderStyle.FixedDialog;
+		MaximizeBox = false;
+		MinimizeBox = false;
+		StartPosition = FormStartPosition.CenterParent;
+		ClientSize = new Size(580, 560);
+		BackColor = Skin.Background;
+		ForeColor = Skin.Text;
+		Font = new Font("Segoe UI", 10f);
+
+		Panel header = new Panel
+		{
+			Dock = DockStyle.Top,
+			Height = 70,
+			BackColor = Skin.Panel,
+			Padding = new Padding(16, 12, 16, 12)
+		};
+		Label title = new Label
+		{
+			Text = $"🛎  {Tr.T("Order")} #{order.OrderNumber}  •  {order.OrderType.ToUpperInvariant()}",
+			Font = new Font("Segoe UI Semibold", 14f),
+			ForeColor = Skin.Accent,
+			AutoSize = true,
+			Location = new Point(14, 12)
+		};
+		int limit = 10;
+		int minsLeft = Math.Max(0, (int)Math.Round((double)limit - (DateTime.Now - order.Created).TotalMinutes));
+		Label subtitle = new Label
+		{
+			Text = string.Format(Tr.T("Received at {0:HH:mm} ({1} min ago) • Auto-voids in {2} min"), order.Created, (int)(DateTime.Now - order.Created).TotalMinutes, minsLeft),
+			Font = new Font("Segoe UI", 9f),
+			ForeColor = Skin.TextMuted,
+			AutoSize = true,
+			Location = new Point(16, 40)
+		};
+		header.Controls.AddRange(new Control[] { title, subtitle });
+
+		ListView lv = new ListView
+		{
+			Dock = DockStyle.Fill,
+			View = View.Details,
+			FullRowSelect = true,
+			BackColor = Skin.PanelLight,
+			ForeColor = Skin.Text,
+			BorderStyle = BorderStyle.None,
+			Font = new Font("Segoe UI", 10.5f),
+			HeaderStyle = ColumnHeaderStyle.Nonclickable
+		};
+		lv.Columns.Add(Tr.T("Item"), 270);
+		lv.Columns.Add(Tr.T("Qty"), 60);
+		lv.Columns.Add(Tr.T("Price"), 100);
+		lv.Columns.Add(Tr.T("Total"), 110);
+
+		foreach (var item in order.Items)
+		{
+			var lvi = new ListViewItem(item.Product);
+			lvi.SubItems.Add(item.Quantity.ToString());
+			lvi.SubItems.Add(item.UnitPrice.ToString("0.00") + " " + currency);
+			lvi.SubItems.Add((item.UnitPrice * (decimal)item.Quantity).ToString("0.00") + " " + currency);
+			lv.Items.Add(lvi);
+			if (!string.IsNullOrEmpty(item.Note) || !string.IsNullOrEmpty(item.Modifiers))
+			{
+				string details = string.Join(" • ", new[] { item.Modifiers, item.Note }.Where(s => !string.IsNullOrEmpty(s)));
+				var noteLvi = new ListViewItem("   ↳ " + details)
+				{
+					ForeColor = Skin.TextMuted,
+					Font = new Font("Segoe UI", 9f, FontStyle.Italic)
+				};
+				noteLvi.SubItems.Add("");
+				noteLvi.SubItems.Add("");
+				noteLvi.SubItems.Add("");
+				lv.Items.Add(noteLvi);
+			}
+		}
+
+		Panel footer = new Panel
+		{
+			Dock = DockStyle.Bottom,
+			Height = 110,
+			BackColor = Skin.Panel,
+			Padding = new Padding(16, 10, 16, 12)
+		};
+
+		Label totalLbl = new Label
+		{
+			Text = string.Format(Tr.T("Total: {0:0.00} {1}"), order.Total, currency),
+			Font = new Font("Segoe UI Semibold", 14f),
+			ForeColor = Skin.Accent,
+			AutoSize = true,
+			Location = new Point(16, 10)
+		};
+
+		Button confirmBtn = new Button
+		{
+			Text = Tr.T("✓  Confirm & Fire to Kitchen"),
+			Location = new Point(210, 48),
+			Size = new Size(230, 46),
+			FlatStyle = FlatStyle.Flat,
+			BackColor = Skin.Accent,
+			ForeColor = Skin.OnAccent,
+			Font = new Font("Segoe UI Semibold", 10.5f),
+			Cursor = Cursors.Hand
+		};
+		confirmBtn.FlatAppearance.BorderSize = 0;
+		Skin.FlatStates(confirmBtn);
+		confirmBtn.Click += (s, e) =>
+		{
+			onConfirm?.Invoke();
+			DialogResult = DialogResult.OK;
+			Close();
+		};
+
+		Button rejectBtn = new Button
+		{
+			Text = Tr.T("✕  Reject"),
+			Location = new Point(16, 48),
+			Size = new Size(110, 46),
+			FlatStyle = FlatStyle.Flat,
+			BackColor = Skin.Danger,
+			ForeColor = Skin.OnFill,
+			Font = new Font("Segoe UI Semibold", 10.5f),
+			Cursor = Cursors.Hand
+		};
+		rejectBtn.FlatAppearance.BorderSize = 0;
+		Skin.FlatStates(rejectBtn);
+		rejectBtn.Click += (s, e) =>
+		{
+			if (MessageBox.Show(string.Format(Tr.T("Are you sure you want to reject Order #{0}? (Fake order / customer left)"), order.OrderNumber), Tr.T("Reject order"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+			{
+				onReject?.Invoke("Rejected by staff");
+				DialogResult = DialogResult.Cancel;
+				Close();
+			}
+		};
+
+		Button closeBtn = new Button
+		{
+			Text = Tr.T("Close"),
+			Location = new Point(450, 48),
+			Size = new Size(110, 46),
+			FlatStyle = FlatStyle.Flat,
+			BackColor = Skin.SidebarItem,
+			ForeColor = Skin.Text,
+			Font = new Font("Segoe UI", 10f),
+			Cursor = Cursors.Hand
+		};
+		closeBtn.FlatAppearance.BorderSize = 0;
+		Skin.FlatStates(closeBtn);
+		closeBtn.Click += (s, e) => Close();
+
+		footer.Controls.AddRange(new Control[] { totalLbl, confirmBtn, rejectBtn, closeBtn });
+
+		Controls.Add(lv);
+		Controls.Add(footer);
+		Controls.Add(header);
+	}
+}
 
 internal sealed class KioskForm : Form
 	{
@@ -25986,12 +27231,12 @@ internal sealed class RoomManagerForm : SettingsSubForm
 			{
 				AddRoomRow(room.Name, room.TableCount, panelLight);
 			}
-			Button button = RoomButton("+ Add room", 30, 420, 120, panelLight);
+			Button button = RoomButton(Tr.T("+ Add room"), 30, 420, 120, panelLight);
 			button.Click += (object _, EventArgs _) =>
 			{
-				roomManagerForm.AddRoomRow("New room", 4, panelLight);
+				roomManagerForm.AddRoomRow(Tr.T("New room"), 4, panelLight);
 			};
-			Button button2 = RoomButton("Save changes", 370, 420, 150, mint);
+			Button button2 = RoomButton(Tr.T("Save changes"), 370, 420, 150, mint);
 			button2.ForeColor = Skin.OnAccent;
 			button2.Click += (object _, EventArgs _) =>
 			{
@@ -26041,7 +27286,7 @@ internal sealed class RoomManagerForm : SettingsSubForm
 		private Button RoomButton(string text, int x, int y, int width, Color color)
 		{
 			Button button = new Button();
-			button.Text = text;
+			button.Text = Tr.T(text);
 			button.Location = new Point(x, y);
 			button.Size = new Size(width, 38);
 			button.BackColor = color;
@@ -26459,6 +27704,11 @@ internal static class TcpPrintServer
 			{
 				cts = new CancellationTokenSource();
 				listener = new TcpListener(IPAddress.Any, port);
+				try
+				{
+					listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+				}
+				catch { }
 				listener.Start();
 				IsRunning = true;
 				Task.Run(() => AcceptLoop(cts.Token));
@@ -29011,7 +30261,7 @@ internal sealed class ProductManagerForm : SettingsSubForm
 			pl = panelLight;
 			mintC = mint;
 			Text = Tr.T("Product catalog");
-			Breadcrumb = "Settings / Catalog / Products";
+			Breadcrumb = Tr.T("Settings") + " / " + Tr.T("Catalog") + " / " + Tr.T("Products");
 			ClientSize = new Size(740, 600);
 			MinimumSize = new Size(680, 520);
 			BackColor = background;
@@ -29076,7 +30326,7 @@ internal sealed class ProductManagerForm : SettingsSubForm
 			barcode.Location = new Point(310, 376);
 			barcode.Size = new Size(250, 30);
 			StyleField(barcode, panelLight);
-			weighted.Text = "Priced per kg (weight item)";
+			weighted.Text = Tr.T("Priced per kg (weight item)");
 			weighted.Location = new Point(570, 380);
 			weighted.AutoSize = true;
 			weighted.ForeColor = Skin.Text;
@@ -29218,7 +30468,7 @@ internal sealed class ProductManagerForm : SettingsSubForm
 		{
 			return new Label
 			{
-				Text = text,
+				Text = Tr.T(text),
 				AutoSize = true,
 				Location = new Point(x, y)
 			};
@@ -29237,7 +30487,7 @@ internal sealed class ProductManagerForm : SettingsSubForm
 		private Button CatalogButton(string text, int x, int y, int width, Color background)
 		{
 			Button button = new Button();
-			button.Text = text;
+			button.Text = Tr.T(text);
 			button.Location = new Point(x, y);
 			button.Size = new Size(width, 38);
 			button.BackColor = background;
@@ -30390,6 +31640,11 @@ internal sealed class QrOrderServer : IDisposable
 			if (!running)
 			{
 				listener = new TcpListener(IPAddress.Any, Port);
+				try
+				{
+					listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+				}
+				catch { }
 				listener.Start();
 				running = true;
 				thread = new Thread(ListenLoop)
