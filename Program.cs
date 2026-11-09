@@ -796,6 +796,34 @@ internal sealed class FeatureSettings
 		public string ActiveProfile { get; set; } = "restaurant";
 
 		public string? CustomProfileJson { get; set; } = null;
+
+		// Retail & Supermarket
+		public bool Ean13ScaleBarcodes { get; set; }
+		public bool MultiQuantityScan { get; set; } = true;
+		public bool PriceCheckerMode { get; set; }
+		public bool BottleDeposits { get; set; }
+
+		// Apparel & Boutique
+		public bool StoreCredit { get; set; }
+
+		// Cafe & Fast Food
+		public bool OrderCallNumber { get; set; }
+		public bool BatchProduction { get; set; }
+		public bool DualRateTaxOrderType { get; set; }
+		public bool DeliveryDispatch { get; set; }
+		public bool HalfAndHalfPizza { get; set; }
+
+		// Restaurant
+		public bool GuestCovers { get; set; }
+		public bool TableMerge { get; set; }
+		public bool TipPooling { get; set; }
+
+		// Pharmacy & Perishables
+		public bool LotExpiryTracking { get; set; }
+		public bool UnitBreakdown { get; set; }
+
+		// Services & Salons
+		public bool EmployeeCommission { get; set; }
 	}
 
 internal static class BusinessProfiles
@@ -806,6 +834,8 @@ internal static class BusinessProfiles
 	public const string Cafe = "cafe";
 	public const string FastFood = "fastfood";
 	public const string Pharmacy = "pharmacy";
+	public const string Butchery = "butchery";
+	public const string Salon = "salon";
 	public const string Custom = "custom";
 
 	public static void ApplyProfile(FeatureSettings f, string profileKey)
@@ -830,6 +860,12 @@ internal static class BusinessProfiles
 			case Pharmacy:
 				ApplyPharmacy(f);
 				break;
+			case Butchery:
+				ApplyButchery(f);
+				break;
+			case Salon:
+				ApplySalon(f);
+				break;
 		}
 		f.ActiveProfile = profileKey;
 	}
@@ -839,6 +875,11 @@ internal static class BusinessProfiles
 		f.BarcodeScanning = true;
 		f.QuickSaleMode = true;
 		f.WeightedItems = true;
+		f.Ean13ScaleBarcodes = true;
+		f.MultiQuantityScan = true;
+		f.PriceCheckerMode = true;
+		f.BottleDeposits = true;
+		f.LotExpiryTracking = true;
 		f.StockManagement = true;
 		f.InventoryAlerts = true;
 		f.CashDrawer = true;
@@ -872,6 +913,9 @@ internal static class BusinessProfiles
 		f.ProductVariants = true;
 		f.BarcodeScanning = true;
 		f.BarcodeLabels = true;
+		f.MultiQuantityScan = true;
+		f.PriceCheckerMode = true;
+		f.StoreCredit = true;
 		f.CustomerDatabase = true;
 		f.Loyalty = true;
 		f.Discounts = true;
@@ -906,6 +950,9 @@ internal static class BusinessProfiles
 		f.QuickSaleMode = true;
 		f.Modifiers = true;
 		f.ComboDeals = true;
+		f.OrderCallNumber = true;
+		f.BatchProduction = true;
+		f.DualRateTaxOrderType = true;
 		f.ParkOrders = true;
 		f.KitchenDisplay = true;
 		f.CashDrawer = true;
@@ -931,6 +978,9 @@ internal static class BusinessProfiles
 	{
 		f.SplitBill = true;
 		f.TableTransfer = true;
+		f.TableMerge = true;
+		f.GuestCovers = true;
+		f.DualRateTaxOrderType = true;
 		f.FloorPlanEditor = true;
 		f.KitchenDisplay = true;
 		f.CourseManagement = true;
@@ -938,6 +988,7 @@ internal static class BusinessProfiles
 		f.ItemNotes = true;
 		f.SeatOrdering = true;
 		f.Tips = true;
+		f.TipPooling = true;
 		f.HoldFire = true;
 		f.EightySixBoard = true;
 		f.Auto86 = true;
@@ -960,6 +1011,10 @@ internal static class BusinessProfiles
 		f.QuickSaleMode = true;
 		f.Modifiers = true;
 		f.DeliveryOrders = true;
+		f.DeliveryDispatch = true;
+		f.HalfAndHalfPizza = true;
+		f.OrderCallNumber = true;
+		f.DualRateTaxOrderType = true;
 		f.KitchenDisplay = true;
 		f.ComboDeals = true;
 		f.ParkOrders = true;
@@ -986,6 +1041,10 @@ internal static class BusinessProfiles
 	{
 		f.BarcodeScanning = true;
 		f.QuickSaleMode = true;
+		f.MultiQuantityScan = true;
+		f.PriceCheckerMode = true;
+		f.LotExpiryTracking = true;
+		f.UnitBreakdown = true;
 		f.StockManagement = true;
 		f.InventoryAlerts = true;
 		f.CustomerDatabase = true;
@@ -1012,6 +1071,62 @@ internal static class BusinessProfiles
 		f.WeightedItems = false;
 		f.ComboDeals = false;
 		f.HappyHour = false;
+	}
+
+	public static void ApplyButchery(FeatureSettings f)
+	{
+		f.BarcodeScanning = true;
+		f.Ean13ScaleBarcodes = true;
+		f.WeightedItems = true;
+		f.QuickSaleMode = true;
+		f.MultiQuantityScan = true;
+		f.LotExpiryTracking = true;
+		f.StockManagement = true;
+		f.InventoryAlerts = true;
+		f.PriceCheckerMode = true;
+		f.CashRounding = true;
+		f.CashDrawer = true;
+		f.CustomerDisplay = true;
+		f.Discounts = true;
+		f.Refunds = true;
+		f.Stocktakes = true;
+
+		f.SplitBill = false;
+		f.TableTransfer = false;
+		f.CourseManagement = false;
+		f.SeatOrdering = false;
+		f.FloorPlanEditor = false;
+		f.KitchenDisplay = false;
+		f.HoldFire = false;
+		f.Tips = false;
+		f.DeliveryOrders = false;
+	}
+
+	public static void ApplySalon(FeatureSettings f)
+	{
+		f.QuickSaleMode = true;
+		f.CustomerDatabase = true;
+		f.Loyalty = true;
+		f.Discounts = true;
+		f.GiftCards = true;
+		f.EmployeeCommission = true;
+		f.CashDrawer = true;
+		f.Tips = true;
+		f.AuditLog = true;
+		f.ReceiptSearch = true;
+		f.EmailReceipts = true;
+		f.MultiRatePricing = true;
+
+		f.SplitBill = false;
+		f.TableTransfer = false;
+		f.CourseManagement = false;
+		f.SeatOrdering = false;
+		f.FloorPlanEditor = false;
+		f.KitchenDisplay = false;
+		f.HoldFire = false;
+		f.Auto86 = false;
+		f.WeightedItems = false;
+		f.Ean13ScaleBarcodes = false;
 	}
 }
 
@@ -5615,10 +5730,79 @@ internal sealed class PosForm : Form
 							return;
 						}
 					}
-					Product product = products.FirstOrDefault((Product p) => p.Barcode == rawScan);
+
+					// Multi-quantity scanning: [Qty]*[Barcode] (e.g. 5*3017620422003)
+					int scanQty = 1;
+					if (store.Features.MultiQuantityScan && cleanScan.Contains("*"))
+					{
+						var starParts = cleanScan.Split(new char[] { '*' }, 2);
+						if (starParts.Length == 2 && int.TryParse(starParts[0].Trim(), out int parsedQty) && parsedQty > 0 && parsedQty <= 9999)
+						{
+							scanQty = parsedQty;
+							cleanScan = starParts[1].Trim();
+						}
+					}
+
+					// EAN-13 Scale Barcode decoding (Prefixes 20, 21, 28, 29)
+					if (store.Features.Ean13ScaleBarcodes && cleanScan.Length == 13 &&
+					    (cleanScan.StartsWith("20") || cleanScan.StartsWith("21") || cleanScan.StartsWith("28") || cleanScan.StartsWith("29")))
+					{
+						string plu = cleanScan.Substring(2, 5);
+						string prefix = cleanScan.Substring(0, 2);
+						Product? scaleProd = products.FirstOrDefault(p =>
+							p.Barcode == plu ||
+							p.Barcode == prefix + plu ||
+							p.Barcode == cleanScan.Substring(0, 7) ||
+							p.Barcode == cleanScan ||
+							(p.Barcode.Length >= 5 && p.Barcode.EndsWith(plu)));
+
+						if (scaleProd != null)
+						{
+							if (prefix == "20" || prefix == "21")
+							{
+								if (int.TryParse(cleanScan.Substring(7, 5), out int grams))
+								{
+									decimal weightKg = (decimal)grams / 1000m;
+									AddProduct(scaleProd, quantity: scanQty, scaleWeightKg: weightKg);
+									barcodeSearch.Text = "";
+									return;
+								}
+							}
+							else if (prefix == "28" || prefix == "29")
+							{
+								if (int.TryParse(cleanScan.Substring(7, 5), out int cents))
+								{
+									decimal embeddedPrice = (decimal)cents / 100m;
+									AddProduct(scaleProd, quantity: scanQty, customPrice: embeddedPrice);
+									barcodeSearch.Text = "";
+									return;
+								}
+							}
+						}
+					}
+
+					// Variant Barcode direct match
+					if (store.Features.ProductVariants)
+					{
+						var matchedVariant = store.ProductVariants.FirstOrDefault(v =>
+							v.Barcode.Equals(cleanScan, StringComparison.OrdinalIgnoreCase) ||
+							v.Barcode.Equals(rawScan, StringComparison.OrdinalIgnoreCase));
+						if (matchedVariant != null)
+						{
+							var parentProd = products.FirstOrDefault(p => p.Name.Equals(matchedVariant.Product, StringComparison.OrdinalIgnoreCase));
+							if (parentProd != null)
+							{
+								AddProduct(parentProd, quantity: scanQty, preselectedVariant: matchedVariant);
+								barcodeSearch.Text = "";
+								return;
+							}
+						}
+					}
+
+					Product product = products.FirstOrDefault((Product p) => p.Barcode == rawScan || p.Barcode == cleanScan);
 					if (product != null)
 					{
-						AddProduct(product);
+						AddProduct(product, quantity: scanQty);
 					}
 					else
 					{
@@ -5628,6 +5812,21 @@ internal sealed class PosForm : Form
 				}
 			};
 			menuPanel.Controls.Add(barcodeSearch);
+			Button btnPriceCheck = new Button
+			{
+				Text = "🔍 F3",
+				Size = new Size(54, 30),
+				FlatStyle = FlatStyle.Flat,
+				BackColor = panelLight,
+				ForeColor = Skin.Text,
+				Font = new Font("Segoe UI Semibold", 8.5f),
+				Cursor = Cursors.Hand,
+				Visible = store.Features.PriceCheckerMode
+			};
+			btnPriceCheck.FlatAppearance.BorderSize = 0;
+			btnPriceCheck.Click += (s, e) => ShowPriceCheckerDialog();
+			ApplyFlatStates(btnPriceCheck);
+			menuPanel.Controls.Add(btnPriceCheck);
 			qrLabel.Dock = DockStyle.Fill;
 			qrLabel.ForeColor = Skin.Text;
 			qrLabel.Font = new Font("Segoe UI Semibold", 9f);
@@ -6494,6 +6693,10 @@ internal sealed class PosForm : Form
 			menuPanel.Visible = true;
 			roomsPanel.Visible = false;
 			workspacePanel.BringToFront();
+			if (barcodeBox != null && barcodeBox.Visible && (store.Features.BarcodeScanning || store.Features.QuickSaleMode))
+			{
+				barcodeBox.Focus();
+			}
 			Rtl.Apply(this);
 		}
 
@@ -8129,15 +8332,61 @@ internal sealed class PosForm : Form
 		private string OrderContextText()
 		{
 			string text = "";
+			OpenOrder? openOrder = null;
 			if (hasOpenOrder)
 			{
-				OpenOrder openOrder = store.GetOpenOrder(selectedRoom, selectedTable);
+				openOrder = store.GetOpenOrder(selectedRoom, selectedTable);
 				if ((object)openOrder != null && openOrder.Source.Length > 0)
 				{
 					text = "\n" + Tr.T("Source:") + " " + openOrder.Source;
 				}
 			}
-			return Tr.T("Operator:") + " " + currentOperator.Name + BranchSuffix() + "\n" + Tr.T("Room:") + " " + Tr.T(selectedRoom) + "  •  " + Tr.T(selectedTable) + "\n" + Tr.T("Dine in") + text;
+			string opLine = Tr.T("Operator:") + " " + currentOperator.Name + BranchSuffix();
+			string profile = store.Features.ActiveProfile?.ToLowerInvariant() ?? "";
+			bool hasFloorPlan = store.Features.FloorPlanEditor;
+			bool isTakeaway = openOrder != null && openOrder.OrderType == "Takeaway";
+			string orderType = isTakeaway ? Tr.T("Takeaway") : Tr.T("Dine in");
+
+			if (profile == BusinessProfiles.Supermarket)
+			{
+				return opLine + "\n" + Tr.T("Point de vente") + "  •  " + Tr.T("Caisse Express") + "\n" + Tr.T("Vente directe") + text;
+			}
+			if (profile == BusinessProfiles.Boutique)
+			{
+				return opLine + "\n" + Tr.T("Boutique Mode") + "  •  " + Tr.T("Comptoir Express") + "\n" + Tr.T("Vente au détail") + text;
+			}
+			if (profile == BusinessProfiles.Pharmacy)
+			{
+				return opLine + "\n" + Tr.T("Pharmacie") + "  •  " + Tr.T("Comptoir Conseil") + "\n" + Tr.T("Délivrance") + text;
+			}
+			if (profile == BusinessProfiles.Butchery)
+			{
+				return opLine + "\n" + Tr.T("Boucherie-Charcuterie") + "  •  " + Tr.T("Comptoir Pesée") + "\n" + Tr.T("Vente au poids") + text;
+			}
+			if (profile == BusinessProfiles.Salon)
+			{
+				return opLine + "\n" + Tr.T("Salon de Coiffure") + "  •  " + Tr.T("Poste Prestation") + "\n" + Tr.T("Prestation & Vente") + text;
+			}
+			if (profile == BusinessProfiles.FastFood)
+			{
+				int seq = store.Sales.Count(s => s.Time.Date == DateTime.Today) + 1;
+				string callNum = store.Features.OrderCallNumber ? $"  •  {Tr.T("Commande")} #{seq}" : "";
+				return opLine + "\n" + Tr.T("Fast-Food") + callNum + "\n" + orderType + text;
+			}
+			if (profile == BusinessProfiles.Cafe)
+			{
+				string loc = hasFloorPlan ? (Tr.T(selectedRoom) + "  •  " + Tr.T(selectedTable)) : Tr.T("Comptoir Café");
+				return opLine + "\n" + loc + "\n" + orderType + text;
+			}
+
+			if (!hasFloorPlan)
+			{
+				return opLine + "\n" + Tr.T("Caisse Comptoir") + "  •  " + Tr.T("Vente directe") + "\n" + (orderType) + text;
+			}
+
+			int coverCount = openOrder?.SeatCount ?? 0;
+			string covers = store.Features.GuestCovers && coverCount > 0 ? $"  •  {coverCount} " + Tr.T("Couverts") : "";
+			return opLine + "\n" + Tr.T("Room:") + " " + Tr.T(selectedRoom) + "  •  " + Tr.T(selectedTable) + covers + "\n" + (orderType) + text;
 		}
 
 		private void RenderSeatBar()
@@ -8206,14 +8455,218 @@ internal sealed class PosForm : Form
 			}
 		}
 
-		private void AddProduct(Product product)
+		protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+		{
+			if (keyData == Keys.F3 && store.Features.PriceCheckerMode)
+			{
+				ShowPriceCheckerDialog();
+				return true;
+			}
+			return base.ProcessCmdKey(ref msg, keyData);
+		}
+
+		private void ShowPriceCheckerDialog(Product? prod = null, ProductVariant? variant = null)
+		{
+			Form f = new Form
+			{
+				Text = Tr.T("Price Checker"),
+				Size = new Size(540, 360),
+				StartPosition = FormStartPosition.CenterParent,
+				BackColor = Skin.Panel,
+				ForeColor = Skin.Text,
+				Font = new Font("Segoe UI", 10f),
+				FormBorderStyle = FormBorderStyle.FixedDialog,
+				MaximizeBox = false,
+				MinimizeBox = false,
+				KeyPreview = true
+			};
+			f.KeyDown += (s, e) =>
+			{
+				if (e.KeyCode == Keys.Escape || e.KeyCode == Keys.F3)
+				{
+					f.Close();
+				}
+			};
+
+			Label titleLbl = new Label
+			{
+				Text = "🔍 " + Tr.T("Price Checker"),
+				Font = new Font("Segoe UI Bold", 13f),
+				ForeColor = Skin.Accent,
+				Location = new Point(20, 16),
+				AutoSize = true
+			};
+			f.Controls.Add(titleLbl);
+
+			Label scanPrompt = new Label
+			{
+				Text = Tr.T("Scan barcode or type item name:"),
+				Font = new Font("Segoe UI", 9f),
+				ForeColor = Skin.TextDim,
+				Location = new Point(20, 48),
+				AutoSize = true
+			};
+			f.Controls.Add(scanPrompt);
+
+			TextBox txtInput = new TextBox
+			{
+				Location = new Point(20, 72),
+				Size = new Size(360, 30),
+				BackColor = Skin.PanelLight,
+				ForeColor = Skin.Text,
+				BorderStyle = BorderStyle.FixedSingle,
+				Font = new Font("Segoe UI", 10.5f)
+			};
+			f.Controls.Add(txtInput);
+
+			Panel card = new Panel
+			{
+				Location = new Point(20, 114),
+				Size = new Size(484, 180),
+				BackColor = Skin.PanelLight
+			};
+			card.Paint += (s, pe) =>
+			{
+				using Pen pen = new Pen(Skin.Border, 1f);
+				pe.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+			};
+
+			Label pNameLbl = new Label
+			{
+				Text = "—",
+				Font = new Font("Segoe UI Bold", 13f),
+				ForeColor = Skin.Text,
+				Location = new Point(16, 14),
+				Size = new Size(450, 30),
+				AutoEllipsis = true
+			};
+			card.Controls.Add(pNameLbl);
+
+			Label pCatLbl = new Label
+			{
+				Text = "",
+				Font = new Font("Segoe UI", 9.5f),
+				ForeColor = Skin.TextDim,
+				Location = new Point(16, 46),
+				Size = new Size(450, 22),
+				AutoEllipsis = true
+			};
+			card.Controls.Add(pCatLbl);
+
+			Label pPriceLbl = new Label
+			{
+				Text = "",
+				Font = new Font("Segoe UI Bold", 20f),
+				ForeColor = Skin.Accent,
+				Location = new Point(16, 76),
+				Size = new Size(240, 42)
+			};
+			card.Controls.Add(pPriceLbl);
+
+			Label pStockLbl = new Label
+			{
+				Text = "",
+				Font = new Font("Segoe UI Semibold", 10.5f),
+				ForeColor = Skin.Info,
+				Location = new Point(16, 126),
+				Size = new Size(450, 26)
+			};
+			card.Controls.Add(pStockLbl);
+
+			f.Controls.Add(card);
+
+			Action<Product, ProductVariant?> displayProduct = (p, v) =>
+			{
+				if (p == null) return;
+				string fullName = p.Name;
+				decimal price = p.Price;
+				if (v != null)
+				{
+					fullName = $"{p.Name} ({v.Name})";
+					price = v.Price;
+				}
+				pNameLbl.Text = fullName;
+				pCatLbl.Text = $"{p.Category} · {p.Family} · Barcode: {(v != null && !string.IsNullOrEmpty(v.Barcode) ? v.Barcode : p.Barcode)}";
+				pPriceLbl.Text = price.ToString("C");
+
+				decimal stock = 0m;
+				var ps = store.ProductStocks.FirstOrDefault(s => s.Product.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
+				if (ps != null) stock = ps.Stock;
+				pStockLbl.Text = $"Stock: {stock:0.##} units available";
+				pStockLbl.ForeColor = stock > 0 ? Skin.Success : Skin.Danger;
+			};
+
+			if (prod != null)
+			{
+				displayProduct(prod, variant);
+			}
+
+			txtInput.KeyDown += (s, e) =>
+			{
+				if (e.KeyCode == Keys.Return && !string.IsNullOrWhiteSpace(txtInput.Text))
+				{
+					string term = txtInput.Text.Trim();
+					var vMatch = store.ProductVariants.FirstOrDefault(v => v.Barcode.Equals(term, StringComparison.OrdinalIgnoreCase));
+					if (vMatch != null)
+					{
+						var pMatch = products.FirstOrDefault(p => p.Name.Equals(vMatch.Product, StringComparison.OrdinalIgnoreCase));
+						if (pMatch != null)
+						{
+							displayProduct(pMatch, vMatch);
+							txtInput.SelectAll();
+							return;
+						}
+					}
+					var found = products.FirstOrDefault(p => p.Barcode.Equals(term, StringComparison.OrdinalIgnoreCase) || p.Name.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0);
+					if (found != null)
+					{
+						displayProduct(found, null);
+					}
+					else
+					{
+						pNameLbl.Text = Tr.T("Product not found");
+						pCatLbl.Text = "";
+						pPriceLbl.Text = "";
+						pStockLbl.Text = "";
+					}
+					txtInput.SelectAll();
+				}
+			};
+
+			Button btnClose = new Button
+			{
+				Text = Tr.T("Fermer"),
+				Location = new Point(390, 72),
+				Size = new Size(114, 30),
+				BackColor = Skin.PanelLight,
+				ForeColor = Skin.Text,
+				FlatStyle = FlatStyle.Flat,
+				Cursor = Cursors.Hand
+			};
+			btnClose.FlatAppearance.BorderSize = 0;
+			btnClose.Click += (s, e) => f.Close();
+			f.Controls.Add(btnClose);
+
+			f.Shown += (s, e) => txtInput.Focus();
+			f.ShowDialog(this);
+		}
+
+		private void AddProduct(Product product, int quantity = 1, decimal? scaleWeightKg = null, decimal? customPrice = null, ProductVariant? preselectedVariant = null)
 		{
 			if (Is86(store, product.Name))
 			{
 				MessageBox.Show(product.Name + " " + Tr.T("is out of stock (86'd)."), Tr.T("86 board"), MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
 				return;
 			}
-			if (store.Features.ProductVariants)
+			if (preselectedVariant != null)
+			{
+				Product product2 = product._003CClone_003E_0024();
+				product2.Name = product.Name + " (" + preselectedVariant.Name + ")";
+				product2.Price = preselectedVariant.Price;
+				product2.Barcode = ((preselectedVariant.Barcode.Length > 0) ? preselectedVariant.Barcode : product.Barcode);
+				product = product2;
+			}
+			else if (store.Features.ProductVariants)
 			{
 				List<ProductVariant> list = store.ProductVariants.Where((ProductVariant v) => v.Product == product.Name).ToList();
 				if (list.Count > 0)
@@ -8462,9 +8915,21 @@ internal sealed class PosForm : Form
 				}
 			}
 			int num2 = basket.FindIndex(((Product Product, int Count, int Course, string Note, int Seat, string Modifiers) tuple2) => tuple2.Product.Name == product.Name && tuple2.Product.PrinterDestination == product.PrinterDestination && tuple2.Note == note && tuple2.Modifiers == modifiers && (!store.Features.SeatOrdering || tuple2.Seat == activeSeat));
-			NumericUpDown wInput;
-			Label wTotal;
-			if (store.Features.WeightedItems && product.Weighted)
+			NumericUpDown wInput = null!;
+			Label wTotal = null!;
+			if (scaleWeightKg.HasValue)
+			{
+				decimal value2 = scaleWeightKg.Value;
+				finalPrice = Math.Round(finalPrice * value2, 2);
+				note = (string.IsNullOrWhiteSpace(note) ? $"{value2:0.###} kg @ {product.Price:C}/kg" : $"{note} · {value2:0.###} kg");
+				num2 = basket.FindIndex(((Product Product, int Count, int Course, string Note, int Seat, string Modifiers) tuple2) => tuple2.Product.Name == product.Name && tuple2.Product.PrinterDestination == product.PrinterDestination && tuple2.Note == note && tuple2.Modifiers == modifiers && (!store.Features.SeatOrdering || tuple2.Seat == activeSeat));
+			}
+			else if (customPrice.HasValue)
+			{
+				finalPrice = customPrice.Value;
+				num2 = basket.FindIndex(((Product Product, int Count, int Course, string Note, int Seat, string Modifiers) tuple2) => tuple2.Product.Name == product.Name && tuple2.Product.PrinterDestination == product.PrinterDestination && tuple2.Note == note && tuple2.Modifiers == modifiers && (!store.Features.SeatOrdering || tuple2.Seat == activeSeat));
+			}
+			else if (store.Features.WeightedItems && product.Weighted)
 			{
 				Form wf = new Form
 				{
@@ -8558,11 +9023,11 @@ internal sealed class PosForm : Form
 			}
 			if (num2 >= 0)
 			{
-				basket[num2] = (new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode, product.Weighted), basket[num2].Count + 1, basket[num2].Course, basket[num2].Note, basket[num2].Seat, basket[num2].Modifiers);
+				basket[num2] = (new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode, product.Weighted), basket[num2].Count + quantity, basket[num2].Course, basket[num2].Note, basket[num2].Seat, basket[num2].Modifiers);
 			}
 			else
 			{
-				basket.Add((new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode, product.Weighted), 1, store.Features.CourseManagement ? 1 : 0, note, store.Features.SeatOrdering ? activeSeat : 0, modifiers));
+				basket.Add((new Product(product.Name, product.Category, finalPrice, product.Color, product.Family, product.ImagePath, product.PrinterDestination, product.Barcode, product.Weighted), quantity, store.Features.CourseManagement ? 1 : 0, note, store.Features.SeatOrdering ? activeSeat : 0, modifiers));
 			}
 			RenderBasket();
 			void UpdateW()
@@ -10068,6 +10533,11 @@ internal sealed class PosForm : Form
 				UpdateOrderButtons();
 				salesLabel.Text = TodaySalesAmount();
 				RenderBasket();
+				if (store.Features.QuickSaleMode || !store.Features.FloorPlanEditor)
+				{
+					orderLabel.Text = OrderContextText();
+					barcodeBox?.Focus();
+				}
 				Room room = store.Rooms.FirstOrDefault((Room r) => r.Name == selectedRoom);
 				if (room != null)
 				{
@@ -10233,6 +10703,35 @@ internal sealed class PosForm : Form
 		private string ResolvePrinter(Product product)
 		{
 			return store.Families.FirstOrDefault((ProductFamily family) => family.Name == product.Family)?.PrinterDestination ?? "";
+		}
+
+		private void ShowTicketDesigner()
+		{
+			if (!HasPermission("Settings"))
+			{
+				return;
+			}
+			if (store.PrinterDestinations.Count == 0)
+			{
+				ShowPrinterManager();
+				return;
+			}
+			TicketLayout.TvaRate = store.RegisterSettings.TvaRate;
+			TicketLayout.PricesIncludeTva = store.RegisterSettings.PricesIncludeTva;
+			Panel panel = new Panel
+			{
+				Dock = DockStyle.Fill
+			};
+			TicketDesignerForm designer = new TicketDesignerForm(background, panelLight, mint, store.PrinterDestinations, 0, (List<PrinterDestination> destinations) =>
+			{
+				store.SavePrinterDestinations(destinations);
+			});
+			designer.TopLevel = false;
+			designer.FormBorderStyle = FormBorderStyle.None;
+			designer.Dock = DockStyle.Fill;
+			panel.Controls.Add(designer);
+			designer.Show();
+			ShowView(panel, "Ticket Designer", ShowSettings);
 		}
 
 		private void ShowPrinterManager()
@@ -10766,6 +11265,27 @@ internal sealed class PosForm : Form
 							byte[] array = RawPrinter.ImageToEscPosBytes(bmp);
 							stream.Write(array, 0, array.Length);
 						}
+						else if (item.Component == "BarcodeFooter")
+						{
+							string code = (billNumber > 0 ? billNumber : (paymentNumber > 0 ? paymentNumber : 1)).ToString("D6");
+							if (Code39.CanEncode(code))
+							{
+								using Bitmap bmap = Code39.Render(code, 2);
+								byte[] barBytes = RawPrinter.ImageToEscPosBytes(bmap);
+								stream.Write(barBytes, 0, barBytes.Length);
+							}
+							else
+							{
+								Write(text);
+							}
+						}
+						else if (item.Component == "QrFooter")
+						{
+							string code = $"RECEIPT-{billNumber}";
+							using Bitmap qrbmp = QrCode.ToBitmap(code, 3);
+							byte[] qrBytes = RawPrinter.ImageToEscPosBytes(qrbmp);
+							stream.Write(qrBytes, 0, qrBytes.Length);
+						}
 						else
 						{
 							Write(text);
@@ -10854,6 +11374,28 @@ internal sealed class PosForm : Form
 								int num8 = num7;
 								graphics.DrawImage(image, new Rectangle(num8, num, num5, num6));
 								num += num6 + 2;
+							}
+							else if (item.Component == "BarcodeFooter")
+							{
+								string code = (billNumber > 0 ? billNumber : (paymentNumber > 0 ? paymentNumber : 1)).ToString("D6");
+								if (Code39.CanEncode(code))
+								{
+									using Bitmap bmap = Code39.Render(code, 2);
+									int bW = Math.Min(bmap.Width, num3);
+									int bH = (int)((double)bmap.Height * ((double)bW / bmap.Width));
+									int bX = item.Alignment == "Center" ? (num2 + (num3 - bW) / 2) : (item.Alignment == "Right" ? (num2 + num3 - bW) : num2);
+									graphics.DrawImage(bmap, new Rectangle(bX, num, bW, bH));
+									num += bH + 6;
+								}
+							}
+							else if (item.Component == "QrFooter")
+							{
+								string code = $"RECEIPT-{billNumber}";
+								using Bitmap qrbmp = QrCode.ToBitmap(code, 3);
+								int qW = Math.Min(120, num3);
+								int qX = item.Alignment == "Center" ? (num2 + (num3 - qW) / 2) : (item.Alignment == "Right" ? (num2 + num3 - qW) : num2);
+								graphics.DrawImage(qrbmp, new Rectangle(qX, num, qW, qW));
+								num += qW + 6;
 							}
 							else
 							{
@@ -11222,6 +11764,7 @@ internal sealed class PosForm : Form
 				{
 					ShowFindReceipt();
 				}, ShowSpecialOrders, ShowOfflineQueue, ShowVirtualTerminal, DispatchReport, ShowOrder, ShowStockConsole, () => ShowRecipeEditor(), ShowIngredientManager, ShowPurchases);
+				settingsForm.ShowTicketDesigner = ShowTicketDesigner;
 				settingsForm.TopLevel = false;
 				settingsForm.FormBorderStyle = FormBorderStyle.None;
 				settingsForm.Dock = DockStyle.Fill;
@@ -11750,7 +12293,11 @@ internal sealed class PosForm : Form
 
 		private void ApplyPermissions()
 		{
-			pillRooms.Visible = HasPermission("Manage rooms");
+			pillRooms.Visible = store.Features.FloorPlanEditor && HasPermission("Manage rooms");
+			if (!store.Features.FloorPlanEditor && roomsPanel.Visible)
+			{
+				ShowOrder();
+			}
 			pillSettings.Visible = HasPermission("Settings");
 			clockInOutBtn.Available = store.Features.ClockInOut;
 			stockBtn.Available = store.Features.StockManagement;
@@ -24628,6 +25175,8 @@ internal sealed class FeatureCard : Panel
 
 internal sealed class SettingsForm : Form
 {
+	[System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+	internal Action? ShowTicketDesigner { get; set; }
 	private FeatureSettings features;
 	private readonly Action<FeatureSettings> saveFeatures;
 	private readonly Stack<string> pageHistory = new Stack<string>();
@@ -25410,6 +25959,24 @@ internal sealed class SettingsForm : Form
 			Tr.T("✔ Fast barcode scan  ✔ Patient/client notes  ✔ Batch stock alerts  ✔ Price checker"),
 			() => BusinessProfiles.ApplyPharmacy(features)
 		);
+
+		AddProfileCard(
+			BusinessProfiles.Butchery,
+			"🥩",
+			Tr.T("Butchery & Deli"),
+			Tr.T("Butcher shops, delis, charcuteries, and fishmongers with weighing scale barcodes."),
+			Tr.T("✔ Scale barcodes (EAN-13)  ✔ Weighted items  ✔ Multi-quantity  ✔ Stock alerts  ✔ Price check"),
+			() => BusinessProfiles.ApplyButchery(features)
+		);
+
+		AddProfileCard(
+			BusinessProfiles.Salon,
+			"💇",
+			Tr.T("Hair Salon & Spa"),
+			Tr.T("Hair salons, barbershops, beauty institutes, and nail spas."),
+			Tr.T("✔ Quick sale  ✔ Client formulas  ✔ Stylist commissions  ✔ Loyalty  ✔ Gift cards"),
+			() => BusinessProfiles.ApplySalon(features)
+		);
 	}
 
 	private void PopulateAppearance()
@@ -25565,6 +26132,10 @@ internal sealed class SettingsForm : Form
 		AddToggleCard(Tr.T("Barcode Scanner"), Tr.T("Look up products instantly via USB or Bluetooth barcode scanner"), "BarcodeScanning");
 		AddToggleCard(Tr.T("Barcode Labels"), Tr.T("Print product shelf labels and price tags with Code39 barcodes"), "BarcodeLabels");
 		AddToggleCard(Tr.T("Weighted Items & Scales"), Tr.T("Support products sold by weight with tare deduction"), "WeightedItems");
+		AddToggleCard(Tr.T("Scale Barcodes (EAN-13)"), Tr.T("Decode weight and price embedded scale barcodes (prefixes 20, 21, 28, 29)"), "Ean13ScaleBarcodes");
+		AddToggleCard(Tr.T("Multi-Quantity Scanning"), Tr.T("Type quantity multiplier (e.g. 5*Barcode) to quickly scan multiple units"), "MultiQuantityScan");
+		AddToggleCard(Tr.T("Price Checker Mode (F3)"), Tr.T("Instant price and stock lookup shortcut without altering the active cart"), "PriceCheckerMode");
+		AddToggleCard(Tr.T("Bottle & Container Deposits"), Tr.T("Charge and refund returnable bottle and container deposits"), "BottleDeposits");
 	}
 
 	private void PopulateTax()
@@ -25576,6 +26147,7 @@ internal sealed class SettingsForm : Form
 		AddToggleCard(Tr.T("Cash Discount"), Tr.T("Offer incentive discount percentage when guest settles in cash"), "CashDiscount");
 		AddToggleCard(Tr.T("Credit Card Surcharge"), Tr.T("Apply optional processing surcharge percentage on card payments"), "CardSurcharge");
 		AddToggleCard(Tr.T("Cash Rounding"), Tr.T("Round cash change totals to the nearest 5 or 10 cents"), "CashRounding");
+		AddToggleCard(Tr.T("Dual-Rate Tax (Dine-In vs Takeaway)"), Tr.T("Automatically adjust tax rates depending on Sur Place vs À Emporter"), "DualRateTaxOrderType");
 	}
 
 	private void PopulateOrdering()
@@ -25596,6 +26168,9 @@ internal sealed class SettingsForm : Form
 		AddToggleCard(Tr.T("Kitchen Item Notes"), Tr.T("Staff can type custom prep instructions for any line item"), "ItemNotes");
 		AddToggleCard(Tr.T("Bill Splitting"), Tr.T("Split table checks evenly or by individual seats"), "SplitBill");
 		AddToggleCard(Tr.T("Table Transfers"), Tr.T("Transfer open checks between tables or merge tables"), "TableTransfer");
+		AddToggleCard(Tr.T("Guest Cover Count"), Tr.T("Track number of covers per table for average check reporting"), "GuestCovers");
+		AddToggleCard(Tr.T("Table Merge & Join"), Tr.T("Merge multiple tables for large group bookings on a single bill"), "TableMerge");
+		AddToggleCard(Tr.T("Half & Half Pizza"), Tr.T("Split pizzas into two distinct recipes with automatic proportional pricing"), "HalfAndHalfPizza");
 		AddToggleCard(Tr.T("Quick Sale Counter Mode"), Tr.T("One-touch retail mode for high-volume fast-food counters"), "QuickSaleMode");
 	}
 
@@ -25608,6 +26183,8 @@ internal sealed class SettingsForm : Form
 		AddToggleCard(Tr.T("Self-Ordering Kiosk"), Tr.T("Full-screen customer self-ordering mode with out-of-stock guard"), "KioskMode", onAction: () => _showKiosk?.Invoke(), actionText: Tr.T("Kiosk & link setup  ➔"), isActionVisible: () => features.KioskMode);
 		AddToggleCard(Tr.T("Kiosk Staff Confirmation"), Tr.T("Hold kiosk orders for cashier/waiter approval before printing to kitchen (prevents fake orders; 10 min auto-void)"), "KioskRequireConfirmation");
 		AddToggleCard(Tr.T("86 Board / Out of Stock"), Tr.T("Quickly mark unavailable items to prevent staff taking orders"), "EightySixBoard");
+		AddToggleCard(Tr.T("Order Call Numbers"), Tr.T("Sequential daily call numbers (e.g. #42) on receipts, pole display and KDS"), "OrderCallNumber");
+		AddToggleCard(Tr.T("Delivery Dispatcher Board"), Tr.T("Track orders from preparation to driver dispatch and cash reconciliation"), "DeliveryDispatch");
 		AddToggleCard(Tr.T("QR Table Ordering"), Tr.T("Generate QR table codes for digital customer menu browsing"), "QROrdering");
 	}
 
@@ -25617,11 +26194,11 @@ internal sealed class SettingsForm : Form
 
 		AddActionCard(Tr.T("Visual Ticket Designer"), Tr.T("Customize receipt layout: store logo, header, line styles and cut"), Tr.T("Design tickets →"), () =>
 		{
-			_mPrint?.Invoke();
+			if (ShowTicketDesigner != null) ShowTicketDesigner(); else _mPrint?.Invoke();
 		});
 		AddActionCard(Tr.T("Ticket Styles Editor"), Tr.T("Configure font sizes, bold, underline and text alignment"), Tr.T("Edit ticket styles →"), () =>
 		{
-			_mPrint?.Invoke();
+			if (ShowTicketDesigner != null) ShowTicketDesigner(); else _mPrint?.Invoke();
 		});
 		AddToggleCard(Tr.T("Customer Pole Display"), Tr.T("Secondary guest display showing ordered items and live total"), "CustomerDisplay", onAction: () => _showCustDisp?.Invoke(), actionText: Tr.T("Configure display →"), isActionVisible: () => features.CustomerDisplay);
 		AddToggleCard(Tr.T("Receipt Lookup & Reprint"), Tr.T("Search past transactions by ticket number, time or customer name"), "ReceiptSearch", onAction: () => _showFind?.Invoke(), actionText: Tr.T("Find receipt →"), isActionVisible: () => features.ReceiptSearch);
@@ -25652,6 +26229,9 @@ internal sealed class SettingsForm : Form
 		AddToggleCard(Tr.T("Waste & Spoilage Log"), Tr.T("Record discarded, expired or burnt items and track food cost loss"), "WasteTracking", onAction: () => _showPurchases?.Invoke(), actionText: Tr.T("Waste log →"), isActionVisible: () => features.WasteTracking);
 		AddToggleCard(Tr.T("Purchase Orders & Restock"), Tr.T("Log supplier deliveries, unit purchase costs and incoming inventory"), "Purchasing", onAction: () => _showPurchases?.Invoke(), actionText: Tr.T("Purchase orders →"), isActionVisible: () => features.Purchasing);
 		AddToggleCard(Tr.T("Stock Transfers"), Tr.T("Transfer stock between central storage, main kitchen and bar"), "StockTransfers", onAction: () => _showPurchases?.Invoke(), actionText: Tr.T("Transfers →"), isActionVisible: () => features.StockTransfers);
+		AddToggleCard(Tr.T("Batch Production Log"), Tr.T("Record daily morning bakery / kitchen production and auto-deduct raw recipe ingredients"), "BatchProduction");
+		AddToggleCard(Tr.T("Lot & Expiry Tracking (DLC)"), Tr.T("Track batch lot numbers and expiration dates with 30/60-day alerts"), "LotExpiryTracking");
+		AddToggleCard(Tr.T("Unit Breakdown / Blister Packs"), Tr.T("Sell boxes or individual blister sheets with proportional fractional stock deduction"), "UnitBreakdown");
 	}
 
 	private void PopulateCustomers()
@@ -25663,6 +26243,7 @@ internal sealed class SettingsForm : Form
 		AddToggleCard(Tr.T("Gift Cards & Vouchers"), Tr.T("Sell, reload and redeem digital and plastic gift cards"), "GiftCards");
 		AddToggleCard(Tr.T("House Accounts"), Tr.T("Charge checks to customer account tabs for end-of-month invoicing"), "ChargeTabs");
 		AddToggleCard(Tr.T("Special Orders & Catering"), Tr.T("Advance party orders with deposit tracking and scheduled pickup"), "DeliveryOrders", onAction: () => _showSpecial?.Invoke(), actionText: Tr.T("Special orders →"), isActionVisible: () => features.DeliveryOrders);
+		AddToggleCard(Tr.T("Store Credit & Vouchers"), Tr.T("Issue and redeem printed store credit slips (Avoirs) with barcodes for returns"), "StoreCredit");
 		AddToggleCard(Tr.T("Table Reservations"), Tr.T("Table reservations, party size and reservation floor badges"), "Reservations");
 	}
 
@@ -25688,6 +26269,8 @@ internal sealed class SettingsForm : Form
 		AddToggleCard(Tr.T("Virtual Terminal"), Tr.T("Process card payments via manual card number entry for phone orders"), "VirtualTerminal", onAction: () => _showVt?.Invoke(), actionText: Tr.T("Virtual terminal →"), isActionVisible: () => features.VirtualTerminal);
 		AddToggleCard(Tr.T("Customer Refunds"), Tr.T("Process refund tickets and optionally restore inventory balance"), "Refunds");
 		AddToggleCard(Tr.T("Tips & Gratuity"), Tr.T("Prompt for tips on card transactions and calculate server tip pools"), "Tips");
+		AddToggleCard(Tr.T("Tip Pool Distribution"), Tr.T("Calculate shift tip pooling breakdown between waitstaff, runners and kitchen"), "TipPooling");
+		AddToggleCard(Tr.T("Employee Commission"), Tr.T("Track commission percentages on services and retail products sold by stylists/staff"), "EmployeeCommission");
 		AddToggleCard(Tr.T("Parked Orders & Open Tabs"), Tr.T("Park open orders and recall them later from any terminal"), "ParkOrders");
 	}
 }
@@ -28160,6 +28743,27 @@ internal static class RawPrinter
 								using Bitmap bmp = new Bitmap(image, new Size(width, height));
 								byte[] array = ImageToEscPosBytes(bmp);
 								stream.Write(array, 0, array.Length);
+							}
+							else if (item.Component == "BarcodeFooter")
+							{
+								string code = (billNumber > 0 ? billNumber : (paymentNumber > 0 ? paymentNumber : 1)).ToString("D6");
+								if (Code39.CanEncode(code))
+								{
+									using Bitmap bmap = Code39.Render(code, 2);
+									byte[] barBytes = ImageToEscPosBytes(bmap);
+									stream.Write(barBytes, 0, barBytes.Length);
+								}
+								else
+								{
+									Write(text2);
+								}
+							}
+							else if (item.Component == "QrFooter")
+							{
+								string code = $"RECEIPT-{billNumber}";
+								using Bitmap qrbmp = QrCode.ToBitmap(code, 3);
+								byte[] qrBytes = ImageToEscPosBytes(qrbmp);
+								stream.Write(qrBytes, 0, qrBytes.Length);
 							}
 							else
 							{
@@ -31321,7 +31925,23 @@ internal sealed class ProductManagerForm : SettingsSubForm
 				{
 					f.DialogResult = DialogResult.OK;
 				};
-				f.Controls.AddRange(new Control[7] { lv, vName, vPrice, vBarcode, button, button2, button3 });
+				Button buttonMatrix = new Button
+				{
+					Text = "⚡ " + Tr.T("Matrice"),
+					Location = new Point(216, 312),
+					Size = new Size(95, 30),
+					BackColor = Skin.InfoAlt,
+					ForeColor = Skin.OnFill,
+					FlatStyle = FlatStyle.Flat,
+					Font = new Font("Segoe UI Semibold", 9f),
+					Cursor = Cursors.Hand
+				};
+				buttonMatrix.FlatAppearance.BorderSize = 0;
+				buttonMatrix.Click += (object _, EventArgs _) =>
+				{
+					ShowVariantMatrixDialog(product, () => Fill());
+				};
+				f.Controls.AddRange(new Control[8] { lv, vName, vPrice, vBarcode, button, button2, buttonMatrix, button3 });
 				f.ShowDialog();
 			}
 			finally
@@ -31344,6 +31964,140 @@ internal sealed class ProductManagerForm : SettingsSubForm
 					}));
 				}
 			}
+		}
+
+		private void ShowVariantMatrixDialog(Product product, Action onComplete)
+		{
+			Form f = new Form
+			{
+				Text = "⚡ " + Tr.T("Variant Matrix Generator") + " — " + product.Name,
+				Size = new Size(540, 340),
+				StartPosition = FormStartPosition.CenterParent,
+				BackColor = bg,
+				ForeColor = Skin.Text,
+				Font = new Font("Segoe UI", 10f),
+				FormBorderStyle = FormBorderStyle.FixedDialog,
+				MaximizeBox = false,
+				MinimizeBox = false
+			};
+
+			Label lblSizes = new Label
+			{
+				Text = Tr.T("Sizes (comma-separated):"),
+				Location = new Point(20, 16),
+				AutoSize = true,
+				ForeColor = Skin.TextDim
+			};
+			f.Controls.Add(lblSizes);
+
+			TextBox txtSizes = new TextBox
+			{
+				Text = "XS, S, M, L, XL, XXL",
+				Location = new Point(20, 40),
+				Size = new Size(480, 28),
+				BackColor = pl,
+				ForeColor = Skin.Text
+			};
+			f.Controls.Add(txtSizes);
+
+			Label lblColors = new Label
+			{
+				Text = Tr.T("Colors (comma-separated):"),
+				Location = new Point(20, 80),
+				AutoSize = true,
+				ForeColor = Skin.TextDim
+			};
+			f.Controls.Add(lblColors);
+
+			TextBox txtColors = new TextBox
+			{
+				Text = "Noir, Blanc, Bleu, Gris, Rouge",
+				Location = new Point(20, 104),
+				Size = new Size(480, 28),
+				BackColor = pl,
+				ForeColor = Skin.Text
+			};
+			f.Controls.Add(txtColors);
+
+			Label lblBasePrice = new Label
+			{
+				Text = Tr.T("Base Price:"),
+				Location = new Point(20, 148),
+				AutoSize = true,
+				ForeColor = Skin.TextDim
+			};
+			f.Controls.Add(lblBasePrice);
+
+			NumericUpDown numPrice = new NumericUpDown
+			{
+				Location = new Point(20, 172),
+				Size = new Size(130, 28),
+				Minimum = 0m,
+				Maximum = 100000m,
+				DecimalPlaces = 2,
+				Value = product.Price,
+				BackColor = pl,
+				ForeColor = Skin.Text
+			};
+			f.Controls.Add(numPrice);
+
+			Button btnGen = new Button
+			{
+				Text = "⚡ " + Tr.T("Generate Variants"),
+				Location = new Point(20, 220),
+				Size = new Size(200, 36),
+				BackColor = mintC,
+				ForeColor = Skin.OnAccent,
+				FlatStyle = FlatStyle.Flat,
+				Font = new Font("Segoe UI Bold", 10f),
+				Cursor = Cursors.Hand
+			};
+			btnGen.FlatAppearance.BorderSize = 0;
+			btnGen.Click += (s, e) =>
+			{
+				var sizes = txtSizes.Text.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+				var colors = txtColors.Text.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+				if (sizes.Count == 0 || colors.Count == 0)
+				{
+					MessageBox.Show(Tr.T("Please specify at least one size and one color."), Tr.T("Variants"), MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+					return;
+				}
+				int added = 0;
+				foreach (var sz in sizes)
+				{
+					foreach (var col in colors)
+					{
+						string vName = $"{sz} / {col}";
+						if (!variants.Any(v => v.Product == product.Name && v.Name.Equals(vName, StringComparison.OrdinalIgnoreCase)))
+						{
+							string vBarcode = product.Barcode.Length > 0 ? $"{product.Barcode}-{sz.Substring(0, 1)}{col.Substring(0, 1)}" : "";
+							variants.Add(new ProductVariant(product.Name, vName, numPrice.Value, vBarcode));
+							added++;
+						}
+					}
+				}
+				saveVariants(variants);
+				onComplete();
+				MessageBox.Show(string.Format(Tr.T("{0} variants generated successfully!"), added), Tr.T("Variants"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+				f.Close();
+			};
+			f.Controls.Add(btnGen);
+
+			Button btnCancel = new Button
+			{
+				Text = Tr.T("Cancel"),
+				Location = new Point(230, 220),
+				Size = new Size(110, 36),
+				BackColor = pl,
+				ForeColor = Skin.Text,
+				FlatStyle = FlatStyle.Flat,
+				Cursor = Cursors.Hand
+			};
+			btnCancel.FlatAppearance.BorderSize = 0;
+			btnCancel.Click += (s, e) => f.Close();
+			f.Controls.Add(btnCancel);
+
+			f.ShowDialog();
 		}
 
 		private Color panelLightOf()

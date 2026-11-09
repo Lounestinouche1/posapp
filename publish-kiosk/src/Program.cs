@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -403,7 +404,10 @@ namespace VectronKiosk
 			["OrderSuccess"] = "ORDER SENT SUCCESSFULLY!",
 			["OrderSentDesc"] = "Your order has been sent to our kitchen team.",
 			["AutoReturn"] = "Returning in {0}s",
-			["Done"] = "Done"
+			["Done"] = "Done",
+			["LockscreenProductDisplay"] = "Lockscreen product display style:",
+			["LockscreenImageOnly"] = "🖼 Photo only (Clean fullscreen)",
+			["LockscreenWithDetails"] = "🏷 Photo with Product Name & Price"
 		};
 
 		private static readonly Dictionary<string, string> Fr = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -465,7 +469,10 @@ namespace VectronKiosk
 			["OrderSuccess"] = "COMMANDE ENVOYÉE AVEC SUCCÈS !",
 			["OrderSentDesc"] = "Votre commande est transmise directement en cuisine.",
 			["AutoReturn"] = "Retour automatique dans {0}s",
-			["Done"] = "Terminer"
+			["Done"] = "Terminer",
+			["LockscreenProductDisplay"] = "Affichage produit sur écran de veille :",
+			["LockscreenImageOnly"] = "🖼 Photo seule (Plein écran épuré)",
+			["LockscreenWithDetails"] = "🏷 Photo avec Nom & Prix du produit"
 		};
 
 		private static readonly Dictionary<string, string> Ar = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -527,7 +534,10 @@ namespace VectronKiosk
 			["OrderSuccess"] = "تم إرسال طلبك بنجاح!",
 			["OrderSentDesc"] = "تم إرسال طلبك مباشرة إلى المطبخ لتحضيره.",
 			["AutoReturn"] = "العودة للشاشة الرئيسية خلال {0} ثوانٍ",
-			["Done"] = "تم"
+			["Done"] = "تم",
+			["LockscreenProductDisplay"] = "نمط العرض على شاشة التوقف :",
+			["LockscreenImageOnly"] = "🖼 الصورة فقط (ملء الشاشة)",
+			["LockscreenWithDetails"] = "🏷 الصورة مع اسم المنتج والسعر"
 		};
 
 		public static string Current { get; set; } = "fr";
@@ -708,6 +718,8 @@ namespace VectronKiosk
 
 		public string LockscreenCustomFolder { get; set; } = "";
 
+		public bool LockscreenShowProductInfo { get; set; } = false;
+
 		public bool IsConfigured { get; set; }
 
 		public static KioskConfig Load()
@@ -824,7 +836,9 @@ namespace VectronKiosk
 				Path.Combine(AppContext.BaseDirectory, "client database"),
 				Path.Combine(AppContext.BaseDirectory, "..", "client database"),
 				Path.Combine(AppContext.BaseDirectory, "..", "..", "client database"),
-				Path.Combine(AppContext.BaseDirectory, "publish-win10-x64", "client database")
+				Path.Combine(AppContext.BaseDirectory, "publish-win10-x64", "client database"),
+				Path.Combine(AppContext.BaseDirectory, "..", "publish-win10-x64", "client database"),
+				Path.Combine(AppContext.BaseDirectory, "..", "publish-win7", "client database")
 			};
 			foreach (var c in candidates)
 			{
@@ -1125,6 +1139,10 @@ namespace VectronKiosk
 			DoubleBuffered = true;
 			BackColor = KioskSkin.Bg;
 			lastIsPortrait = (Height > Width);
+			if (Height == 0 && Width == 0 && form != null && form.Width > 0 && form.Height > 0)
+			{
+				lastIsPortrait = form.Height > form.Width;
+			}
 			LoadPromoImages();
 			billboardTimer.Interval = 4500;
 			billboardTimer.Tick += (object s, EventArgs e) =>
@@ -1191,12 +1209,24 @@ namespace VectronKiosk
 			try
 			{
 				bool isPortrait = Height > Width;
+				if (Width == 0 || Height == 0)
+				{
+					if (mainForm != null && mainForm.Width > 0 && mainForm.Height > 0)
+					{
+						isPortrait = mainForm.Height > mainForm.Width;
+					}
+				}
 				int slideW = isPortrait ? 1080 : 1920;
 				int slideH = isPortrait ? 1920 : 1080;
 				if (Width > 0 && Height > 0)
 				{
 					slideW = Width;
 					slideH = Height;
+				}
+				else if (mainForm != null && mainForm.Width > 0 && mainForm.Height > 0)
+				{
+					slideW = mainForm.Width;
+					slideH = mainForm.Height;
 				}
 
 				string mode = mainForm?.Config?.LockscreenBackgroundMode ?? "Products";
@@ -1219,23 +1249,19 @@ namespace VectronKiosk
 						{
 							using MemoryStream ms = new MemoryStream(File.ReadAllBytes(file));
 							using Bitmap bmp = new Bitmap(ms);
-							float scale = Math.Min((float)slideW / (float)bmp.Width, (float)slideH / (float)bmp.Height);
-							if (scale < 1f)
+							float scale = Math.Max((float)slideW / (float)bmp.Width, (float)slideH / (float)bmp.Height);
+							int dw = (int)Math.Ceiling((float)bmp.Width * scale);
+							int dh = (int)Math.Ceiling((float)bmp.Height * scale);
+							Bitmap resized = new Bitmap(slideW, slideH);
+							using (Graphics g = Graphics.FromImage(resized))
 							{
-								int dw = (int)((float)bmp.Width * scale);
-								int dh = (int)((float)bmp.Height * scale);
-								Bitmap resized = new Bitmap(dw, dh);
-								using (Graphics g = Graphics.FromImage(resized))
-								{
-									g.InterpolationMode = InterpolationMode.Bilinear;
-									g.DrawImage(bmp, 0, 0, dw, dh);
-								}
-								promoImages.Add(resized);
+								g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+								g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+								int dx = (slideW - dw) / 2;
+								int dy = (slideH - dh) / 2;
+								g.DrawImage(bmp, new Rectangle(dx, dy, dw, dh));
 							}
-							else
-							{
-								promoImages.Add(new Bitmap(bmp));
-							}
+							promoImages.Add(resized);
 							if (promoImages.Count >= 8) break;
 						}
 						catch { }
@@ -1279,7 +1305,7 @@ namespace VectronKiosk
 
 						try
 						{
-							Bitmap slide = GenerateProductHeroSlide(slideW, slideH, prod, realImg, isPortrait, mainForm.RestaurantName, mainForm.Currency);
+							Bitmap slide = GenerateProductHeroSlide(slideW, slideH, prod, realImg, isPortrait, mainForm.RestaurantName, mainForm.Currency, mainForm?.Config?.LockscreenShowProductInfo ?? false);
 							promoImages.Add(slide);
 						}
 						catch { }
@@ -1304,24 +1330,20 @@ namespace VectronKiosk
 								{
 									using MemoryStream stream = new MemoryStream(File.ReadAllBytes(item2));
 									using Bitmap bitmap = new Bitmap(stream);
-									float num = Math.Min((float)slideW / (float)bitmap.Width, (float)slideH / (float)bitmap.Height);
-									if (num < 1f)
+									float num = Math.Max((float)slideW / (float)bitmap.Width, (float)slideH / (float)bitmap.Height);
+									int num2 = (int)Math.Ceiling((float)bitmap.Width * num);
+									int num3 = (int)Math.Ceiling((float)bitmap.Height * num);
+									Bitmap bitmap2 = new Bitmap(slideW, slideH);
+									using (Graphics graphics = Graphics.FromImage(bitmap2))
 									{
-										int num2 = (int)((float)bitmap.Width * num);
-										int num3 = (int)((float)bitmap.Height * num);
-										Bitmap bitmap2 = new Bitmap(num2, num3);
-										using (Graphics graphics = Graphics.FromImage(bitmap2))
-										{
-											graphics.InterpolationMode = InterpolationMode.Bilinear;
-											graphics.DrawImage(bitmap, 0, 0, num2, num3);
-										}
-										promoImages.Add(bitmap2);
+										graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+										graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+										int dx = (slideW - num2) / 2;
+										int dy = (slideH - num3) / 2;
+										graphics.DrawImage(bitmap, new Rectangle(dx, dy, num2, num3));
 									}
-									else
-									{
-										promoImages.Add(new Bitmap(bitmap));
-									}
-									if (promoImages.Count >= 4) break;
+									promoImages.Add(bitmap2);
+									if (promoImages.Count >= 8) break;
 								}
 								catch { }
 							}
@@ -1347,7 +1369,7 @@ namespace VectronKiosk
 			}
 		}
 
-		private static Bitmap GenerateProductHeroSlide(int w, int h, KioskProduct prod, Image? realImage, bool isPortrait, string restaurantName, string currency)
+		private static Bitmap GenerateProductHeroSlide(int w, int h, KioskProduct prod, Image? realImage, bool isPortrait, string restaurantName, string currency, bool showProductInfo = false)
 		{
 			Bitmap bmp = new Bitmap(w, h);
 			using Graphics g = Graphics.FromImage(bmp);
@@ -1355,159 +1377,126 @@ namespace VectronKiosk
 			g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 			g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-			if (isPortrait)
+			if (realImage != null)
 			{
-				using (LinearGradientBrush bgBrush = new LinearGradientBrush(new Point(0, 0), new Point(0, h),
-					Color.FromArgb(248, 250, 253), Color.FromArgb(232, 238, 248)))
-				{
-					g.FillRectangle(bgBrush, 0, 0, w, h);
-				}
-
-				using (SolidBrush glow = new SolidBrush(Color.FromArgb(30, 45, 96, 255)))
-				{
-					g.FillEllipse(glow, w / 4 - 50, (int)(h * 0.15f), w / 2 + 100, w / 2 + 100);
-				}
-
-			int foodBoxW = Math.Min(720, w - 80);
-			int foodBoxH = (int)(h * 0.38f);
-			int foodX = (w - foodBoxW) / 2;
-			int foodY = (int)(h * 0.16f);
-
-				KioskSkin.DrawFoodContactShadow(g, w / 2, foodY + foodBoxH + 12, (int)(foodBoxW * 0.85f), 38);
-
-				if (realImage != null)
-				{
-					float scale = Math.Min((float)foodBoxW / realImage.Width, (float)foodBoxH / realImage.Height);
-					int drawW = (int)(realImage.Width * scale);
-					int drawH = (int)(realImage.Height * scale);
-					int drawX = (w - drawW) / 2;
-					int drawY = foodY + (foodBoxH - drawH) / 2;
-					g.DrawImage(realImage, new Rectangle(drawX, drawY, drawW, drawH));
-				}
-				else
-				{
-					Rectangle foodRect = new Rectangle(foodX, foodY, foodBoxW, foodBoxH);
-					ProductCardPanel.DrawFoodVectorIllustration(g, foodRect, prod.Category, prod.Name, true);
-				}
-
-			int cardW = Math.Min(760, w - 80);
-			int cardH = 135;
-			int cardX = (w - cardW) / 2;
-			int cardY = foodY + foodBoxH + 50;
-
-				using (GraphicsPath cardPath = KioskSkin.RoundRect(new Rectangle(cardX, cardY, cardW, cardH), 24))
-				{
-					using (SolidBrush cardBg = new SolidBrush(Color.FromArgb(230, 255, 255, 255)))
-					{
-						g.FillPath(cardBg, cardPath);
-					}
-					using (Pen borderPen = new Pen(Color.FromArgb(170, 218, 225, 233), 1.5f))
-					{
-						g.DrawPath(borderPen, cardPath);
-					}
-				}
-
-				var pastel = KioskSkin.GetCategoryPastel(prod.Category);
-				using (GraphicsPath catPill = KioskSkin.RoundRect(new Rectangle(cardX + 28, cardY + 22, 130, 28), 8))
-				{
-					using (SolidBrush catBg = new SolidBrush(pastel.Bg))
-					{
-						g.FillPath(catBg, catPill);
-					}
-				}
-				using (Font catFont = new Font("Segoe UI Bold", 10f))
-				using (SolidBrush catText = new SolidBrush(pastel.Fore))
-				{
-					StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-					g.DrawString((prod.Category ?? "MENU").ToUpperInvariant(), catFont, catText, new Rectangle(cardX + 28, cardY + 22, 130, 28), sf);
-				}
-
-				using (Font titleFont = new Font("Segoe UI Bold", 20f))
-				using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(26, 32, 44)))
-				{
-					g.DrawString(prod.Name, titleFont, titleBrush, new PointF(cardX + 28, cardY + 62));
-				}
-
-				using (Font priceFont = new Font("Segoe UI Bold", 24f))
-				using (SolidBrush priceBrush = new SolidBrush(Color.FromArgb(45, 96, 255)))
-				{
-					StringFormat sfRight = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
-					g.DrawString(KioskLang.FormatPrice(prod.Price, currency), priceFont, priceBrush, new Rectangle(cardX + cardW - 240, cardY + 30, 215, 75), sfRight);
-				}
+				float scale = Math.Max((float)w / realImage.Width, (float)h / realImage.Height);
+				int drawW = (int)Math.Ceiling(realImage.Width * scale);
+				int drawH = (int)Math.Ceiling(realImage.Height * scale);
+				int drawX = (w - drawW) / 2;
+				int drawY = (h - drawH) / 2;
+				g.DrawImage(realImage, new Rectangle(drawX, drawY, drawW, drawH));
 			}
 			else
 			{
-				using (LinearGradientBrush bgBrush = new LinearGradientBrush(new Point(0, 0), new Point(w, h),
-					Color.FromArgb(248, 246, 242), Color.FromArgb(232, 226, 218)))
+				using (LinearGradientBrush bgBrush = new LinearGradientBrush(new Point(0, 0), new Point(0, h),
+					Color.FromArgb(20, 26, 38), Color.FromArgb(10, 14, 22)))
 				{
 					g.FillRectangle(bgBrush, 0, 0, w, h);
 				}
+				int foodBoxW = Math.Min(720, w - 80);
+				int foodBoxH = (int)(h * 0.40f);
+				int foodX = (w - foodBoxW) / 2;
+				int foodY = (int)(h * 0.28f);
+				Rectangle foodRect = new Rectangle(foodX, foodY, foodBoxW, foodBoxH);
+				KioskSkin.DrawFoodContactShadow(g, w / 2, foodY + foodBoxH + 12, (int)(foodBoxW * 0.85f), 38);
+				ProductCardPanel.DrawFoodVectorIllustration(g, foodRect, prod.Category, prod.Name, true);
+			}
 
-				using (SolidBrush glow = new SolidBrush(Color.FromArgb(45, 255, 220, 150)))
+			if (showProductInfo)
+			{
+				if (isPortrait)
 				{
-					g.FillEllipse(glow, w / 4, h / 6, 700, 700);
-				}
+					int cardW = Math.Min(800, w - 80);
+					int cardH = 120;
+					int cardX = (w - cardW) / 2;
+					int cardY = h - (int)((double)h * 0.10) - 170 - cardH;
 
-				Rectangle foodRect = new Rectangle((w - 560) / 2, (h - 400) / 2 - 40, 560, 400);
-				KioskSkin.DrawFoodContactShadow(g, w / 2, foodRect.Bottom + 12, 480, 36);
+					using (GraphicsPath cardPath = KioskSkin.RoundRect(new Rectangle(cardX, cardY, cardW, cardH), 22))
+					{
+						using (SolidBrush cardBg = new SolidBrush(Color.FromArgb(210, 20, 26, 40)))
+						{
+							g.FillPath(cardBg, cardPath);
+						}
+						using (Pen borderPen = new Pen(Color.FromArgb(90, 255, 255, 255), 1.5f))
+						{
+							g.DrawPath(borderPen, cardPath);
+						}
+					}
 
-				if (realImage != null)
-				{
-					float scale = Math.Min((float)foodRect.Width / realImage.Width, (float)foodRect.Height / realImage.Height);
-					int drawW = (int)(realImage.Width * scale);
-					int drawH = (int)(realImage.Height * scale);
-					int drawX = foodRect.X + (foodRect.Width - drawW) / 2;
-					int drawY = foodRect.Y + (foodRect.Height - drawH) / 2;
-					g.DrawImage(realImage, new Rectangle(drawX, drawY, drawW, drawH));
+					var pastel = KioskSkin.GetCategoryPastel(prod.Category);
+					using (GraphicsPath catPill = KioskSkin.RoundRect(new Rectangle(cardX + 24, cardY + 20, 130, 26), 8))
+					{
+						using (SolidBrush catBg = new SolidBrush(pastel.Bg))
+						{
+							g.FillPath(catBg, catPill);
+						}
+					}
+					using (Font catFont = new Font("Segoe UI Bold", 10f))
+					using (SolidBrush catText = new SolidBrush(pastel.Fore))
+					{
+						StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+						g.DrawString((prod.Category ?? "MENU").ToUpperInvariant(), catFont, catText, new Rectangle(cardX + 24, cardY + 20, 130, 26), sf);
+					}
+
+					using (Font titleFont = new Font("Segoe UI Bold", 20f))
+					using (SolidBrush titleBrush = new SolidBrush(Color.White))
+					{
+						g.DrawString(prod.Name, titleFont, titleBrush, new PointF(cardX + 24, cardY + 56));
+					}
+
+					using (Font priceFont = new Font("Segoe UI Bold", 24f))
+					using (SolidBrush priceBrush = new SolidBrush(Color.FromArgb(255, 205, 80)))
+					{
+						StringFormat sfRight = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
+						g.DrawString(KioskLang.FormatPrice(prod.Price, currency), priceFont, priceBrush, new Rectangle(cardX + cardW - 240, cardY + 24, 215, 68), sfRight);
+					}
 				}
 				else
 				{
-					ProductCardPanel.DrawFoodVectorIllustration(g, foodRect, prod.Category, prod.Name, true);
-				}
+					int cardW = Math.Min(600, w - 80);
+					int cardH = 92;
+					int cardX = (w - cardW) / 2;
+					int cardY = h - (int)((double)h * 0.10) - 160 - cardH;
 
-			int cardW = 520;
-			int cardH = 92;
-			int cardX = (w - cardW) / 2;
-			int cardY = foodRect.Bottom + 45;
-
-				using (GraphicsPath cardPath = KioskSkin.RoundRect(new Rectangle(cardX, cardY, cardW, cardH), 22))
-				{
-					using (SolidBrush cardBg = new SolidBrush(Color.FromArgb(220, 255, 255, 255)))
+					using (GraphicsPath cardPath = KioskSkin.RoundRect(new Rectangle(cardX, cardY, cardW, cardH), 20))
 					{
-						g.FillPath(cardBg, cardPath);
+						using (SolidBrush cardBg = new SolidBrush(Color.FromArgb(210, 20, 26, 40)))
+						{
+							g.FillPath(cardBg, cardPath);
+						}
+						using (Pen borderPen = new Pen(Color.FromArgb(90, 255, 255, 255), 1.5f))
+						{
+							g.DrawPath(borderPen, cardPath);
+						}
 					}
-					using (Pen borderPen = new Pen(Color.FromArgb(160, 218, 225, 233), 1.5f))
+
+					var pastel = KioskSkin.GetCategoryPastel(prod.Category);
+					using (GraphicsPath catPill = KioskSkin.RoundRect(new Rectangle(cardX + 20, cardY + 16, 120, 24), 8))
 					{
-						g.DrawPath(borderPen, cardPath);
+						using (SolidBrush catBg = new SolidBrush(pastel.Bg))
+						{
+							g.FillPath(catBg, catPill);
+						}
 					}
-				}
-
-				var pastel = KioskSkin.GetCategoryPastel(prod.Category);
-				using (GraphicsPath catPill = KioskSkin.RoundRect(new Rectangle(cardX + 24, cardY + 20, 120, 26), 8))
-				{
-					using (SolidBrush catBg = new SolidBrush(pastel.Bg))
+					using (Font catFont = new Font("Segoe UI Bold", 9.5f))
+					using (SolidBrush catText = new SolidBrush(pastel.Fore))
 					{
-						g.FillPath(catBg, catPill);
+						StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+						g.DrawString((prod.Category ?? "MENU").ToUpperInvariant(), catFont, catText, new Rectangle(cardX + 20, cardY + 16, 120, 24), sf);
 					}
-				}
-				using (Font catFont = new Font("Segoe UI Bold", 9.5f))
-				using (SolidBrush catText = new SolidBrush(pastel.Fore))
-				{
-					StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-					g.DrawString((prod.Category ?? "MENU").ToUpperInvariant(), catFont, catText, new Rectangle(cardX + 24, cardY + 20, 120, 26), sf);
-				}
 
-				using (Font titleFont = new Font("Segoe UI Bold", 16f))
-				using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(26, 32, 44)))
-				{
-					g.DrawString(prod.Name, titleFont, titleBrush, new PointF(cardX + 24, cardY + 52));
-				}
+					using (Font titleFont = new Font("Segoe UI Bold", 16f))
+					using (SolidBrush titleBrush = new SolidBrush(Color.White))
+					{
+						g.DrawString(prod.Name, titleFont, titleBrush, new PointF(cardX + 20, cardY + 46));
+					}
 
-				using (Font priceFont = new Font("Segoe UI Bold", 20f))
-				using (SolidBrush priceBrush = new SolidBrush(Color.FromArgb(45, 96, 255)))
-				{
-					StringFormat sfRight = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
-					g.DrawString(KioskLang.FormatPrice(prod.Price, currency), priceFont, priceBrush, new Rectangle(cardX + cardW - 170, cardY + 20, 150, 52), sfRight);
+					using (Font priceFont = new Font("Segoe UI Bold", 20f))
+					using (SolidBrush priceBrush = new SolidBrush(Color.FromArgb(255, 205, 80)))
+					{
+						StringFormat sfRight = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
+						g.DrawString(KioskLang.FormatPrice(prod.Price, currency), priceFont, priceBrush, new Rectangle(cardX + cardW - 190, cardY + 16, 170, 52), sfRight);
+					}
 				}
 			}
 
@@ -1536,16 +1525,18 @@ namespace VectronKiosk
 		protected override void OnPaint(PaintEventArgs e)
 		{
 			base.OnPaint(e);
-			Graphics graphics = e.Graphics;
+			RenderLockScreenTo(e.Graphics, Width, Height);
+		}
+
+		public void RenderLockScreenTo(Graphics graphics, int num, int num2)
+		{
 			graphics.SmoothingMode = SmoothingMode.AntiAlias;
-			int num = Width;
-			int num2 = Height;
 			Image image = ((promoImages.Count > 0 && currentSlideIndex < promoImages.Count) ? promoImages[currentSlideIndex] : null);
 			if (image != null)
 			{
 				float num3 = Math.Max((float)num / (float)image.Width, (float)num2 / (float)image.Height);
-				int num4 = (int)((float)image.Width * num3);
-				int num5 = (int)((float)image.Height * num3);
+				int num4 = (int)Math.Ceiling((float)image.Width * num3);
+				int num5 = (int)Math.Ceiling((float)image.Height * num3);
 				int num6 = (num - num4) / 2;
 				int num7 = (num2 - num5) / 2;
 				graphics.DrawImage(image, new Rectangle(num6, num7, num4, num5));
@@ -1555,13 +1546,13 @@ namespace VectronKiosk
 				using SolidBrush brush = new SolidBrush(KioskSkin.Bg);
 				graphics.FillRectangle(brush, 0, 0, num, num2);
 			}
-			using (LinearGradientBrush brush2 = new LinearGradientBrush(new Point(0, 0), new Point(0, 140), Color.FromArgb(KioskSkin.IsDark ? 160 : 120, KioskSkin.Bg), Color.FromArgb(0, KioskSkin.Bg)))
+			using (LinearGradientBrush brush2 = new LinearGradientBrush(new Point(0, 0), new Point(0, 160), Color.FromArgb(140, 0, 0, 0), Color.FromArgb(0, 0, 0, 0)))
 			{
-				graphics.FillRectangle(brush2, 0, 0, num, 140);
+				graphics.FillRectangle(brush2, 0, 0, num, 160);
 			}
-			using (LinearGradientBrush brush3 = new LinearGradientBrush(new Point(0, num2 - 220), new Point(0, num2), Color.FromArgb(0, KioskSkin.Bg), Color.FromArgb(KioskSkin.IsDark ? 180 : 140, KioskSkin.Bg)))
+			using (LinearGradientBrush brush3 = new LinearGradientBrush(new Point(0, num2 - 240), new Point(0, num2), Color.FromArgb(0, 0, 0, 0), Color.FromArgb(160, 0, 0, 0)))
 			{
-				graphics.FillRectangle(brush3, 0, num2 - 220, num, 220);
+				graphics.FillRectangle(brush3, 0, num2 - 240, num, 240);
 			}
 			string s = "◈  " + mainForm.RestaurantName;
 			using Font font = new Font("Segoe UI Bold", 13.5f);
@@ -2125,37 +2116,28 @@ namespace VectronKiosk
 				using Pen pen = new Pen(isHovered ? KioskSkin.Accent : KioskSkin.CardBorder, isHovered ? 1.5f : 1f);
 				graphics.DrawPath(pen, path);
 			}
-			int foodH = Math.Max(100, (int)(num2 * 0.55f));
-			KioskSkin.DrawFoodContactShadow(graphics, num / 2, foodH - 10, (int)((double)num * 0.65), 18);
+			int foodH = Math.Max(120, (int)(num2 * 0.68f));
+			int imgAreaW = num - 16;
+			int imgAreaH = foodH - 10;
+			int imgTop = 8;
 			if (cachedImage != null)
 			{
-				int num4 = num - 24;
-				int num5 = foodH - 20;
-				float num6 = Math.Min((float)num4 / (float)cachedImage.Width, (float)num5 / (float)cachedImage.Height);
-				int num7 = (int)((float)cachedImage.Width * num6);
-				int num8 = (int)((float)cachedImage.Height * num6);
-				int num9 = (num - num7) / 2;
-				int num10 = 10 + (num5 - num8) / 2;
-				graphics.DrawImage(cachedImage, new Rectangle(num9, num10, num7, num8));
+				float scale = Math.Min((float)imgAreaW / cachedImage.Width, (float)imgAreaH / cachedImage.Height);
+				int drawW = (int)(cachedImage.Width * scale);
+				int drawH = (int)(cachedImage.Height * scale);
+				int drawX = (num - drawW) / 2;
+				int drawY = imgTop + (imgAreaH - drawH) / 2;
+				KioskSkin.DrawFoodContactShadow(graphics, num / 2, drawY + drawH - 2, (int)(drawW * 0.82f), 15);
+				graphics.DrawImage(cachedImage, new Rectangle(drawX, drawY, drawW, drawH));
 			}
 			else
 			{
-				Rectangle r = new Rectangle(14, 10, num - 28, foodH - 20);
+				Rectangle r = new Rectangle(12, imgTop, imgAreaW, imgAreaH);
+				KioskSkin.DrawFoodContactShadow(graphics, num / 2, imgTop + imgAreaH - 4, (int)(num * 0.65f), 16);
 				DrawFoodVectorIllustration(graphics, r, Product.Category, Product.Name, isHovered);
 			}
-			int titleTop = foodH + 4;
-			float titleFontSize = num < 250 ? 10f : (num < 300 ? 11f : 12f);
-			using Font font = new Font("Segoe UI Bold", titleFontSize);
-			using SolidBrush brush2 = new SolidBrush(KioskSkin.Text);
-			using StringFormat format = new StringFormat
-			{
-				Trimming = StringTrimming.EllipsisCharacter
-			};
-			int titleH = Math.Max(32, (int)(num2 * 0.16f));
-			Rectangle rectangle2 = new Rectangle(12, titleTop, num - 24, titleH);
-			graphics.DrawString(Product.Name, font, brush2, rectangle2, format);
 
-			int bottomY = num2 - 34;
+			int bottomY = num2 - 32;
 			string text = ((!string.IsNullOrWhiteSpace(Product.Category)) ? Product.Category : "General");
 			(Color, Color) categoryPastel = KioskSkin.GetCategoryPastel(text);
 			float badgeFontSize = num < 250 ? 7.5f : 8.5f;
@@ -2179,7 +2161,7 @@ namespace VectronKiosk
 				graphics.DrawString(text, font2, brush4, rectangle3, format2);
 			}
 			string s = KioskLang.FormatPrice(Product.Price, currency);
-			float priceFontSize = num < 250 ? 11.5f : (num < 300 ? 13f : 14.5f);
+			float priceFontSize = num < 250 ? 12f : (num < 300 ? 13.5f : 15f);
 			using Font font3 = new Font("Segoe UI Bold", priceFontSize);
 			using SolidBrush brush5 = new SolidBrush(KioskSkin.Accent);
 			using StringFormat format3 = new StringFormat
@@ -2189,6 +2171,19 @@ namespace VectronKiosk
 			};
 			Rectangle rectangle4 = new Rectangle(12, bottomY - 2, num - 24, 28);
 			graphics.DrawString(s, font3, brush5, rectangle4, format3);
+
+			int titleTop = foodH + 2;
+			int titleH = Math.Max(24, bottomY - titleTop - 4);
+			Rectangle rectangle2 = new Rectangle(12, titleTop, num - 24, titleH);
+			float titleFontSize = num < 250 ? 11f : (num < 300 ? 12f : 13.5f);
+			using Font font = new Font("Segoe UI Bold", titleFontSize);
+			using SolidBrush brush2 = new SolidBrush(KioskSkin.Text);
+			using StringFormat format = new StringFormat
+			{
+				Trimming = StringTrimming.EllipsisCharacter,
+				LineAlignment = StringAlignment.Center
+			};
+			graphics.DrawString(Product.Name, font, brush2, rectangle2, format);
 			if (!Product.OutOfStock)
 			{
 				return;
@@ -3951,6 +3946,7 @@ namespace VectronKiosk
 		private Label timeoutCountLbl;
 
 		private LockScreenPanel lockScreenPanel;
+		internal LockScreenPanel LockScreen => lockScreenPanel;
 
 		private Panel connectionPanel;
 
@@ -4021,7 +4017,7 @@ namespace VectronKiosk
 			int margin = cols >= 3 ? 6 : 4;
 			int totalMargins = cols * (margin * 2);
 			int cardW = Math.Max(180, (netW - totalMargins) / cols);
-			int cardH = (int)(cardW * 1.15f);
+			int cardH = (int)(cardW * 1.10f);
 			return (cardW, cardH, margin, cols);
 		}
 
@@ -4386,6 +4382,12 @@ namespace VectronKiosk
 			ShowScreen(serviceChoicePanel);
 		}
 
+		public void ShowSettingsScreen()
+		{
+			ResetIdle();
+			ShowScreen(connectionPanel);
+		}
+
 		public void SelectServiceType(string type)
 		{
 			selectedOrderType = type;
@@ -4474,6 +4476,10 @@ namespace VectronKiosk
 		private void ShowScreen(Panel p)
 		{
 			screenContainer.SuspendLayout();
+			if (p != null && screenContainer != null)
+			{
+				p.Bounds = screenContainer.ClientRectangle;
+			}
 			lockScreenPanel.Visible = p == lockScreenPanel;
 			connectionPanel.Visible = p == connectionPanel;
 			serviceChoicePanel.Visible = p == serviceChoicePanel;
@@ -4498,6 +4504,18 @@ namespace VectronKiosk
 			if (num > 0 && num2 > 0)
 			{
 				bool isPortrait = num2 > num;
+				if (screenContainer != null)
+				{
+					screenContainer.Bounds = ClientRectangle;
+				}
+				if (lockScreenPanel != null && lockScreenPanel.Visible)
+				{
+					if (lockScreenPanel.Bounds != screenContainer.ClientRectangle)
+					{
+						lockScreenPanel.Bounds = screenContainer.ClientRectangle;
+					}
+					lockScreenPanel.Invalidate();
+				}
 				if (timeoutWarningOverlay.Visible && timeoutWarningOverlay.Controls.Count > 0)
 				{
 					Control control = timeoutWarningOverlay.Controls[0];
@@ -5871,6 +5889,33 @@ namespace VectronKiosk
 				}
 			};
 
+			Label lblOverlayMode = new Label
+			{
+				Text = KioskLang.T("LockscreenProductDisplay"),
+				ForeColor = KioskSkin.TextMuted,
+				Location = new Point(36, 335),
+				AutoSize = true
+			};
+			ComboBox cmbOverlayMode = new ComboBox
+			{
+				Location = new Point(36, 360),
+				Width = 548,
+				DropDownStyle = ComboBoxStyle.DropDownList,
+				Font = new Font("Segoe UI", 10.5f)
+			};
+			cmbOverlayMode.Items.AddRange(new object[2]
+			{
+				KioskLang.T("LockscreenImageOnly"),
+				KioskLang.T("LockscreenWithDetails")
+			});
+			cmbOverlayMode.SelectedIndex = (config.LockscreenShowProductInfo ? 1 : 0);
+			cmbOverlayMode.Enabled = (cmbBgMode.SelectedIndex == 0);
+
+			cmbBgMode.SelectedIndexChanged += (s, e) =>
+			{
+				cmbOverlayMode.Enabled = (cmbBgMode.SelectedIndex == 0);
+			};
+
 			Button btnSave = new Button
 			{
 				Text = "ENREGISTRER & SYNCHRONISER",
@@ -5893,6 +5938,7 @@ namespace VectronKiosk
 				config.Theme = ((cmbTheme.SelectedIndex == 1) ? "Dark" : "Light");
 				config.LockscreenBackgroundMode = ((cmbBgMode.SelectedIndex == 1) ? "CustomFolder" : "Products");
 				config.LockscreenCustomFolder = txtFolder.Text.Trim();
+				config.LockscreenShowProductInfo = (cmbOverlayMode.SelectedIndex == 1);
 				config.IsConfigured = true;
 				config.Save();
 				KioskLang.Current = config.Language;
@@ -5924,10 +5970,10 @@ namespace VectronKiosk
 			{
 				ShowScreen(lockScreenPanel);
 			};
-			card.Controls.AddRange(new Control[15]
+			card.Controls.AddRange(new Control[17]
 			{
-				label, label2, txtUrl, label3, txtKey, label4, cmbLang, label5, cmbTheme, lblBgMode, cmbBgMode, txtFolder, btnBrowse, btnSave,
-				button
+				label, label2, txtUrl, label3, txtKey, label4, cmbLang, label5, cmbTheme, lblBgMode, cmbBgMode, txtFolder, btnBrowse,
+				lblOverlayMode, cmbOverlayMode, btnSave, button
 			});
 			p.Controls.Add(card);
 			p.Resize += (object s, EventArgs e) =>
@@ -6778,7 +6824,10 @@ namespace VectronKiosk
 					Log("Step 1: Lock Screen...");
 					using (Bitmap bitmap = new Bitmap(1920, 1080))
 					{
-						kioskMainForm.DrawToBitmap(bitmap, new Rectangle(0, 0, 1920, 1080));
+						using (Graphics g = Graphics.FromImage(bitmap))
+						{
+							kioskMainForm.LockScreen.RenderLockScreenTo(g, 1920, 1080);
+						}
 						bitmap.Save(Path.Combine(text, "screen1_lock.png"));
 					}
 					Log("Step 1 done.");
@@ -6821,7 +6870,10 @@ namespace VectronKiosk
 					Application.DoEvents();
 					using (Bitmap bitmapLockPortrait = new Bitmap(1080, 1920))
 					{
-						kioskMainForm.DrawToBitmap(bitmapLockPortrait, new Rectangle(0, 0, 1080, 1920));
+						using (Graphics g = Graphics.FromImage(bitmapLockPortrait))
+						{
+							kioskMainForm.LockScreen.RenderLockScreenTo(g, 1080, 1920);
+						}
 						bitmapLockPortrait.Save(Path.Combine(text, "screen1_lock_portrait.png"));
 					}
 					kioskMainForm.WakeFromLockScreen();
@@ -6879,6 +6931,15 @@ namespace VectronKiosk
 						upsellDialog.Close();
 					}
 					Log("Step 7 done.");
+					Log("Step 8: Settings Screen...");
+					kioskMainForm.ShowSettingsScreen();
+					Application.DoEvents();
+					using (Bitmap bitmapSettings = new Bitmap(kioskMainForm.ClientSize.Width, kioskMainForm.ClientSize.Height))
+					{
+						kioskMainForm.DrawToBitmap(bitmapSettings, new Rectangle(0, 0, kioskMainForm.ClientSize.Width, kioskMainForm.ClientSize.Height));
+						bitmapSettings.Save(Path.Combine(text, "screen_settings.png"));
+					}
+					Log("Step 8 done.");
 					Console.WriteLine("SNAPSHOTS_GENERATED_SUCCESSFULLY");
 					Log("ALL SNAPSHOTS GENERATED.");
 					try
