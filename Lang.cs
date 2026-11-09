@@ -1049,6 +1049,9 @@ internal static class Tr
         ["Bold (gras)"] = "Gras (Bold)",
         ["Underline (souligné)"] = "Souligné (Underline)",
         ["Alignment:"] = "Alignement :",
+        ["Print Spooler stopped (RPC unavailable)"] = "Spouleur d'impression arrêté (RPC indisponible)",
+        ["⚠️ Print Spooler is stopped. Start the 'Spooler' Windows service to detect printers."] = "⚠️ Le spouleur d'impression est arrêté. Démarrez le service Windows 'Spouleur' pour détecter vos imprimantes.",
+        ["Print service unavailable: "] = "Service d'impression indisponible : ",
     };
 
     private static readonly Dictionary<string, string> Ar = new()
@@ -2087,6 +2090,9 @@ internal static class Tr
         ["Bold (gras)"] = "عريض (Bold)",
         ["Underline (souligné)"] = "تسطير (Underline)",
         ["Alignment:"] = "المحاذاة :",
+        ["Print Spooler stopped (RPC unavailable)"] = "خدمة الطباعة متوقفة (RPC غير متاح)",
+        ["⚠️ Print Spooler is stopped. Start the 'Spooler' Windows service to detect printers."] = "⚠️ خدمة الطباعة متوقفة في ويندوز. يرجى تشغيل خدمة 'Spooler' للتعرف على الطابعات.",
+        ["Print service unavailable: "] = "خدمة الطباعة غير متاحة: ",
     };
 }
 

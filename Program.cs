@@ -11321,6 +11321,8 @@ internal sealed class PosForm : Form
 
 		private void PrintWindowsTicket(PrinterDestination destination, List<SoldLine> ticketLines, int orderNumber = 0, int billNumber = 0, int paymentNumber = 0, string orderType = "", decimal discountPercent = 0m, decimal discountAmount = 0m, string? room = null, string? table = null)
 		{
+			try
+			{
 			string printerName = ResolvePrinterName(destination);
 			using PrintDocument printDocument = new PrintDocument
 			{
@@ -11415,6 +11417,11 @@ internal sealed class PosForm : Form
 				}
 			};
 			printDocument.Print();
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine("PrintWindowsTicket failed: " + ex.Message);
+			}
 		}
 
 		private static void ApplyCurrencyCulture(string currency)
@@ -22944,7 +22951,9 @@ internal sealed class PosForm : Form
 
 		private void PrintQrLabels(List<(string Room, string Table, string Url)> tables)
 		{
-			int perPage = 4;
+			try
+			{
+				int perPage = 4;
 			int pages = (int)Math.Ceiling((double)tables.Count / (double)perPage);
 			using PrintDocument printDocument = new PrintDocument();
 			int page = 0;
@@ -23002,6 +23011,11 @@ internal sealed class PosForm : Form
 				Height = 700
 			};
 			printPreviewDialog.ShowDialog();
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show(Tr.T("Print service unavailable: ") + ex.Message, Tr.T("Print"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+			}
 		}
 
 		private void ShowStockManagement()
@@ -27790,9 +27804,11 @@ internal sealed class SalesReportForm : SettingsSubForm
 				MessageBox.Show(Tr.T("No sales to print."), Tr.T("Print"), MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
 				return;
 			}
-			using (PrintDocument printDocument = new PrintDocument())
+			try
 			{
-				printDocument.PrintPage += (object _, PrintPageEventArgs args) =>
+				using (PrintDocument printDocument = new PrintDocument())
+				{
+					printDocument.PrintPage += (object _, PrintPageEventArgs args) =>
 				{
 					if (args.Graphics == null)
 					{
@@ -28031,6 +28047,11 @@ internal sealed class SalesReportForm : SettingsSubForm
 				{
 					printDocument.Print();
 				}
+				}
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show(Tr.T("Print service unavailable: ") + ex.Message, Tr.T("Print"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
 			}
 			string P(decimal amount)
 			{
@@ -29097,13 +29118,41 @@ internal sealed class PrinterManagerForm : SettingsSubForm
 			windowsPrinter.DropDownStyle = ComboBoxStyle.DropDownList;
 			windowsPrinter.BackColor = panelLight;
 			windowsPrinter.ForeColor = Skin.Text;
-			foreach (string installedPrinter in PrinterSettings.InstalledPrinters)
+			bool spoolerError = false;
+			try
 			{
-				windowsPrinter.Items.Add(installedPrinter);
+				foreach (string installedPrinter in PrinterSettings.InstalledPrinters)
+				{
+					windowsPrinter.Items.Add(installedPrinter);
+				}
+			}
+			catch
+			{
+				spoolerError = true;
+			}
+			foreach (PrinterDestination d in destinations)
+			{
+				if (!string.IsNullOrWhiteSpace(d.WindowsPrinter) && !windowsPrinter.Items.Contains(d.WindowsPrinter))
+				{
+					windowsPrinter.Items.Add(d.WindowsPrinter);
+				}
 			}
 			if (windowsPrinter.Items.Count == 0)
 			{
-				windowsPrinter.Items.Add("No Windows printers detected");
+				windowsPrinter.Items.Add(spoolerError ? Tr.T("Print Spooler stopped (RPC unavailable)") : Tr.T("No Windows printers detected"));
+			}
+			if (spoolerError)
+			{
+				Label spoolerWarn = new Label
+				{
+					Text = Tr.T("⚠️ Print Spooler is stopped. Start the 'Spooler' Windows service to detect printers."),
+					ForeColor = Skin.WarningDeep,
+					Font = new Font("Segoe UI", 8.5f),
+					Location = new Point(290, 232),
+					Size = new Size(350, 18),
+					AutoEllipsis = true
+				};
+				Controls.Add(spoolerWarn);
 			}
 			Label label4 = new Label
 			{
