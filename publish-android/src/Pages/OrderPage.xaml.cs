@@ -616,6 +616,11 @@ public partial class OrderPage : ContentPage
         _tilePressed = false;
         if (sender is not BindableObject bo || bo.BindingContext is not ProductTile tile || tile.Product == null)
             return;
+        if (Theme.IsHigh && sender is VisualElement ve)
+        {
+            await ve.ScaleTo(0.96, 65, Easing.CubicOut);
+            await ve.ScaleTo(1.0, 65, Easing.CubicIn);
+        }
         var product = tile.Product;
         if (product.Eightysix)
         {

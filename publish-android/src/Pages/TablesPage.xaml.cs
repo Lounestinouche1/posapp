@@ -242,7 +242,15 @@ public partial class TablesPage : ContentPage
         // P1.9: soft layered depth on High only — Lite keeps the flat 1px edge.
         Theme.Depth(border);
         var tap = new TapGestureRecognizer();
-        tap.Tapped += async (_, _) => await OpenTable(t);
+        tap.Tapped += async (_, _) =>
+        {
+            if (Theme.IsHigh)
+            {
+                await border.ScaleTo(0.96, 65, Easing.CubicOut);
+                await border.ScaleTo(1.0, 65, Easing.CubicIn);
+            }
+            await OpenTable(t);
+        };
         border.GestureRecognizers.Add(tap);
         return border;
     }

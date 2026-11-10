@@ -3558,6 +3558,20 @@ internal static class Skin
 			}
 		}
 
+		public static Color ImageOverlay => Color.FromArgb(28, 255, 255, 255);
+
+		public static Color BrandCyan
+		{
+			get
+			{
+				if (!IsLight)
+				{
+					return Color.FromArgb(56, 189, 248);
+				}
+				return Accent;
+			}
+		}
+
 		private static Color R(int r, int g, int b)
 		{
 			return Color.FromArgb(r, g, b);
@@ -4322,6 +4336,12 @@ internal sealed class SkinPanel : Panel
 			e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 			if (Depth)
 			{
+				if (Skin.IsHigh && Radius > 0)
+				{
+					using GraphicsPath shadowPath = Skin.RoundRect(new Rectangle(2, 3, Width - 3, Height - 2), Radius);
+					using Pen shadowPen = new Pen(Color.FromArgb(20, 0, 0, 0), 2f);
+					e.Graphics.DrawPath(shadowPen, shadowPath);
+				}
 				Skin.CardDepth(e.Graphics, ClientRectangle, Radius);
 			}
 			Color? edge = Edge;
@@ -4382,8 +4402,13 @@ internal sealed class VectronMark : Control
 					float sweepAngle = (float)(360.0 * progress);
 					graphics.DrawArc(pen, rectangle, -90f, sweepAngle);
 				}
+				if (Skin.IsHigh && progress >= 0.999)
+				{
+					using Pen glowPen = new Pen(Color.FromArgb(25, accent.R, accent.G, accent.B), Math.Max(3f, (float)num / 10f));
+					graphics.DrawArc(glowPen, rectangle, -90f, 360f);
+				}
 				// Cool Modern 'TL' Monogram
-				Color cyanAccent = (Skin.Mode == SkinMode.Dark) ? Color.FromArgb(56, 189, 248) : Skin.Accent;
+				Color cyanAccent = Skin.BrandCyan;
 				float stroke = Math.Max(1.8f, (float)num / 12f);
 				using (Pen penT = new Pen(accent, stroke) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
 				using (Pen penL = new Pen(cyanAccent, stroke) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
@@ -4599,6 +4624,15 @@ internal sealed class LoginForm : Form
 				Location = new Point(30, 270),
 				Size = new Size(320, 22)
 			};
+			Label errorLabel = new Label
+			{
+				Location = new Point(30, 345),
+				Size = new Size(320, 24),
+				ForeColor = Skin.DangerStrong,
+				TextAlign = ContentAlignment.MiddleCenter,
+				Font = new Font("Segoe UI Semibold", 9f),
+				Visible = false
+			};
 			TextBox passwordBox = new TextBox
 			{
 				Location = new Point(30, 296),
@@ -4613,7 +4647,7 @@ internal sealed class LoginForm : Form
 			{
 				if (e.KeyCode == Keys.Return)
 				{
-					loginForm.TryLogin(operators, operatorList, passwordBox, pinMode);
+					loginForm.TryLogin(operators, operatorList, passwordBox, errorLabel, skinPanel, pinMode);
 				}
 			};
 			Panel opRail = new Panel
@@ -4662,6 +4696,8 @@ internal sealed class LoginForm : Form
 				Cursor = Cursors.Hand
 			};
 			loginButton.FlatAppearance.BorderSize = 0;
+			loginButton.Region = new Region(Skin.RoundRect(new Rectangle(0, 0, loginButton.Width, loginButton.Height), 12));
+			passwordBox.Region = new Region(Skin.RoundRect(new Rectangle(0, 0, passwordBox.Width, passwordBox.Height), 8));
 			loginButton.MouseDown += (object _, MouseEventArgs e) =>
 			{
 				if (e.Button == MouseButtons.Left)
@@ -4679,11 +4715,11 @@ internal sealed class LoginForm : Form
 			};
 			loginButton.Click += (object _, EventArgs _) =>
 			{
-				loginForm.TryLogin(operators, operatorList, passwordBox, pinMode);
+				loginForm.TryLogin(operators, operatorList, passwordBox, errorLabel, skinPanel, pinMode);
 			};
-			skinPanel.Controls.AddRange(new Control[11]
+			skinPanel.Controls.AddRange(new Control[12]
 			{
-				mark, label, label2, panel2, label3, operatorList, label4, passwordBox, loginButton, opRail,
+				mark, label, label2, panel2, label3, operatorList, label4, passwordBox, errorLabel, loginButton, opRail,
 				pwRail
 			});
 			Controls.Add(skinPanel);
@@ -4693,6 +4729,7 @@ internal sealed class LoginForm : Form
 				passwordBox.Focus();
 				if (Skin.IsHigh)
 				{
+					Skin.SlideWindow(this);
 					Skin.Animate(420, (double t) =>
 					{
 						mark.Progress = t;
@@ -4701,14 +4738,28 @@ internal sealed class LoginForm : Form
 			};
 		}
 
-		private void TryLogin(List<OperatorAccount> operators, ComboBox operatorList, TextBox passwordBox, bool pinMode)
+		private void TryLogin(List<OperatorAccount> operators, ComboBox operatorList, TextBox passwordBox, Label errorLabel, SkinPanel skinPanel, bool pinMode)
 		{
 			if (operatorList.SelectedIndex >= 0)
 			{
 				OperatorAccount operatorAccount = operators[operatorList.SelectedIndex];
 				if (!string.IsNullOrWhiteSpace(operatorAccount.Password) && operatorAccount.Password != passwordBox.Text)
 				{
-					MessageBox.Show(pinMode ? Tr.T("Incorrect PIN.") : Tr.T("Incorrect password."), Tr.T("Login"), MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+					errorLabel.Text = pinMode ? Tr.T("Incorrect PIN.") : Tr.T("Incorrect password.");
+					errorLabel.Visible = true;
+					passwordBox.SelectAll();
+					passwordBox.Focus();
+					if (Skin.IsHigh && !skinPanel.IsDisposed)
+					{
+						int origX = skinPanel.Left;
+						Skin.Animate(180, (double t) =>
+						{
+							if (!skinPanel.IsDisposed)
+							{
+								skinPanel.Left = origX + (int)(8.0 * Math.Sin(t * Math.PI * 4.0) * (1.0 - t));
+							}
+						});
+					}
 					return;
 				}
 				LoggedInOperator = operatorAccount;
@@ -5719,6 +5770,18 @@ internal sealed class PosForm : Form
 			basketList.WrapContents = false;
 			basketList.AutoScroll = true;
 			basketList.Padding = new Padding(0, 18, 0, 8);
+			basketList.Paint += (s, e) =>
+			{
+				if (Skin.IsHigh && basketList.VerticalScroll.Visible && basketList.VerticalScroll.Value > 0)
+				{
+					using LinearGradientBrush topBrush = new LinearGradientBrush(
+						new Rectangle(0, 0, basketList.Width, 12),
+						Color.FromArgb(40, 0, 0, 0),
+						Color.FromArgb(0, 0, 0, 0),
+						LinearGradientMode.Vertical);
+					e.Graphics.FillRectangle(topBrush, 0, 0, basketList.Width, 12);
+				}
+			};
 			Panel panel3 = new Panel
 			{
 				Dock = DockStyle.Bottom,
@@ -5871,6 +5934,13 @@ internal sealed class PosForm : Form
 			};
 			ApplyFlatStates(reprintButton);
 			panel3.Controls.Add(value2);
+			Panel btnDivider = new Panel
+			{
+				Location = new Point(0, 122),
+				Size = new Size(310, 1),
+				BackColor = Skin.Border
+			};
+			panel3.Controls.Add(btnDivider);
 			panel3.Controls.AddRange(new Control[15]
 			{
 				label5, totalLabel, button, noteButton, payButton, splitBillButton, transferButton, mergeButton, discountButton, fireButton,
@@ -25294,9 +25364,12 @@ internal sealed class FeatureCard : Panel
 	private readonly Button actionBtn2;
 	private bool hovering;
 	private bool isToggled;
+	private const int CardRadius = 12;
 
 	public FeatureCard(string title, string description, string toggleKey = null, bool currentToggle = false, Action<bool> onToggle = null, string actionText = null, Action onAction = null, Func<bool> isActionVisible = null, string actionText2 = null, Action onAction2 = null, Func<bool> isAction2Visible = null)
 	{
+		DoubleBuffered = true;
+		SetStyle(ControlStyles.ResizeRedraw, true);
 		Size = new Size(640, 68);
 		BackColor = Skin.Panel;
 		Margin = new Padding(0, 0, 0, 10);
@@ -25305,6 +25378,7 @@ internal sealed class FeatureCard : Panel
 		titleLabel.AutoSize = true;
 		titleLabel.Font = new Font("Segoe UI Semibold", 11f);
 		titleLabel.ForeColor = Skin.Text;
+		titleLabel.BackColor = Color.Transparent;
 		titleLabel.Location = new Point(16, 12);
 		Controls.Add(titleLabel);
 
@@ -25312,6 +25386,7 @@ internal sealed class FeatureCard : Panel
 		descLabel.AutoSize = true;
 		descLabel.Font = new Font("Segoe UI", 9f);
 		descLabel.ForeColor = Skin.TextDim;
+		descLabel.BackColor = Color.Transparent;
 		descLabel.Location = new Point(16, 36);
 		Controls.Add(descLabel);
 
@@ -25394,16 +25469,72 @@ internal sealed class FeatureCard : Panel
 			Controls.Add(toggleBtn);
 		}
 
+		ApplyCardRegion();
 		LayoutRightButtons();
-		Resize += (s, e) => LayoutRightButtons();
-
-		Paint += (s, e) =>
+		Resize += (s, e) =>
 		{
-			using Pen pen = new Pen(hovering ? Skin.Accent : Skin.Border, 1f);
-			e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+			ApplyCardRegion();
+			LayoutRightButtons();
 		};
-		MouseEnter += (s, e) => { hovering = true; Invalidate(); };
-		MouseLeave += (s, e) => { hovering = false; Invalidate(); };
+
+		MouseEnter += (s, e) => OnHoverEnter();
+		MouseLeave += (s, e) => OnHoverLeave();
+		titleLabel.MouseEnter += (s, e) => OnHoverEnter();
+		titleLabel.MouseLeave += (s, e) => OnHoverLeave();
+		descLabel.MouseEnter += (s, e) => OnHoverEnter();
+		descLabel.MouseLeave += (s, e) => OnHoverLeave();
+	}
+
+	private void OnHoverEnter()
+	{
+		if (!hovering)
+		{
+			hovering = true;
+			if (Skin.IsHigh)
+			{
+				BackColor = Skin.PanelHover;
+			}
+			Invalidate();
+		}
+	}
+
+	private void OnHoverLeave()
+	{
+		if (!ClientRectangle.Contains(PointToClient(Cursor.Position)))
+		{
+			hovering = false;
+			BackColor = Skin.Panel;
+			Invalidate();
+		}
+	}
+
+	private void ApplyCardRegion()
+	{
+		if (Width > 0 && Height > 0)
+		{
+			Region old = Region;
+			Region = new Region(Skin.RoundRect(new Rectangle(0, 0, Width, Height), CardRadius));
+			old?.Dispose();
+		}
+	}
+
+	protected override void OnPaintBackground(PaintEventArgs e)
+	{
+		e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+		Skin.FillSurface(e.Graphics, ClientRectangle, BackColor, CardRadius);
+	}
+
+	protected override void OnPaint(PaintEventArgs e)
+	{
+		base.OnPaint(e);
+		e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+		if (Skin.IsHigh)
+		{
+			Skin.CardDepth(e.Graphics, ClientRectangle, CardRadius);
+		}
+		using Pen pen = new Pen(hovering ? Skin.Accent : Skin.CardBorder, 1f);
+		using GraphicsPath path = Skin.RoundRect(new Rectangle(0, 0, Width - 1, Height - 1), CardRadius);
+		e.Graphics.DrawPath(pen, path);
 	}
 
 	private void LayoutRightButtons()
@@ -25746,7 +25877,15 @@ internal sealed class SettingsForm : Form
 				navPills[key] = pill;
 				curY += 42;
 			}
-			curY += 10;
+			curY += 4;
+			Panel divider = new Panel
+			{
+				Size = new Size(196, 1),
+				Location = new Point(14, curY),
+				BackColor = Skin.Border
+			};
+			navRail.Controls.Add(divider);
+			curY += 8;
 		}
 
 		AddGroup(Tr.T("Setup"), new[]
@@ -25879,6 +26018,18 @@ internal sealed class SettingsForm : Form
 		}
 
 		contentPanel.ResumeLayout(true);
+		if (Skin.IsHigh && !contentPanel.IsDisposed)
+		{
+			int origL = contentPanel.Left;
+			contentPanel.Left = origL + 16;
+			Skin.Animate(140, (double t) =>
+			{
+				if (!contentPanel.IsDisposed)
+				{
+					contentPanel.Left = origL + (int)(16.0 * (1.0 - t));
+				}
+			});
+		}
 	}
 
 	private void SetPageHeader(string title, string subtitle)
@@ -33019,6 +33170,8 @@ internal sealed class ProductTile : Panel
 
 		private bool pressed;
 
+		private int hoverShift;
+
 		private static Color BgNormal => Skin.Panel;
 
 		private static Color BgHover => Skin.PanelHover;
@@ -33047,6 +33200,11 @@ internal sealed class ProductTile : Panel
 			{
 				hovering = true;
 				BackColor = BgHover;
+				if (Skin.IsHigh && hoverShift == 0)
+				{
+					hoverShift = -2;
+					Top += hoverShift;
+				}
 				Invalidate();
 			};
 			MouseLeave += (object _, EventArgs _) =>
@@ -33054,6 +33212,11 @@ internal sealed class ProductTile : Panel
 				hovering = false;
 				pressed = false;
 				BackColor = BgNormal;
+				if (hoverShift != 0)
+				{
+					Top -= hoverShift;
+					hoverShift = 0;
+				}
 				Invalidate();
 			};
 			MouseDown += (object _, MouseEventArgs e) =>
@@ -33145,9 +33308,13 @@ internal sealed class ProductTile : Panel
 				{
 					using SolidBrush brush3 = new SolidBrush(ColorTranslator.FromHtml(product.Color));
 					graphics.FillRectangle(brush3, rectangle);
+					int iconR = Math.Min(rectangle.Width, rectangle.Height) / 6;
+					Point center = new Point(rectangle.X + rectangle.Width / 2, rectangle.Y + rectangle.Height / 2);
+					using Pen ringPen = new Pen(Color.FromArgb(40, 255, 255, 255), 2f);
+					graphics.DrawEllipse(ringPen, center.X - iconR, center.Y - iconR, iconR * 2, iconR * 2);
 				}
 				graphics.ResetClip();
-				using Pen pen = new Pen(Color.FromArgb(28, 255, 255, 255));
+				using Pen pen = new Pen(Skin.ImageOverlay);
 				graphics.DrawPath(pen, graphicsPath);
 			}
 			int num11 = rectangle.Bottom + 4;
@@ -33212,6 +33379,12 @@ internal sealed class ProductTile : Panel
 			e.Graphics.DrawPath(pen, path);
 			if (Skin.IsHigh)
 			{
+				if (hovering)
+				{
+					using GraphicsPath shadowPath = RoundedRect(new Rectangle(1, 3, Width - 3, Height - 2), Radius);
+					using Pen shadowPen = new Pen(Color.FromArgb(25, 0, 0, 0), 2f);
+					e.Graphics.DrawPath(shadowPen, shadowPath);
+				}
 				Skin.CardDepth(e.Graphics, ClientRectangle, Radius);
 			}
 		}
