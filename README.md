@@ -1,12 +1,12 @@
-# Vectron POS
+# TL POS
 
-Restaurant point-of-sale suite by Vectron (client: Boitexinfo). Two applications sharing one
+Restaurant and retail point-of-sale suite by Lounes Tinouche (TL). Two applications sharing one
 design language and one brand palette (navy `#131821`, panel `#1B222E`, mint `#47D6AE`).
 
 | Application | Technology | Source | Ships as |
 |---|---|---|---|
-| **Vectron POS** — the till and the server | C# WinForms, dual target `net10.0-windows` + `net48` | `Program.cs` + 9 helper files | `VectronPOS-v1.2.0-Win10-x64.zip`, `…-Win7-x86-x64.zip`, `…-Win7-Full-x86-x64.zip` |
-| **Vectron Waiter** — the tablet | .NET MAUI `net10.0-android` | `VectronTablet\` | `Vectron-Waiter-v1.2.0.apk` |
+| **TL POS** — the till and the server | C# WinForms, dual target `net10.0-windows` + `net48` | `Program.cs` + 9 helper files | `TLPOS-v1.2.0-Win10-x64.zip`, `…-Win7-x86-x64.zip`, `…-Win7-Full-x86-x64.zip` |
+| **TL Waiter** — the tablet | .NET MAUI `net10.0-android` | `publish-android\src\` | `TL-Waiter-v1.2.0.apk` |
 
 The POS owns the data and serves a REST API on port 8080 (auth = `?key=<ApiKey>`); the tablet is a
 thin client on the same LAN.

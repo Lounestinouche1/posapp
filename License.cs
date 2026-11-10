@@ -6,7 +6,7 @@ using Microsoft.Win32;
 namespace VectronPOS;
 
 /// <summary>
-/// License validation for Vectron POS.
+/// License validation for TL POS.
 /// Uses ECDSA P-256 public-key verification — cannot forge keys without the private key
 /// (which only lives in LicenseGen, never ships with the POS app).
 /// </summary>

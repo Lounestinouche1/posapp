@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TL POS Suite — Official Administrator & User Manual</title>
+  <style>
+    /* Professional Print & Screen Typography */
+    @page {
+      size: A4 portrait;
+      margin: 16mm 14mm 16mm 14mm;
+      @bottom-right {
+        content: counter(page);
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 9pt;
+        color: #64748B;
+      }
+      @bottom-left {
+        content: "TL POS Suite — Official Manual";
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 9pt;
+        color: #94A3B8;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: #1E293B;
+      background: #FFFFFF;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Cover Page */
+    .cover-page {
+      height: 100vh;
+      min-height: 270mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 30mm 15mm 20mm 15mm;
+      background: linear-gradient(145deg, #0F172A 0%, #1E293B 100%);
+      color: #FFFFFF;
+      page-break-after: always;
+      border-radius: 6px;
+    }
+
+    .cover-badge {
+      display: inline-block;
+      padding: 6px 14px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid #38BDF8;
+      color: #38BDF8;
+      font-size: 9pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+
+    .cover-title {
+      font-size: 32pt;
+      font-weight: 800;
+      line-height: 1.15;
+      margin: 0 0 12px 0;
+      color: #F8FAFC;
+      letter-spacing: -0.5px;
+    }
+
+    .cover-title span {
+      color: #38BDF8;
+    }
+
+    .cover-subtitle {
+      font-size: 14pt;
+      color: #94A3B8;
+      font-weight: 400;
+      margin: 0 0 35px 0;
+      line-height: 1.4;
+    }
+
+    .cover-features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 25px;
+    }
+
+    .cover-feature-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 9.5pt;
+      color: #E2E8F0;
+    }
+
+    .cover-feature-pill strong {
+      color: #38BDF8;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .cover-meta {
+      border-top: 1px solid #334155;
+      padding-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 9pt;
+      color: #94A3B8;
+    }
+
+    /* Headings & Content */
+    h1, h2, h3, h4 {
+      color: #0F172A;
+      font-weight: 700;
+      page-break-after: avoid;
+    }
+
+    h1 {
+      font-size: 20pt;
+      border-bottom: 2.5px solid #2563EB;
+      padding-bottom: 6px;
+      margin-top: 36px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h1 .sec-num {
+      background: #2563EB;
+      color: #FFFFFF;
+      font-size: 12pt;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    h2 {
+      font-size: 14pt;
+      color: #1E3A8A;
+      margin-top: 24px;
+      margin-bottom: 10px;
+      border-left: 4px solid #3B82F6;
+      padding-left: 10px;
+    }
+
+    h3 {
+      font-size: 11.5pt;
+      color: #334155;
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin-top: 0;
+      margin-bottom: 10px;
+      text-align: justify;
+    }
+
+    ul, ol {
+      margin-top: 4px;
+      margin-bottom: 12px;
+      padding-left: 22px;
+    }
+
+    li {
+      margin-bottom: 5px;
+    }
+
+    /* Figures & Screenshots */
+    figure {
+      margin: 18px 0;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+
+    figure img, figure svg {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      border: 1px solid #E2E8F0;
+    }
+
+    figcaption {
+      font-size: 8.5pt;
+      color: #64748B;
+      margin-top: 6px;
+      font-style: italic;
+    }
+
+    /* Callout Boxes */
+    .callout {
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 16px 0;
+      page-break-inside: avoid;
+      font-size: 9.5pt;
+    }
+
+    .callout-info {
+      background: #EFF6FF;
+      border-left: 4px solid #3B82F6;
+      color: #1E40AF;
+    }
+
+    .callout-tip {
+      background: #ECFDF5;
+      border-left: 4px solid #10B981;
+      color: #065F46;
+    }
+
+    .callout-warning {
+      background: #FFFBEB;
+      border-left: 4px solid #F59E0B;
+      color: #92400E;
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 10pt;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 9pt;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #CBD5E1;
+      padding: 8px 10px;
+      text-align: left;
+    }
+
+    th {
+      background: #F1F5F9;
+      color: #0F172A;
+      font-weight: 700;
+    }
+
+    tr:nth-child(even) td {
+      background: #F8FAFC;
+    }
+
+    /* Code & Keyboard */
+    code {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 9pt;
+      background: #F1F5F9;
+      padding: 2px 5px;
+      border-radius: 4px;
+      color: #0F172A;
+      border: 1px solid #E2E8F0;
+    }
+
+    pre {
+      background: #0F172A;
+      color: #F8FAFC;
+      padding: 12px 14px;
+      border-radius: 6px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 8.5pt;
+      line-height: 1.45;
+      overflow-x: auto;
+      page-break-inside: avoid;
+    }
+
+    /* Layout Helpers */
+    .page-break {
+      page-break-before: always;
+    }
+
+    .no-break {
+      page-break-inside: avoid;
+    }
+
+    .badge-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 8pt;
+      font-weight: 700;
+    }
+    .badge-blue { background: #DBEAFE; color: #1E40AF; }
+    .badge-green { background: #D1FAE5; color: #065F46; }
+    .badge-purple { background: #EDE9FE; color: #5B21B6; }
+
+    /* TOC */
+    .toc-list {
+      list-style: none;
+      padding: 0;
+      margin: 20px 0;
+    }
+    .toc-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px dashed #E2E8F0;
+      font-size: 10pt;
+    }
+    .toc-title {
+      font-weight: 600;
+      color: #1E293B;
+    }
+    .toc-dots {
+      flex: 1;
+      margin: 0 8px;
+      border-bottom: 1px dotted #CBD5E1;
+      height: 12px;
+    }
+    .toc-page {
+      font-weight: 700;
+      color: #2563EB;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== COVER PAGE ==================== -->
+  <div class="cover-page">
+    <div>
+      <div class="cover-badge">Official Technical &amp; User Manual</div>
+      <div class="cover-title">TL <span>POS</span> Suite</div>
+      <div class="cover-subtitle">Complete Installation, Configuration &amp; Operations Manual<br>Dual-Engine POS Terminal • Mobile Waiter • Long Distance Access</div>
+
+      <div class="cover-features-grid">
+        <div class="cover-feature-pill">
+          <strong>🖥️ Dual Target Architecture</strong>
+          Native support for modern Windows 10/11 (.NET 10) &amp; legacy Windows 7 SP1 (.NET 4.8).
+        </div>
+        <div class="cover-feature-pill">
+          <strong>🔒 Long-Distance Access (Tailscale)</strong>
+          Zero port-forwarding, encrypted WireGuard VPN for remote tablets and multi-branch management.
+        </div>
+        <div class="cover-feature-pill">
+          <strong>🛒 1-Click Store Business Profiles</strong>
+          Instant configuration for Supermarkets, Boutiques, Restaurants, Cafés, Pizzerias &amp; Pharmacies.
+        </div>
+        <div class="cover-feature-pill">
+          <strong>🌍 Trilingual &amp; Native Arabic RTL</strong>
+          Complete French, English &amp; custom Arabic glyph engine with thermal ticket layout designer.
+        </div>
+      </div>
+    </div>
+
+    <div class="cover-meta">
+      <div><strong>Product Version:</strong> 1.2.0 Enterprise</div>
+      <div><strong>Author &amp; Owner:</strong> Lounes Tinouche (TL)</div>
+      <div><strong>Publication Date:</strong> November 2026</div>
+    </div>
+  </div>
+
+  <!-- ==================== TABLE OF CONTENTS ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">TOC</span> Table of Contents</h1>
+
+  <div class="toc-list">
+    <div class="toc-item"><span class="toc-title">1. System Overview &amp; Architecture</span><span class="toc-dots"></span><span class="toc-page">Page 3</span></div>
+    <div class="toc-item"><span class="toc-title">2. Installation &amp; System Requirements</span><span class="toc-dots"></span><span class="toc-page">Page 4</span></div>
+    <div class="toc-item"><span class="toc-title">3. Cryptographic Licensing &amp; Activation</span><span class="toc-dots"></span><span class="toc-page">Page 5</span></div>
+    <div class="toc-item"><span class="toc-title">4. 1-Click Store Profiles &amp; Custom Safeguard</span><span class="toc-dots"></span><span class="toc-page">Page 6</span></div>
+    <div class="toc-item"><span class="toc-title">5. Daily Cashier &amp; Restaurant Operations</span><span class="toc-dots"></span><span class="toc-page">Page 8</span></div>
+    <div class="toc-item"><span class="toc-title">6. Hardware: Printers, Scales &amp; Ticket Designer</span><span class="toc-dots"></span><span class="toc-page">Page 10</span></div>
+    <div class="toc-item"><span class="toc-title">7. Android Mobile Waiter App Integration</span><span class="toc-dots"></span><span class="toc-page">Page 12</span></div>
+    <div class="toc-item"><span class="toc-title">8. Long-Distance Remote Access via Tailscale VPN</span><span class="toc-dots"></span><span class="toc-page">Page 13</span></div>
+    <div class="toc-item"><span class="toc-title">9. Inventory, Recipes &amp; Ingredient Tracking</span><span class="toc-dots"></span><span class="toc-page">Page 16</span></div>
+    <div class="toc-item"><span class="toc-title">10. Data Backup, Maintenance &amp; Troubleshooting</span><span class="toc-dots"></span><span class="toc-page">Page 17</span></div>
+  </div>
+
+  <div class="callout callout-info">
+    <strong>Audience for this Manual</strong>
+    This document is structured for store owners, IT administrators, cashiers, and third-party POS installers. Basic setup instructions appear first, followed by intermediate hardware settings and advanced network/remote VPN configuration.
+  </div>
+
+  <!-- ==================== SECTION 1 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">01</span> System Overview &amp; Architecture</h1>
+
+  <p><strong>TL POS</strong> is a high-performance, mission-critical Point of Sale suite designed specifically for demanding hospitality, retail, and food-service environments. The application is built around an ultra-reliable, offline-first philosophy: it operates with zero reliance on cloud connections, local SQL servers, or fragile database services.</p>
+
+  <h2>The TL POS Ecosystem</h2>
+  <ul>
+    <li><strong>Main Windows POS Terminal:</strong> The central powerhouse controlling billing, ticket generation, cash drawers, inventory, and end-of-day financial audit reports.</li>
+    <li><strong>Android Waiter App:</strong> A high-productivity mobile companion built on .NET MAUI, allowing floor staff to take orders, customize dish modifiers, and fire tickets directly to the kitchen from tables.</li>
+    <li><strong>Self-Ordering Kiosk Totem:</strong> A full-screen customer terminal supporting visual menus, automated ticket printing, and kiosk order queues.</li>
+    <li><strong>Embedded Micro-Server (Port 8080):</strong> Built directly into the Windows POS, this high-throughput HTTP REST engine enables instant wireless sync with tablets without requiring IIS, Apache, or Docker.</li>
+  </ul>
+
+  <h2>Dual-Target Operating System Compatibility</h2>
+  <p>Unlike standard web-based or Electron POS software that consumes gigabytes of memory, TL POS compiles into two specialized native native runtimes:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Edition</th>
+        <th>Target Platform</th>
+        <th>Runtime Engine</th>
+        <th>Ideal Hardware Deployment</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Modern x64</strong></td>
+        <td>Windows 10, Windows 11 (64-bit)</td>
+        <td>.NET 10.0 Native Windows</td>
+        <td>Modern touch POS terminals, Intel Core / Celeron J6412, all-in-one capacitive screens.</td>
+      </tr>
+      <tr>
+        <td><strong>Legacy x86/x64</strong></td>
+        <td>Windows 7 SP1, Windows 8.1, POSReady 7</td>
+        <td>.NET Framework 4.8 Native</td>
+        <td>Vintage retail hardware, resistive touch terminals, Atom D525, legacy cash registers.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <figure>
+    <img src="images/pos-main-order.png" alt="TL POS Main Interface">
+    <figcaption>Figure 1.1 — TL POS Main High-Efficiency Cashier &amp; Order Interface (Light Theme)</figcaption>
+  </figure>
+
+  <!-- ==================== SECTION 2 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">02</span> Installation &amp; System Requirements</h1>
+
+  <h2>Minimum Hardware Requirements</h2>
+  <ul>
+    <li><strong>Processor:</strong> Dual-Core 1.8 GHz or higher (Intel Celeron, Core i3/i5/i7, AMD Ryzen).</li>
+    <li><strong>RAM:</strong> 2 GB minimum (4 GB or more recommended).</li>
+    <li><strong>Storage:</strong> 250 MB free disk space for the application; SSD recommended for sub-second boot times.</li>
+    <li><strong>Display:</strong> 1024×768 resolution minimum (optimally 1920×1080 touch display).</li>
+    <li><strong>Operating System:</strong> Windows 7 SP1 with .NET 4.8, or Windows 10/11 (64-bit).</li>
+  </ul>
+
+  <h2>Step-by-Step Windows Installation</h2>
+  <ol>
+    <li><strong>Acquire the Release Archive:</strong> Obtain the official ZIP package matching your operating system:
+      <ul>
+        <li><code>publish-win10-x64.zip</code> for modern Windows 10/11 terminals.</li>
+        <li><code>publish-win7.zip</code> for Windows 7 SP1 terminals.</li>
+      </ul>
+    </li>
+    <li><strong>Extract to Application Directory:</strong> Extract the contents to a permanent root folder, preferably <code>C:\TLPOS\</code> or <code>D:\TLPOS\</code>. Avoid running directly inside temporary download directories.</li>
+    <li><strong>Verify Prerequisites:</strong>
+      <ul>
+        <li>On Windows 7 SP1: Ensure <em>Microsoft .NET Framework 4.8</em> is installed.</li>
+        <li>On Windows 10/11: The application ships as a self-contained runtime; no external .NET installation is required.</li>
+      </ul>
+    </li>
+    <li><strong>Create Desktop Shortcut:</strong> Right-click <code>TL POS.exe</code> &rarr; <em>Send to</em> &rarr; <em>Desktop (create shortcut)</em>.</li>
+    <li><strong>Run as Administrator (First Launch):</strong> Right-click the shortcut and select <em>Run as administrator</em> to allow Windows to register network listener permissions for the embedded mobile server.</li>
+  </ol>
+
+  <div class="callout callout-tip">
+    <strong>Zero-Registry Portability</strong>
+    TL POS is 100% portable. It writes no entries into the Windows Registry. All configuration, product catalogs, customer balances, and sales archives reside strictly inside the <code>client database\</code> subfolder. You can move the entire application simply by copying its folder to a USB drive!
+  </div>
+
+  <!-- ==================== SECTION 3 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">03</span> Cryptographic Licensing &amp; Activation</h1>
+
+  <p>TL POS is secured by an industrial-grade <strong>Elliptic Curve Digital Signature Algorithm (ECDSA)</strong> engine. Each license is tied to the unique hardware signature of the POS motherboard and storage controller, guaranteeing copy protection without requiring continuous internet connectivity.</p>
+
+  <figure>
+    <img src="images/license-activation.png" alt="TL POS License Activation Dialog">
+    <figcaption>Figure 3.1 — Cryptographic Activation Screen &amp; Hardware Fingerprint</figcaption>
+  </figure>
+
+  <h2>Activation Procedure</h2>
+  <ol>
+    <li>Upon launching the software for the first time on an unactivated terminal, the <strong>Product Activation</strong> dialog will appear automatically.</li>
+    <li>The dialog displays a unique 16-character <strong>Terminal Machine Code</strong> (e.g., <code>VEC-9A4F-82B1-C34E</code>).</li>
+    <li>Copy this code or take a photo and provide it to your TL POS distributor (or generate the key using your proprietary master generator tool).</li>
+    <li>The distributor will provide a cryptographic license file named <code>license.dat</code>.</li>
+    <li>Click <strong>Import License File</strong> and browse to the supplied <code>license.dat</code>, or drop the file directly into the <code>client database\</code> directory.</li>
+    <li>The status badge immediately turns green (<em>Activated — Lifetime License</em>), unlocking all enterprise features.</li>
+  </ol>
+
+  <!-- ==================== SECTION 4 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">04</span> 1-Click Store Profiles &amp; Custom Safeguard</h1>
+
+  <p>Rather than requiring hours of manually toggling hundreds of settings, TL POS features an intelligent <strong>Business Profiles Engine</strong>. A single click transforms the user interface, order flow, receipt formatting, and feature set to match your specific industry.</p>
+
+  <figure>
+    <img src="images/store-profiles-diagram.svg" alt="Store Business Profiles & Safeguard Diagram">
+    <figcaption>Figure 4.1 — The 6 Preconfigured Business Models &amp; Active Custom Safeguard</figcaption>
+  </figure>
+
+  <h2>The 6 Specialized Business Models</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Store Profile</th>
+        <th>Key Features Automatically Activated</th>
+        <th>Target Retailers</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>🛒 Supermarket &amp; Grocery</strong></td>
+        <td>High-speed barcode scanner prioritization, EAN-13 weight scales, bottle deposits, multi-quantity barcode burst.</td>
+        <td>Supermarkets, grocery stores, mini-markets, wholesale food marts.</td>
+      </tr>
+      <tr>
+        <td><strong>👗 Boutique &amp; Fashion</strong></td>
+        <td>Size/Color matrix variants, customer loyalty accounts, store credit &amp; layaway, seasonal discounts.</td>
+        <td>Clothing boutiques, shoe stores, cosmetic shops, sporting goods.</td>
+      </tr>
+      <tr>
+        <td><strong>☕ Café &amp; Bakery</strong></td>
+        <td>Express counter quick-sales, production batches, combo breakfast deals, dual take-away/dine-in VAT.</td>
+        <td>Coffee shops, artisanal bakeries, pastry lounges, ice cream parlors.</td>
+      </tr>
+      <tr>
+        <td><strong>🍽️ Restaurant &amp; Dine-In</strong></td>
+        <td>Visual room &amp; table maps, table transfer, course management (Starter/Main/Dessert), bill splitting, Android tablet waiters.</td>
+        <td>Full-service restaurants, bistros, brasseries, hotel dining rooms.</td>
+      </tr>
+      <tr>
+        <td><strong>🍕 Pizzeria &amp; Fast Food</strong></td>
+        <td>Half-and-half pizza toppings, buzzer/call numbers on receipts, delivery driver dispatch, kitchen display monitors.</td>
+        <td>Pizzerias, burger joints, taco shops, shawarma &amp; snack counters.</td>
+      </tr>
+      <tr>
+        <td><strong>💊 Pharmacy &amp; Health</strong></td>
+        <td>Lot numbers &amp; expiry date tracking, blister unit breakdown (selling single blister from a box), customer insurance tabs.</td>
+        <td>Pharmacies, parapharmacies, optical shops, medical supply stores.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>The Customized Setup Safeguard</h2>
+  <div class="callout callout-tip">
+    <strong>Mistake-Proof Customization</strong>
+    Whenever you manually tweak any setting (such as changing a tax rate or enabling a loyalty toggle), TL POS automatically saves your entire configuration into the <strong>★ My Customized Setup</strong> profile.<br>
+    If an employee accidentally clicks on a preset profile (e.g., clicking "Boutique" by mistake), you can simply click <strong>Restore Setup</strong> at the top of the Profiles page to immediately restore all your personalized parameters!
+  </div>
+
+  <!-- ==================== SECTION 5 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">05</span> Daily Cashier &amp; Restaurant Operations</h1>
+
+  <h2>1. Operator Login &amp; Cash Float Opening</h2>
+  <p>At the start of each work shift, the cashier selects their name and inputs their 4-digit security PIN on the touch numeric keypad. If the Cash Drawer feature is active, the system prompts for the initial opening cash float (e.g., \$150.00 or 15,000 DZD).</p>
+
+  <figure>
+    <img src="images/login-screen.png" alt="TL POS Touch Login Screen">
+    <figcaption>Figure 5.1 — High-Security Operator Login Screen</figcaption>
+  </figure>
+
+  <h2>2. Taking Orders in Table Mode (Dine-In)</h2>
+  <ol>
+    <li>Click on the <strong>Rooms / Tables</strong> tab in the navigation rail.</li>
+    <li>Select the dining area (e.g., <em>Main Dining Room, Terrace, VIP Lounge</em>).</li>
+    <li>Green tables indicate available tables; orange/red tables indicate active dining guests.</li>
+    <li>Tap an available table to open the order pad.</li>
+    <li>Tap category pills (e.g., <em>Starters, Grills, Drinks</em>) and tap product cards to add them to the ticket basket.</li>
+    <li>Use the <strong>Modifiers</strong> sheet to select cooking temperatures (Rare, Medium, Well-Done) or exclude ingredients (No Onions).</li>
+    <li>Tap <strong>Send to Kitchen</strong>: The order is instantly dispatched to kitchen thermal printers or the Kitchen Display Screen (KDS). The table turns orange on the floor plan.</li>
+  </ol>
+
+  <figure>
+    <img src="images/pos-rooms-tables.png" alt="Visual Floor Plan & Room Tables">
+    <figcaption>Figure 5.2 — Interactive Dining Room Floor Plan &amp; Table Status</figcaption>
+  </figure>
+
+  <h2>3. Taking Orders in Express Counter Mode (Retail / Fast-Food)</h2>
+  <p>In Express mode, the table map is bypassed. Scanning any barcode or tapping a product card opens a direct transaction. Cashiers can complete a transaction in under 3 seconds:</p>
+  <ul>
+    <li>Scan item barcode &rarr; Press <strong>Pay</strong> &rarr; Enter cash received &rarr; Receipt prints automatically and the cash drawer kicks open.</li>
+  </ul>
+
+  <h2>4. Payment Methods &amp; Split Billing</h2>
+  <ul>
+    <li><strong>Split by Seat:</strong> Allows each customer at a table to pay only for the items they consumed.</li>
+    <li><strong>Equal Split:</strong> Automatically divides the bill total equally among 2, 3, 4, or more guests.</li>
+    <li><strong>Multi-Tender:</strong> Accepts combined payments (e.g., \$20 in Cash and \$35 via Credit Card on the same order).</li>
+  </ul>
+
+  <h2>5. End-of-Day Closing (X &amp; Z Reports)</h2>
+  <ul>
+    <li><strong>X-Report (Mid-day Audit):</strong> Provides a reading of current sales totals, cash in drawer, and payment breakdowns without resetting the shift registers.</li>
+    <li><strong>Z-Report (End-of-Day Closure):</strong> Closes the business day, prints a tamper-evident financial audit slip, calculates cash discrepancies, and archives daily turnover to permanent financial history.</li>
+  </ul>
+
+  <!-- ==================== SECTION 6 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">06</span> Hardware: Printers, Scales &amp; Ticket Designer</h1>
+
+  <h2>1. Thermal Receipt Printers Configuration</h2>
+  <p>TL POS supports direct hardware communication via <strong>Raw ESC/POS commands</strong> (via USB or network IP) as well as the standard <strong>Windows Print Driver</strong> system.</p>
+
+  <figure>
+    <img src="images/ticket-designer.png" alt="Ticket Designer & Receipt Layout">
+    <figcaption>Figure 6.1 — Interactive Ticket Designer &amp; Receipt Preview</figcaption>
+  </figure>
+
+  <div class="callout callout-info">
+    <strong>Printer Spooler Graceful Defense</strong>
+    If Windows Print Spooler service is stopped or a printer cable is unplugged, TL POS does not crash. It displays a clear diagnostic warning and logs the event without halting active sales.
+  </div>
+
+  <h2>2. Barcode Scales &amp; Embedded EAN-13 Weighing</h2>
+  <p>For butcher shops, produce sections, and delicatessens, TL POS features automatic parsing of <strong>EAN-13 weight-embedded barcodes</strong> (prefixes <code>20</code>, <code>21</code>, <code>22</code>, <code>28</code>, <code>29</code>):</p>
+  <pre>
+Barcode Format:  [22][PLU (4 digits)][Weight/Price (5 digits)][Check Digit]
+Example:         22 0105 01250 8
+Decoding:        Item: Premium Ribeye (#105) | Weight: 1.250 kg | Automatically priced!</pre>
+
+  <h2>3. Cash Drawers &amp; Barcode Scanners</h2>
+  <ul>
+    <li><strong>Cash Drawers:</strong> Connect via standard RJ11 cable directly to the thermal receipt printer. Configure the drawer kick pulse in <em>Settings &rarr; Manage Printers</em> (Standard Epson Pin 2 or Pin 5 pulse).</li>
+    <li><strong>Barcode Scanners:</strong> All USB and Bluetooth HID scanners (Datalogic, Honeywell, Zebra, Inateck) work out-of-the-box with zero driver installation.</li>
+  </ul>
+
+  <!-- ==================== SECTION 7 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">07</span> Android Mobile Waiter App Integration</h1>
+
+  <p>The <strong>TL Waiter</strong> companion app turns any Android tablet or smartphone into an ultra-fast order terminal. Floor staff can take orders at the customer's table, submit orders to kitchen printers, and print check bills without ever walking back to the counter.</p>
+
+  <figure>
+    <img src="images/tablet-order.png" alt="TL Waiter Android Order Screen">
+    <figcaption>Figure 7.1 — Android Waiter Tablet Application (High-Speed Touch Catalog &amp; Basket)</figcaption>
+  </figure>
+
+  <h2>Connecting Waiter Tablets (Local Network)</h2>
+  <ol>
+    <li>Ensure the Windows POS computer and Android tablets are connected to the same Wi-Fi router.</li>
+    <li>On the Windows POS, open <strong>Settings &rarr; Network / Tablet Connection</strong>.</li>
+    <li>A pairing QR code and local IP address (e.g., <code>http://192.168.1.50:8080</code>) will appear.</li>
+    <li>Launch the TL Waiter app on the Android tablet.</li>
+    <li>Tap <strong>Scan QR to Connect</strong> (or manually enter the POS IP address and the secure API key).</li>
+    <li>The tablet is paired instantly. All categories, products, prices, and room floor plans sync in real time!</li>
+  </ol>
+
+  <!-- ==================== SECTION 8 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">08</span> Long-Distance Remote Access via Tailscale VPN</h1>
+
+  <p>One of the most powerful enterprise capabilities of TL POS is <strong>secure, long-distance remote access</strong>. Using <strong>Tailscale</strong>, you can connect remote waiter tablets across different floors, outdoor terraces, separate buildings, food trucks, or allow restaurant owners to monitor live sales from home—<strong>without touching router firewall settings or buying expensive static public IP addresses</strong>.</p>
+
+  <figure>
+    <img src="images/tailscale-architecture.svg" alt="Tailscale VPN Network Architecture for TL POS">
+    <figcaption>Figure 8.1 — End-to-End Encrypted Tailscale WireGuard Mesh Network Architecture</figcaption>
+  </figure>
+
+  <h2>Why Tailscale is the Ultimate Solution for POS</h2>
+  <ul>
+    <li><strong>Zero Port Forwarding:</strong> You never have to open ports on your restaurant router. Your network remains completely immune to internet scanners and hackers.</li>
+    <li><strong>Bypasses 4G/5G CGNAT:</strong> Works seamlessly on mobile data SIM cards (where internet providers block incoming connections).</li>
+    <li><strong>End-to-End Encryption:</strong> Powered by WireGuard® (state-of-the-art cryptography, ChaCha20/Poly1305 authentication).</li>
+    <li><strong>Permanent 100.x.y.z Static IP:</strong> Tailscale assigns a permanent IP to each machine that never changes, even if you restart your router.</li>
+    <li><strong>100% Free:</strong> Tailscale offers a generous free tier for up to 100 devices—more than enough for any restaurant or retail business.</li>
+  </ul>
+
+  <h2>Step 1: Installing Tailscale on the Main Windows POS Host</h2>
+  <ol>
+    <li>Visit <a href="https://tailscale.com">tailscale.com</a> and create a free account (using Google, Microsoft, or Apple login).</li>
+    <li>Download and install <strong>Tailscale for Windows</strong> on your main POS terminal.</li>
+    <li>Click the Tailscale tray icon and log in with your account.</li>
+    <li>Once connected, right-click the Tailscale tray icon and copy your terminal's unique <strong>100.x.y.z IP address</strong> (e.g., <code>100.85.12.44</code>).</li>
+    <li>Ensure the embedded micro-server is enabled in TL POS (<em>Settings &rarr; Advanced Features &rarr; Enable REST API: YES</em>).</li>
+  </ol>
+
+  <h2>Step 2: Connecting the Android Waiter Tablet Over 4G/5G or Remote Wi-Fi</h2>
+  <ol>
+    <li>Install the official <strong>Tailscale</strong> application from Google Play Store on the Android tablet.</li>
+    <li>Log into the <strong>exact same Tailscale account</strong> as the POS machine.</li>
+    <li>Tap <strong>Connect</strong> in the Tailscale app. The tablet is now securely joined to the encrypted mesh network.</li>
+    <li>Launch <strong>TL Waiter</strong>.</li>
+    <li>In the server connection field, enter the POS Tailscale IP:
+      <pre>http://100.85.12.44:8080</pre>
+    </li>
+    <li>Enter your secure API key (found in <em>Settings &rarr; Advanced &rarr; API Key</em>).</li>
+    <li>Tap <strong>Connect</strong>. The tablet will immediately load all rooms and products! The waiter can now take orders from an outdoor beach terrace, rooftop lounge, or parking lot hundreds of meters away over 4G/5G.</li>
+  </ol>
+
+  <h2>Step 3: Remote Owner Live Dashboard (From Home or Mobile Phone)</h2>
+  <p>Restaurant owners and store managers can check live sales turnover, active tables, and cashier balances from anywhere in the world on their smartphone or home laptop:</p>
+  <ol>
+    <li>Install Tailscale on the owner's smartphone or home laptop and connect to the account.</li>
+    <li>Open Google Chrome, Safari, or Microsoft Edge.</li>
+    <li>Navigate to:
+      <pre>http://100.85.12.44:8080/reports</pre>
+    </li>
+    <li>The live web dashboard displays real-time gross revenue, sales by category, current open orders, and cashier audit logs.</li>
+  </ol>
+
+  <div class="callout callout-tip">
+    <strong>Multi-Branch Architecture</strong>
+    If you operate multiple branches or seasonal food trucks, each satellite location can run a local POS that transmits daily financial reports directly back to the headquarters PC over the Tailscale mesh!
+  </div>
+
+  <!-- ==================== SECTION 9 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">09</span> Inventory, Recipes &amp; Ingredient Tracking</h1>
+
+  <p>TL POS provides full inventory control with automated recipe ingredient deductions.</p>
+
+  <h2>1. Simple Stock Tracking</h2>
+  <p>For retail and packaged goods (sodas, clothing, cosmetics), set the stock level directly on the product card. Each sale deducts 1 unit. Set low-stock alert thresholds (e.g., alert when stock &lt; 5 units).</p>
+
+  <h2>2. Recipe-Based Ingredient Deductions (Restaurants &amp; Pizzerias)</h2>
+  <p>For food and beverage items, you can define composite recipes. When a dish is sold, the exact raw materials are subtracted from raw inventory:</p>
+  <ul>
+    <li><strong>Example: Pizza Margherita</strong>
+      <ul>
+        <li>Dough ball: 1 unit</li>
+        <li>Tomato sauce: 80 grams</li>
+        <li>Mozzarella cheese: 120 grams</li>
+        <li>Fresh basil: 3 leaves</li>
+      </ul>
+    </li>
+  </ul>
+  <p>Selling 10 Margherita pizzas automatically deducts 1.2 kg of mozzarella and 800 g of sauce from your stock warehouse!</p>
+
+  <!-- ==================== SECTION 10 ==================== -->
+  <div class="page-break"></div>
+  <h1><span class="sec-num">10</span> Data Backup, Maintenance &amp; Troubleshooting</h1>
+
+  <h2>1. Safe Data Backup in 10 Seconds</h2>
+  <p>Because TL POS stores everything in lightweight, portable JSON archives, creating a backup requires zero database export commands:</p>
+  <ol>
+    <li>Close TL POS.</li>
+    <li>Open the application directory (e.g., <code>C:\TLPOS\</code>).</li>
+    <li>Copy the entire <strong><code>client database\</code></strong> folder to an external USB flash drive or secure cloud storage (Google Drive, OneDrive).</li>
+  </ol>
+
+  <h2>2. Moving TL POS to a New Computer</h2>
+  <ol>
+    <li>Copy the entire <code>TLPOS\</code> folder to the new computer.</li>
+    <li>Launch <code>TL POS.exe</code>.</li>
+    <li>Because the hardware signature has changed, the activation dialog will appear.</li>
+    <li>Provide the new Machine Code to your distributor to generate an updated <code>license.dat</code>.</li>
+    <li>All your products, sales history, customer accounts, and settings are preserved intact!</li>
+  </ol>
+
+  <h2>3. Troubleshooting Common Issues</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Symptom</th>
+        <th>Root Cause</th>
+        <th>Solution</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>"RPC Server Unavailable" when managing printers</strong></td>
+        <td>Windows Print Spooler service was stopped or crashed.</td>
+        <td>Press <kbd>Win + R</kbd>, type <code>services.msc</code>, locate <strong>Print Spooler</strong>, right-click and select <strong>Start</strong>. TL POS includes defensive handling and will not crash.</td>
+      </tr>
+      <tr>
+        <td><strong>Android Tablet cannot connect to POS</strong></td>
+        <td>Windows Firewall is blocking port 8080 or IP address changed.</td>
+        <td>1. In Windows Defender Firewall, allow port 8080 incoming TCP.<br>2. Or simply use Tailscale (Section 08), which bypasses local firewalls automatically!</td>
+      </tr>
+      <tr>
+        <td><strong>Cash drawer does not kick open</strong></td>
+        <td>RJ11 cable connected to wrong port or incorrect pulse pin.</td>
+        <td>Verify the cable is plugged into the receipt printer RJ11 port (not the phone line). In <em>Manage Printers</em>, switch between Epson Pin 2 and Pin 5 pulse.</td>
+      </tr>
+      <tr>
+        <td><strong>Barcode scanner adds extra digits</strong></td>
+        <td>Scanner prefix/suffix setting.</td>
+        <td>Scan the reset barcode in your scanner manual to restore standard USB HID Keyboard wedge mode with CR/Enter suffix.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-info" style="margin-top: 30px;">
+    <strong>Technical Support &amp; Distribution</strong>
+    For hardware inquiries, customized development, or bulk reseller licensing, contact your official representative:<br>
+    <strong>Author &amp; Owner:</strong> Lounes Tinouche (TL) • <strong>Platform:</strong> TL POS Enterprise Suite
+  </div>
+
+</body>
+</html>

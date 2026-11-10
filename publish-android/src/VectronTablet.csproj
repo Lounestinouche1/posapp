@@ -11,10 +11,10 @@
 		<Nullable>enable</Nullable>
 
 		<!-- Display name -->
-		<ApplicationTitle>Vectron Waiter</ApplicationTitle>
+		<ApplicationTitle>TL Waiter</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>com.vectron.waiter</ApplicationId>
+		<ApplicationId>com.tlpos.waiter</ApplicationId>
 
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>

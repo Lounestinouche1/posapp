@@ -32,6 +32,10 @@ using Timer = System.Windows.Forms.Timer;
 
 namespace VectronPOS;
 
+// ==========================================================================================
+// SECTION 01: ENTRY POINT & APPLICATION LIFECYCLE
+// Responsible for application startup, offline ECDSA license check, and graceful restart.
+// ==========================================================================================
 internal static class Program
 {
 	public static PosForm? ActivePosForm { get; set; }
@@ -75,7 +79,7 @@ internal static class Program
 		}
 		catch (Exception ex)
 		{
-			MessageBox.Show("Failed to restart Vectron POS:\n" + ex.Message, "Restart", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			MessageBox.Show("Failed to restart TL POS:\n" + ex.Message, "Restart", MessageBoxButtons.OK, MessageBoxIcon.Error);
 			return;
 		}
 
@@ -83,15 +87,20 @@ internal static class Program
 	}
 
 	[STAThread]
-	private static void Main()
+	private static void Main(string[] args)
 	{
 		ApplicationConfiguration.Initialize();
 		OnScreenKeyboard.Register();
+		if (args != null && args.Length > 0 && args[0] == "--capture-screenshots")
+		{
+			RunScreenshotCapture();
+			return;
+		}
 		while (!License.IsActive)
 		{
 			MessageBox.Show(License.GetStatus().Status switch
 			{
-				License.Status.Expired => "Vectron POS license has expired.\nPlease contact your supplier to renew.", 
+				License.Status.Expired => "TL POS license has expired.\nPlease contact your supplier to renew.", 
 				License.Status.Invalid => "The stored license is not valid for this computer.\nPlease contact your supplier for a new license key.", 
 				_ => "No license activated.\n\nThis application requires a license to run.\nSend your request code to your supplier, then paste the license key.", 
 			}, "License required", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
@@ -110,9 +119,163 @@ internal static class Program
 		}
 		Application.Run(new PosForm());
 	}
+
+private static void RunScreenshotCapture()
+	{
+		try
+		{
+			string baseOutDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "docs", "manual", "images");
+			if (!Directory.Exists(baseOutDir)) Directory.CreateDirectory(baseOutDir);
+
+			string[] languages = new[] { "en", "fr", "ar" };
+			foreach (string lang in languages)
+			{
+				Tr.Lang = lang;
+				string outDir = Path.Combine(baseOutDir, lang);
+				if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+
+				// 1. Capture LoginForm (Light)
+				Skin.Apply(new FeatureSettings { Theme = "light", GraphicsQuality = "high" });
+				List<OperatorAccount> ops = new List<OperatorAccount>
+				{
+					new OperatorAccount(lang == "fr" ? "Gérant" : (lang == "ar" ? "المدير" : "Manager"), new List<string> { "Manager", "Settings" }, "1234", 0),
+					new OperatorAccount(lang == "fr" ? "Caissier 1" : (lang == "ar" ? "الكاشير 1" : "Cashier 1"), new List<string> { "Cashier" }, "0000", 0)
+				};
+				using (LoginForm login = new LoginForm(Skin.Background, Skin.PanelLight, Skin.Accent, ops, true))
+				{
+					login.Size = new Size(420, 500);
+					login.Show();
+					Application.DoEvents();
+					using (Bitmap bmp = new Bitmap(420, 500))
+					{
+						login.DrawToBitmap(bmp, new Rectangle(0, 0, 420, 500));
+						bmp.Save(Path.Combine(outDir, "login-screen.png"), ImageFormat.Png);
+						if (lang == "en") bmp.Save(Path.Combine(baseOutDir, "login-screen.png"), ImageFormat.Png);
+					}
+					login.Close();
+				}
+
+				// 2. Capture LicenseForm
+				using (LicenseForm lic = new LicenseForm())
+				{
+					lic.Size = new Size(440, 360);
+					lic.Show();
+					Application.DoEvents();
+					using (Bitmap bmp = new Bitmap(440, 360))
+					{
+						lic.DrawToBitmap(bmp, new Rectangle(0, 0, 440, 360));
+						bmp.Save(Path.Combine(outDir, "license-activation.png"), ImageFormat.Png);
+						if (lang == "en") bmp.Save(Path.Combine(baseOutDir, "license-activation.png"), ImageFormat.Png);
+					}
+					lic.Close();
+				}
+
+				// 3. PosForm Light (Order & Rooms & Settings)
+				Skin.Apply(new FeatureSettings { Theme = "light", GraphicsQuality = "high" });
+				using (PosForm pos = new PosForm(skipLogin: true, overrideLang: lang))
+				{
+					pos.Size = new Size(1280, 800);
+					pos.Show();
+					Application.DoEvents();
+					Thread.Sleep(150);
+					Application.DoEvents();
+
+					// pos-main-order.png
+					using (Bitmap bmp = new Bitmap(1280, 800))
+					{
+						pos.DrawToBitmap(bmp, new Rectangle(0, 0, 1280, 800));
+						bmp.Save(Path.Combine(outDir, "pos-main-order.png"), ImageFormat.Png);
+						if (lang == "en") bmp.Save(Path.Combine(baseOutDir, "pos-main-order.png"), ImageFormat.Png);
+					}
+
+					// pos-rooms-tables.png
+					pos.ShowRoomsForCapture();
+					Application.DoEvents();
+					Thread.Sleep(150);
+					Application.DoEvents();
+					using (Bitmap bmp = new Bitmap(1280, 800))
+					{
+						pos.DrawToBitmap(bmp, new Rectangle(0, 0, 1280, 800));
+						bmp.Save(Path.Combine(outDir, "pos-rooms-tables.png"), ImageFormat.Png);
+						if (lang == "en") bmp.Save(Path.Combine(baseOutDir, "pos-rooms-tables.png"), ImageFormat.Png);
+					}
+
+					// settings-appearance.png
+					pos.ShowSettingsForCapture();
+					Application.DoEvents();
+					Thread.Sleep(150);
+					Application.DoEvents();
+					SettingsForm sf = pos.GetActiveSettingsFormForCapture();
+					if (sf != null)
+					{
+						sf.ShowAppearanceForCapture();
+						Application.DoEvents();
+						Thread.Sleep(150);
+						Application.DoEvents();
+						using (Bitmap bmp = new Bitmap(1280, 800))
+						{
+							pos.DrawToBitmap(bmp, new Rectangle(0, 0, 1280, 800));
+							bmp.Save(Path.Combine(outDir, "settings-appearance.png"), ImageFormat.Png);
+							if (lang == "en") bmp.Save(Path.Combine(baseOutDir, "settings-appearance.png"), ImageFormat.Png);
+						}
+					}
+
+					pos.Close();
+				}
+
+				// 4. PosForm Dark (Order)
+				Skin.Apply(new FeatureSettings { Theme = "dark", GraphicsQuality = "high" });
+				using (PosForm posDark = new PosForm(skipLogin: true, overrideLang: lang))
+				{
+					posDark.Size = new Size(1280, 800);
+					posDark.Show();
+					Application.DoEvents();
+					Thread.Sleep(150);
+					Application.DoEvents();
+
+					using (Bitmap bmp = new Bitmap(1280, 800))
+					{
+						posDark.DrawToBitmap(bmp, new Rectangle(0, 0, 1280, 800));
+						bmp.Save(Path.Combine(outDir, "pos-main-dark.png"), ImageFormat.Png);
+						if (lang == "en") bmp.Save(Path.Combine(baseOutDir, "pos-main-dark.png"), ImageFormat.Png);
+					}
+					posDark.Close();
+				}
+
+				// 5. Capture TicketStyleEditorForm
+				List<PrinterDestination> sampleDests = new List<PrinterDestination>
+				{
+					new PrinterDestination("Cashier", "Default", "TL POS", lang == "fr" ? "Merci de votre visite" : (lang == "ar" ? "شكراً لزيارتكم" : "Thank you"))
+				};
+				using (TicketStyleEditorForm ticketForm = new TicketStyleEditorForm(Skin.Background, Skin.PanelLight, Skin.Accent, sampleDests, d => {}))
+				{
+					ticketForm.Size = new Size(820, 600);
+					ticketForm.Show();
+					Application.DoEvents();
+					Thread.Sleep(150);
+					using (Bitmap bmp = new Bitmap(820, 600))
+					{
+						ticketForm.DrawToBitmap(bmp, new Rectangle(0, 0, 820, 600));
+						bmp.Save(Path.Combine(outDir, "ticket-designer.png"), ImageFormat.Png);
+						if (lang == "en") bmp.Save(Path.Combine(baseOutDir, "ticket-designer.png"), ImageFormat.Png);
+					}
+					ticketForm.Close();
+				}
+			}
+
+			Console.WriteLine("ALL_LOCALIZED_SCREENSHOTS_CAPTURED_SUCCESSFULLY");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine("CAPTURE_ERROR: " + ex);
+		}
+	}
 }
 
-
+// ==========================================================================================
+// SECTION 02: DOMAIN DATA MODELS & FEATURE SETTINGS
+// Data contracts: Products, Orders, Tables, Operators, and ~90 Feature Toggles.
+// ==========================================================================================
 internal sealed record Product(string Name, string Category, decimal Price, string Color, string Family = "General", string ImagePath = "", string PrinterDestination = "", string Barcode = "", bool Weighted = false)
 {
     public string Name { get; set; } = Name;
@@ -430,7 +593,7 @@ internal sealed record PurchaseOrder(int Id, string Supplier, DateTime Created, 
     public PurchaseOrder _003CClone_003E_0024() => this with {};
 }
 
-internal sealed record PrinterDestination(string Name, string WindowsPrinter, string Header = "VECTRON POS", string Footer = "Thank you", bool CutAfterPrint = false, List<TicketComponentStyle>? Layout = null, string LogoPath = "")
+internal sealed record PrinterDestination(string Name, string WindowsPrinter, string Header = "TL POS", string Footer = "Thank you", bool CutAfterPrint = false, List<TicketComponentStyle>? Layout = null, string LogoPath = "")
 {
     public string Name { get; set; } = Name;
     public string WindowsPrinter { get; set; } = WindowsPrinter;
@@ -826,6 +989,11 @@ internal sealed class FeatureSettings
 		public bool EmployeeCommission { get; set; }
 	}
 
+// ==========================================================================================
+// SECTION 03: BUSINESS PROFILES ENGINE
+// 1-Click store optimization: Supermarket, Boutique, Cafe, Restaurant, Pizzeria, Pharmacy.
+// Also includes the Customized Setup Safeguard for restoring personal tweaks.
+// ==========================================================================================
 internal static class BusinessProfiles
 {
 	public const string Restaurant = "restaurant";
@@ -1171,6 +1339,10 @@ internal sealed class TicketComponentStyleConverter : JsonConverter<TicketCompon
 }
 
 
+// ==========================================================================================
+// SECTION 04: PERSISTENCE & DATA STORAGE (PosStore)
+// Atomic JSON file persistence into "client database\" folder. Zero SQL Server required.
+// ==========================================================================================
 internal sealed class PosStore
 	{
 		internal sealed class PrepRecord
@@ -2672,6 +2844,10 @@ internal static class StockEngine
     }
 }
 
+// ==========================================================================================
+// SECTION 05: DESIGN SYSTEM & APPEARANCE TOKENS (Skin)
+// Dark/Light themes, Auto/High/Lite graphics tiers, color tokens, and font typography.
+// ==========================================================================================
 internal static class Skin
 	{
 		private struct MemoryStatusEx
@@ -4160,6 +4336,10 @@ internal sealed class SkinPanel : Panel
 		}
 	}
 
+// ==========================================================================================
+// SECTION 06: CUSTOM TOUCH UI CONTROLS
+// High-speed WinForms controls: brand mark, ghost buttons, toggles, cards, keypad.
+// ==========================================================================================
 internal sealed class VectronMark : Control
 	{
 		private double progress = 1.0;
@@ -4202,16 +4382,35 @@ internal sealed class VectronMark : Control
 					float sweepAngle = (float)(360.0 * progress);
 					graphics.DrawArc(pen, rectangle, -90f, sweepAngle);
 				}
-				float num4 = (float)num * 0.28f * (float)progress;
-				using (Pen pen2 = new Pen(accent, Math.Max(2.2f, (float)num / 11f))
+				// Cool Modern 'TL' Monogram
+				Color cyanAccent = (Skin.Mode == SkinMode.Dark) ? Color.FromArgb(56, 189, 248) : Skin.Accent;
+				float stroke = Math.Max(1.8f, (float)num / 12f);
+				using (Pen penT = new Pen(accent, stroke) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+				using (Pen penL = new Pen(cyanAccent, stroke) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
 				{
-					StartCap = LineCap.Round,
-					EndCap = LineCap.Round,
-					LineJoin = LineJoin.Round
-				})
-				{
-					graphics.DrawLine(pen2, num2 - (float)num * 0.24f, num3 - (float)num * 0.2f, num2, num3 + num4);
-					graphics.DrawLine(pen2, num2 + (float)num * 0.24f, num3 - (float)num * 0.2f, num2, num3 + num4);
+					// 'T' - Top horizontal roof and vertical stem
+					float tTop = num3 - (float)num * 0.18f;
+					float tBottom = num3 + (float)num * 0.20f * (float)progress;
+					float tLeft = num2 - (float)num * 0.26f;
+					float tRight = num2 + (float)num * 0.04f;
+					float tStemX = num2 - (float)num * 0.11f;
+
+					graphics.DrawLine(penT, tLeft, tTop, tRight, tTop);
+					graphics.DrawLine(penT, tStemX, tTop, tStemX, tBottom);
+
+					// 'L' - Modern vertical stem and base
+					float lTop = num3 - (float)num * 0.06f;
+					float lStemX = num2 + (float)num * 0.12f;
+					float lBottom = num3 + (float)num * 0.20f * (float)progress;
+					float lRight = num2 + (float)num * 0.28f;
+
+					PointF[] lPts = new PointF[]
+					{
+						new PointF(lStemX, lTop),
+						new PointF(lStemX, lBottom),
+						new PointF(lRight, lBottom)
+					};
+					graphics.DrawLines(penL, lPts);
 				}
 				if (progress >= 0.999)
 				{
@@ -4347,7 +4546,7 @@ internal sealed class LoginForm : Form
 			};
 			Label label = new Label
 			{
-				Text = "VECTRON",
+				Text = "TL POS",
 				Font = new Font("Segoe UI Semibold", 22f),
 				ForeColor = Skin.Text,
 				Location = new Point(30, 76),
@@ -4687,7 +4886,7 @@ internal sealed class NetworkSettingsForm : SettingsSubForm
 					else
 					{
 						btnAutoDetect.Text = Tr.T("🔍 Auto-detect Main PC");
-						MessageBox.Show(Tr.T("Could not auto-detect Main PC on the local network.\nEnsure Vectron POS is open on the Main PC and 'client database' folder is shared on the network."), Tr.T("Auto-detect"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+						MessageBox.Show(Tr.T("Could not auto-detect Main PC on the local network.\nEnsure TL POS is open on the Main PC and 'client database' folder is shared on the network."), Tr.T("Auto-detect"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
 					}
 				}
 				catch (Exception ex)
@@ -4737,6 +4936,10 @@ internal sealed class NetworkSettingsForm : SettingsSubForm
 		}
 	}
 
+// ==========================================================================================
+// SECTION 07: MAIN POS FORM & CASHIER SHELL (PosForm)
+// Controls the primary UI: floor plan, table orders, basket, payment handling, and navigation.
+// ==========================================================================================
 internal sealed class PosForm : Form
 	{
 		private readonly PosStore store = new PosStore();
@@ -4979,14 +5182,19 @@ internal sealed class PosForm : Form
 
 		private static Color mint => Skin.Accent;
 
-		public PosForm()
+		internal void ShowOrderForCapture() => ShowOrder();
+		internal void ShowRoomsForCapture() => ShowRooms();
+		internal void ShowSettingsForCapture() => ShowSettings();
+		internal SettingsForm? GetActiveSettingsFormForCapture() => viewPanel.Controls.OfType<Panel>().SelectMany(p => p.Controls.OfType<SettingsForm>()).FirstOrDefault();
+
+		public PosForm(bool skipLogin = false, string? overrideLang = null)
 		{
 			Program.ActivePosForm = this;
 			Skin.Apply(store.Features);
 			OnScreenKeyboard.IsEnabled = () => store.Features.OnScreenKeyboard;
-			Tr.Lang = (string.IsNullOrWhiteSpace(store.Features.Language) ? "en" : store.Features.Language);
+			Tr.Lang = overrideLang ?? (string.IsNullOrWhiteSpace(store.Features.Language) ? "en" : store.Features.Language);
 			ApplyCurrencyCulture(store.RegisterSettings.Currency);
-			Text = Tr.T("Vectron POS");
+			Text = Tr.T("TL POS");
 			StartPosition = FormStartPosition.Manual;
 			BackColor = background;
 			ForeColor = Skin.Text;
@@ -4996,7 +5204,7 @@ internal sealed class PosForm : Form
 			Screen screen = Screen.PrimaryScreen ?? Screen.AllScreens[0];
 			Location = screen.Bounds.Location;
 			Size = screen.Bounds.Size;
-			if (store.Operators.Any((OperatorAccount op) => !string.IsNullOrWhiteSpace(op.Password)))
+			if (!skipLogin && store.Operators.Any((OperatorAccount op) => !string.IsNullOrWhiteSpace(op.Password)))
 			{
 				using LoginForm loginForm = new LoginForm(background, panelLight, mint, store.Operators, store.Features.PinLogin);
 				if (loginForm.ShowDialog(this) != DialogResult.OK || loginForm.LoggedInOperator == null)
@@ -5008,7 +5216,7 @@ internal sealed class PosForm : Form
 			}
 			else
 			{
-				currentOperator = store.Operators[0];
+				currentOperator = store.Operators.FirstOrDefault() ?? new OperatorAccount("Manager", new List<string> { "Manager" }, "", 0);
 			}
 			products = store.Products;
 			isOrderPc = !store.RegisterSettings.IsMainPc;
@@ -5230,7 +5438,7 @@ internal sealed class PosForm : Form
 				Location = new Point(22, 19),
 				Size = new Size(34, 34)
 			};
-			brandTitle.Text = "VECTRON";
+			brandTitle.Text = "TL";
 			brandTitle.AutoSize = true;
 			brandTitle.Font = new Font("Segoe UI Semibold", 15f);
 			brandTitle.ForeColor = Skin.Text;
@@ -6090,7 +6298,7 @@ internal sealed class PosForm : Form
 				store.Features.Theme = newTheme;
 				store.SaveFeatures(store.Features);
 				Skin.Apply(store.Features);
-				if (MessageBox.Show(Tr.T("Theme changed. Vectron POS will now restart to apply the new theme."), Tr.T("Theme"), MessageBoxButtons.OK, MessageBoxIcon.Information) == DialogResult.OK)
+				if (MessageBox.Show(Tr.T("Theme changed. TL POS will now restart to apply the new theme."), Tr.T("Theme"), MessageBoxButtons.OK, MessageBoxIcon.Information) == DialogResult.OK)
 				{
 					Program.SafeRestart();
 				}
@@ -7672,7 +7880,7 @@ internal sealed class PosForm : Form
 				Label instrLbl = new Label
 				{
 					Text = Tr.T("How to link a standalone Kiosk totem or tablet:\n" +
-					            "1. Run 'Vectron Kiosk.exe' on your touchscreen totem or PC.\n" +
+					            "1. Run 'TL Kiosk.exe' on your touchscreen totem or PC.\n" +
 					            "2. On the Kiosk setup screen, tap 'Auto-Detect' or enter the address above.\n" +
 					            "3. The Kiosk automatically synchronizes menu & orders straight to this POS!"),
 					Location = new Point(165, 180),
@@ -7694,7 +7902,7 @@ internal sealed class PosForm : Form
 				launchLocalBtn.Click += (s, e) =>
 				{
 					f.Close();
-					string exePath = Path.Combine(AppContext.BaseDirectory, "Vectron Kiosk.exe");
+					string exePath = Path.Combine(AppContext.BaseDirectory, "TL Kiosk.exe");
 					if (File.Exists(exePath))
 					{
 						try { System.Diagnostics.Process.Start(exePath); return; } catch {}
@@ -8185,7 +8393,7 @@ internal sealed class PosForm : Form
 				string arg = ((store.Features.SeatOrdering && item.Seat > 0) ? $"[S{item.Seat}] " : "");
 				Label label = new Label
 				{
-					Text = $"{arg}{item.Count} × {item.Product.Name}",
+					Text = $"{arg}{item.Count} × {Tr.T(item.Product.Name)}",
 					AutoSize = true,
 					Location = new Point(10, 8)
 				};
@@ -14198,7 +14406,7 @@ internal sealed class PosForm : Form
 					}
 					return false;
 				}
-				string text2 = Path.Combine(text, $"vectron-backup-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
+				string text2 = Path.Combine(text, $"tlpos-backup-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
 				if (File.Exists(text2))
 				{
 					File.Delete(text2);
@@ -14716,7 +14924,7 @@ internal sealed class PosForm : Form
 						throw new Exception(rootElement.TryGetProperty("error", out value2) ? value2.GetString() : "no backup available");
 					}
 					byte[] bytes = Convert.FromBase64String(rootElement.GetProperty("data").GetString() ?? "");
-					string text2 = Path.Combine(Path.GetTempPath(), $"vectron-restore-{Guid.NewGuid():N}.zip");
+					string text2 = Path.Combine(Path.GetTempPath(), $"tlpos-restore-{Guid.NewGuid():N}.zip");
 					File.WriteAllBytes(text2, bytes);
 					PosZip.ExtractOverwrite(text2, store.DataFolder);
 					try
@@ -14830,7 +15038,7 @@ internal sealed class PosForm : Form
 					using OpenFileDialog openFileDialog = new OpenFileDialog
 					{
 						Filter = "Backup zip (*.zip)|*.zip|All files (*.*)|*.*",
-						Title = "Pick a vectron-backup zip"
+						Title = "Pick a tlpos-backup zip"
 					};
 					if (openFileDialog.ShowDialog() != DialogResult.OK || MessageBox.Show(Tr.T("Restoring will OVERWRITE the current database with the backup contents.\n\nContinue?"), Tr.T("Restore backup"), MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation) != DialogResult.Yes)
 					{
@@ -14957,7 +15165,7 @@ internal sealed class PosForm : Form
 						{
 							Timeout = TimeSpan.FromSeconds(5.0)
 						};
-						string content = "{\"event\":\"test\",\"message\":\"Vectron POS webhook test\"}";
+						string content = "{\"event\":\"test\",\"message\":\"TL POS webhook test\"}";
 						HttpResponseMessage result = httpClient.PostAsync(text, new StringContent(content, Encoding.UTF8, "application/json")).GetAwaiter().GetResult();
 						MessageBox.Show(result.IsSuccessStatusCode ? $"Webhook delivered (HTTP {(int)result.StatusCode})." : $"Server replied HTTP {(int)result.StatusCode}.", "Webhooks", MessageBoxButtons.OK, result.IsSuccessStatusCode ? MessageBoxIcon.Asterisk : MessageBoxIcon.Exclamation);
 					}
@@ -21364,7 +21572,7 @@ internal sealed class PosForm : Form
 			return JsonResponse(new
 			{
 				ok = true,
-				restaurant_name = (printDest?.Header ?? "VECTRON RESTAURANT"),
+				restaurant_name = (printDest?.Header ?? "TL POS RESTAURANT"),
 				currency = store.RegisterSettings.Currency,
 				tva_rate = store.RegisterSettings.TvaRate,
 				confirmation_required = store.Features.KioskRequireConfirmation,
@@ -21659,7 +21867,7 @@ internal sealed class PosForm : Form
 			return JsonResponse(new
 			{
 				ok = true,
-				app = "VectronPOS",
+				app = "TLPOS",
 				server_time = DateTime.Now.ToString("o"),
 				currency = store.RegisterSettings.Currency,
 				tva_rate = store.RegisterSettings.TvaRate,
@@ -22635,7 +22843,7 @@ internal sealed class PosForm : Form
 				tables = (from i in Enumerable.Range(1, r.TableCount)
 					select TableName(r.Name, i)).ToList()
 			}).ToList());
-			string text3 = "Vectron POS";
+			string text3 = "TL POS";
 			string text4 = JsonSerializer.Serialize(store.RegisterSettings.Currency);
 			string text5 = JsonSerializer.Serialize(QueryVal("room"));
 			string text6 = JsonSerializer.Serialize(QueryVal("table"));
@@ -25187,6 +25395,10 @@ internal sealed class FeatureCard : Panel
 	}
 }
 
+// ==========================================================================================
+// SECTION 08: SETTINGS & ADMINISTRATIVE DIALOGS
+// Store setup, operator manager, room editor, feature toggles, and business profiles UI.
+// ==========================================================================================
 internal sealed class SettingsForm : Form
 {
 	[System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -25993,6 +26205,9 @@ internal sealed class SettingsForm : Form
 		);
 	}
 
+	internal void ShowProfilesForCapture() => PopulateProfiles();
+	internal void ShowAppearanceForCapture() => PopulateAppearance();
+
 	private void PopulateAppearance()
 	{
 		SetPageHeader(Tr.T("Appearance"), Tr.T("Theme, graphics quality, animations & font size"));
@@ -26025,7 +26240,7 @@ internal sealed class SettingsForm : Form
 			saveFeatures(features);
 			Skin.Apply(features);
 			RefreshTheme();
-			if (MessageBox.Show(Tr.T("Theme changed. Vectron POS will now restart to apply the new theme."), Tr.T("Theme"), MessageBoxButtons.OK, MessageBoxIcon.Information) == DialogResult.OK)
+			if (MessageBox.Show(Tr.T("Theme changed. TL POS will now restart to apply the new theme."), Tr.T("Theme"), MessageBoxButtons.OK, MessageBoxIcon.Information) == DialogResult.OK)
 			{
 				Program.SafeRestart();
 			}
@@ -26117,7 +26332,7 @@ internal sealed class SettingsForm : Form
 		{
 			features.Language = code;
 			saveFeatures(features);
-			if (MessageBox.Show(Tr.T("Language changed. Vectron POS will now restart."), Tr.T("Language"), MessageBoxButtons.OK, MessageBoxIcon.Asterisk) == DialogResult.OK)
+			if (MessageBox.Show(Tr.T("Language changed. TL POS will now restart."), Tr.T("Language"), MessageBoxButtons.OK, MessageBoxIcon.Asterisk) == DialogResult.OK)
 			{
 				Program.SafeRestart();
 			}
@@ -27826,7 +28041,7 @@ internal sealed class SalesReportForm : SettingsSubForm
 						{
 							using Font f = new Font("Consolas", 9f);
 							using Font font2 = new Font("Consolas", 8f);
-							g.DrawString("VECTRON POS - Sales Report", font, Brushes.Black, margin, y);
+							g.DrawString("TL POS - Sales Report", font, Brushes.Black, margin, y);
 							y += 30;
 							g.DrawString(summaryLabel.Text, headerFont, Brushes.Black, margin, y);
 							y += 25;
@@ -28616,6 +28831,10 @@ internal static class CatalogImageStore
 			}
 		}
 	}
+// ==========================================================================================
+// SECTION 09: HARDWARE & PRINTING ENGINE (RawPrinter & Ticket Layout)
+// Direct ESC/POS thermal printing, Windows Spooler driver mode, and drawer pulse control.
+// ==========================================================================================
 internal static class RawPrinter
 	{
 		[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -28691,7 +28910,7 @@ internal static class RawPrinter
 			}
 			DocumentInfo documentInfo = new DocumentInfo
 			{
-				DocumentName = "Vectron POS ticket",
+				DocumentName = "TL POS ticket",
 				OutputFile = null,
 				DataType = null
 			};
@@ -32850,7 +33069,7 @@ internal sealed class ProductTile : Panel
 			using SolidBrush brush2 = new SolidBrush(OutOfStock ? Skin.TextFaint : Skin.Accent);
 			string s = product.Price.ToString("C");
 			SizeF sizeF = graphics.MeasureString(s, font2);
-			SizeF sizeF2 = graphics.MeasureString(product.Name, font);
+			SizeF sizeF2 = graphics.MeasureString(Tr.T(product.Name), font);
 			float num3 = Math.Max(sizeF.Height, sizeF2.Height);
 			int num4 = num;
 			int num5 = Width - 2 * num;
@@ -32881,7 +33100,7 @@ internal sealed class ProductTile : Panel
 			}
 			int num11 = rectangle.Bottom + 4;
 			float num12 = (float)(Width - num) - sizeF.Width;
-			string s2 = Ellipsize(maxWidth: Math.Max(20f, num12 - (float)num - 8f), g: graphics, text: product.Name, font: font);
+			string s2 = Ellipsize(maxWidth: Math.Max(20f, num12 - (float)num - 8f), g: graphics, text: Tr.T(product.Name), font: font);
 			float num13 = (float)num11 + (num3 - sizeF2.Height) / 2f;
 			float num14 = (float)num11 + (num3 - sizeF.Height) / 2f;
 			graphics.DrawString(s2, font, brush, num, num13);
@@ -32946,6 +33165,10 @@ internal sealed class ProductTile : Panel
 		}
 	}
 
+// ==========================================================================================
+// SECTION 10: EMBEDDED REST API SERVER (QrOrderServer - Port 8080)
+// High-throughput microservice for Android Waiter tablets, Kiosk, and Tailscale VPN access.
+// ==========================================================================================
 internal sealed class QrOrderServer : IDisposable
 	{
 		private readonly Func<string, string, string, string?> handle;

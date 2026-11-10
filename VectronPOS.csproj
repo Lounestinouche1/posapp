@@ -6,8 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <AssemblyName>Vectron POS</AssemblyName>
+    <AssemblyName>TL POS</AssemblyName>
     <RootNamespace>VectronPOS</RootNamespace>
+    <Product>TL POS</Product>
+    <Title>TL POS</Title>
+    <Authors>Lounes Tinouche</Authors>
+    <Company>TL Software</Company>
   </PropertyGroup>
 
   <!-- .NET 10 build (Windows 10/11): self-contained single-file -->

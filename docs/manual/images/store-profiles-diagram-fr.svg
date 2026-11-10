@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 440" width="100%" height="100%" style="background:#0F172A; font-family:'Segoe UI',system-ui,-apple-system,sans-serif;">
+  <defs>
+    <filter id="boxShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <text x="460" y="36" text-anchor="middle" fill="#F8FAFC" font-size="19" font-weight="700">Profils Métiers en 1 Clic &amp; Sauvegarde de Configuration</text>
+  <text x="460" y="58" text-anchor="middle" fill="#94A3B8" font-size="12">Basculez le comportement du logiciel en un clic avec préservation automatique de vos réglages</text>
+
+  <!-- TOP CARD: MY CUSTOMIZED SETUP (SAFEGUARD) -->
+  <g transform="translate(40, 80)">
+    <rect width="840" height="88" rx="12" fill="#1E293B" stroke="#2563EB" stroke-width="2" filter="url(#boxShadow)"/>
+    <rect x="2" y="2" width="6" height="84" rx="2" fill="#3B82F6"/>
+    <text x="24" y="36" fill="#FBBF24" font-size="22">★</text>
+    <text x="56" y="34" fill="#F8FAFC" font-size="15" font-weight="700">Ma Configuration Personnalisée</text>
+    <rect x="235" y="19" width="64" height="20" rx="4" fill="#2563EB"/>
+    <text x="267" y="33" text-anchor="middle" fill="#FFFFFF" font-size="10" font-weight="700">ACTIF</text>
+    <text x="56" y="56" fill="#94A3B8" font-size="12">Votre configuration sur-mesure. Toute modification dans les paramètres est mémorisée ici.</text>
+    <text x="56" y="74" fill="#34D399" font-size="11" font-weight="600">✔ Profil actif — Restauration en un clic disponible si un profil d'exemple est activé par erreur.</text>
+
+    <!-- Buttons -->
+    <rect x="610" y="26" width="100" height="36" rx="6" fill="#334155" stroke="#475569" stroke-width="1"/>
+    <text x="660" y="49" text-anchor="middle" fill="#E2E8F0" font-size="12" font-weight="600">Restaurer</text>
+
+    <rect x="720" y="26" width="100" height="36" rx="6" fill="#2563EB"/>
+    <text x="770" y="49" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="600">Sauvegarder</text>
+  </g>
+
+  <!-- 6 PRESET BUSINESS PROFILES (GRID: 3 COLUMNS x 2 ROWS) -->
+  
+  <!-- 1. Supermarket -->
+  <g transform="translate(40, 185)">
+    <rect width="265" height="110" rx="10" fill="#1E293B" stroke="#334155" stroke-width="1" filter="url(#boxShadow)"/>
+    <text x="20" y="36" fill="#F8FAFC" font-size="18">🛒</text>
+    <text x="48" y="34" fill="#F8FAFC" font-size="13" font-weight="700">Supermarché &amp; Épicerie</text>
+    <text x="20" y="58" fill="#94A3B8" font-size="11">Priorité douchette, balances EAN-13 au poids, consignes &amp; multi-scan rapide.</text>
+    <text x="20" y="96" fill="#38BDF8" font-size="11" font-weight="600">Appliquer le profil →</text>
+  </g>
+
+  <!-- 2. Boutique -->
+  <g transform="translate(325, 185)">
+    <rect width="265" height="110" rx="10" fill="#1E293B" stroke="#334155" stroke-width="1" filter="url(#boxShadow)"/>
+    <text x="20" y="36" fill="#F8FAFC" font-size="18">👗</text>
+    <text x="48" y="34" fill="#F8FAFC" font-size="13" font-weight="700">Boutique &amp; Mode</text>
+    <text x="20" y="58" fill="#94A3B8" font-size="11">Grille tailles/couleurs, fidélité clients, avoirs &amp; cartes cadeaux.</text>
+    <text x="20" y="96" fill="#38BDF8" font-size="11" font-weight="600">Appliquer le profil →</text>
+  </g>
+
+  <!-- 3. Café & Bakery -->
+  <g transform="translate(615, 185)">
+    <rect width="265" height="110" rx="10" fill="#1E293B" stroke="#334155" stroke-width="1" filter="url(#boxShadow)"/>
+    <text x="20" y="36" fill="#F8FAFC" font-size="18">☕</text>
+    <text x="48" y="34" fill="#F8FAFC" font-size="13" font-weight="700">Café &amp; Boulangerie</text>
+    <text x="20" y="58" fill="#94A3B8" font-size="11">Encaissement comptoir express, fournées, formules repas &amp; TVA emporté.</text>
+    <text x="20" y="96" fill="#38BDF8" font-size="11" font-weight="600">Appliquer le profil →</text>
+  </g>
+
+  <!-- 4. Restaurant -->
+  <g transform="translate(40, 310)">
+    <rect width="265" height="110" rx="10" fill="#1E293B" stroke="#334155" stroke-width="1" filter="url(#boxShadow)"/>
+    <text x="20" y="36" fill="#F8FAFC" font-size="18">🍽️</text>
+    <text x="48" y="34" fill="#F8FAFC" font-size="13" font-weight="700">Restaurant Traditionnel</text>
+    <text x="20" y="58" fill="#94A3B8" font-size="11">Plan de salle, transferts de table, réclame des suites, partage d'addition &amp; serveurs Android.</text>
+    <text x="20" y="96" fill="#38BDF8" font-size="11" font-weight="600">Appliquer le profil →</text>
+  </g>
+
+  <!-- 5. Pizzeria & Fast Food -->
+  <g transform="translate(325, 310)">
+    <rect width="265" height="110" rx="10" fill="#1E293B" stroke="#334155" stroke-width="1" filter="url(#boxShadow)"/>
+    <text x="20" y="36" fill="#F8FAFC" font-size="18">🍕</text>
+    <text x="48" y="34" fill="#F8FAFC" font-size="13" font-weight="700">Pizzeria &amp; Restauration Rapide</text>
+    <text x="20" y="58" fill="#94A3B8" font-size="11">Pizzas moitié-moitié, bipeurs clients, suivi livreurs &amp; écran cuisine (KDS).</text>
+    <text x="20" y="96" fill="#38BDF8" font-size="11" font-weight="600">Appliquer le profil →</text>
+  </g>
+
+  <!-- 6. Pharmacy -->
+  <g transform="translate(615, 310)">
+    <rect width="265" height="110" rx="10" fill="#1E293B" stroke="#334155" stroke-width="1" filter="url(#boxShadow)"/>
+    <text x="20" y="36" fill="#F8FAFC" font-size="18">💊</text>
+    <text x="48" y="34" fill="#F8FAFC" font-size="13" font-weight="700">Pharmacie &amp; Santé</text>
+    <text x="20" y="58" fill="#94A3B8" font-size="11">Suivi lots &amp; péremption, déconditionnement (boîte/blister), tiers payant client.</text>
+    <text x="20" y="96" fill="#38BDF8" font-size="11" font-weight="600">Appliquer le profil →</text>
+  </g>
+</svg>

@@ -9,7 +9,7 @@
 
 ## 1. The product
 
-Two apps, one design language, sold by Vectron (client: Boitexinfo).
+Two apps, one design language, created by Lounes Tinouche (TL POS).
 
 | App | Tech | Source | Ships as |
 |---|---|---|---|
@@ -375,7 +375,7 @@ crash + tiles still render in both themes. Restore the backup afterwards.
     with `/` separators. Exe hashes inside the zips match the publish folders.
   * APK: `Vectron-Waiter-v1.2.0.apk`, 29,550,110 B, installed on LDPlayer, all four states driven.
   * Live POS restarted from `publish-win10-x64\` (PID 12220) → `/api/menu` 200 on 127.0.0.1 and
-    192.168.1.80, `/api/tablet/bootstrap?key=boitexinfo2026` 200 → tablet repopulated its tables.
+    192.168.1.80, `/api/tablet/bootstrap?key=tlpos2026` 200 → tablet repopulated its tables.
   * Tablet left on the shipped defaults: **Dark + Auto** (Auto → High, "5.8 GB RAM, 4 cores").
 * **P6 report delivered.**
 * **Zip-building gotcha (cost real debugging time):** build zips entry-by-entry with

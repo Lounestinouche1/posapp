@@ -17,7 +17,7 @@ public class LicenseForm : Form
 
     public LicenseForm()
     {
-        Text = "License — Vectron POS";
+        Text = Tr.T("License — TL POS");
         Size = new Size(640, 520);
         MinimumSize = new Size(560, 460);
         BackColor = Color.FromArgb(19, 24, 33);
@@ -42,7 +42,7 @@ public class LicenseForm : Form
         main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // footer info
 
         // Title
-        var title = new Label { Text = "License", ForeColor = Color.FromArgb(71, 214, 174), Font = new Font("Segoe UI Semibold", 16), AutoSize = true };
+        var title = new Label { Text = Tr.T("License"), ForeColor = Color.FromArgb(71, 214, 174), Font = new Font("Segoe UI Semibold", 16), AutoSize = true };
         main.Controls.Add(title);
 
         // Status card — flat panel with a 1px edge, same language as the main-window cards.
@@ -60,9 +60,9 @@ public class LicenseForm : Form
 
         // Request code row
         var reqPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        var reqTitle = new Label { Text = "Request code (send to your supplier):", ForeColor = Color.FromArgb(160, 170, 185), AutoSize = true, Padding = new Padding(0, 6, 8, 0) };
+        var reqTitle = new Label { Text = Tr.T("Request code (send to your supplier):"), ForeColor = Color.FromArgb(160, 170, 185), AutoSize = true, Padding = new Padding(0, 6, 8, 0) };
         _requestCodeLabel = new Label { Text = License.GetRequestCode(), ForeColor = Color.White, Font = new Font("Consolas", 11, FontStyle.Bold), AutoSize = true, BackColor = Color.FromArgb(27, 34, 46), Padding = new Padding(8, 4, 8, 4) };
-        var copyReqBtn = new Button { Text = "Copy", Height = 28, Width = 60, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(37, 47, 62), ForeColor = Color.White, Cursor = Cursors.Hand };
+        var copyReqBtn = new Button { Text = Tr.T("Copy"), Height = 28, Width = 60, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(37, 47, 62), ForeColor = Color.White, Cursor = Cursors.Hand };
         copyReqBtn.FlatAppearance.BorderSize = 0;
         copyReqBtn.Click += (_, _) => { Clipboard.SetText(_requestCodeLabel.Text); };
         reqPanel.Controls.AddRange([reqTitle, _requestCodeLabel, copyReqBtn]);
@@ -72,7 +72,7 @@ public class LicenseForm : Form
         var keyPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
         keyPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         keyPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var keyTitle = new Label { Text = "License key (paste from your supplier):", ForeColor = Color.FromArgb(160, 170, 185), Dock = DockStyle.Fill };
+        var keyTitle = new Label { Text = Tr.T("License key (paste from your supplier):"), ForeColor = Color.FromArgb(160, 170, 185), Dock = DockStyle.Fill };
         _keyInput = new TextBox
         {
             Dock = DockStyle.Fill, Multiline = true, Font = new Font("Consolas", 10),
@@ -87,7 +87,7 @@ public class LicenseForm : Form
         var btnPanel = new FlowLayoutPanel { Dock = DockStyle.Fill };
         _activateBtn = new Button
         {
-            Text = "Activate", BackColor = Color.FromArgb(71, 214, 174), ForeColor = Color.FromArgb(20, 30, 40),
+            Text = Tr.T("Activate"), BackColor = Color.FromArgb(71, 214, 174), ForeColor = Color.FromArgb(20, 30, 40),
             FlatStyle = FlatStyle.Flat, Width = 160, Height = 36,
             Font = new Font("Segoe UI Semibold", 10), Cursor = Cursors.Hand
         };
@@ -99,7 +99,7 @@ public class LicenseForm : Form
         // Footer
         var footer = new Label
         {
-            Text = "Each PC (Main + each Order PC) requires its own license.\nContact your supplier to purchase or renew.",
+            Text = Tr.T("Each PC (Main + each Order PC) requires its own license.\nContact your supplier to purchase or renew."),
             ForeColor = Color.FromArgb(160, 170, 185), Dock = DockStyle.Fill, TextAlign = ContentAlignment.TopLeft
         };
         main.Controls.Add(footer);
@@ -115,9 +115,9 @@ public class LicenseForm : Form
         switch (info.Status)
         {
             case License.Status.Valid:
-                _statusTitle.Text = "● License active";
+                _statusTitle.Text = "● " + Tr.T("License active");
                 _statusTitle.ForeColor = Color.FromArgb(71, 214, 174);
-                _statusDetail.Text = $"Licensed to: {ExtractCustomerFromKey(info.Key)}";
+                _statusDetail.Text = $"{Tr.T("Licensed to:")} {ExtractCustomerFromKey(info.Key)}";
                 if (info.TimeRemaining.HasValue)
                 {
                     var d = info.TimeRemaining.Value.Days;
@@ -132,22 +132,22 @@ public class LicenseForm : Form
                 _expiryLabel.Text = "";
                 break;
             case License.Status.Expired:
-                _statusTitle.Text = "● License expired";
+                _statusTitle.Text = "● " + Tr.T("License expired");
                 _statusTitle.ForeColor = Color.FromArgb(230, 90, 80);
                 _statusDetail.Text = $"Expired on {info.ExpiryUtc:yyyy-MM-dd}. Sales are blocked until you renew.\nEnter a new license key below.";
                 _expiryLabel.Text = "";
                 break;
             case License.Status.Invalid:
-                _statusTitle.Text = "● Invalid license";
+                _statusTitle.Text = "● " + Tr.T("Invalid license");
                 _statusTitle.ForeColor = Color.FromArgb(230, 90, 80);
                 _statusDetail.Text = "The stored license doesn't match this computer or is corrupt.\nEnter a new license key below.";
                 _expiryLabel.Text = "";
                 break;
             case License.Status.NotActivated:
             default:
-                _statusTitle.Text = "● No license activated";
+                _statusTitle.Text = "● " + Tr.T("No license activated");
                 _statusTitle.ForeColor = Color.FromArgb(160, 170, 185);
-                _statusDetail.Text = "Send your request code to your supplier, then paste the license key below.";
+                _statusDetail.Text = Tr.T("Send your request code to your supplier, then paste the license key below.");
                 _expiryLabel.Text = "";
                 break;
         }

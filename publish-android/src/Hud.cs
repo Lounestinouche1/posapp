@@ -63,14 +63,31 @@ public sealed class VectronMarkDrawable : IDrawable
         canvas.StrokeSize = Math.Max(1.6f, size / 20f);
         canvas.DrawEllipse(r);
 
-        canvas.StrokeSize = Math.Max(2.2f, size / 11f);
+        canvas.StrokeSize = Math.Max(1.8f, size / 12f);
         canvas.StrokeLineCap = LineCap.Round;
         canvas.StrokeLineJoin = LineJoin.Round;
-        var path = new PathF();
-        path.MoveTo(cx - size * 0.24f, cy - size * 0.20f);
-        path.LineTo(cx, cy + size * 0.26f);
-        path.LineTo(cx + size * 0.24f, cy - size * 0.20f);
-        canvas.DrawPath(path);
+        
+        // 'T'
+        float tTop = cy - size * 0.18f;
+        float tBottom = cy + size * 0.20f;
+        float tLeft = cx - size * 0.26f;
+        float tRight = cx + size * 0.04f;
+        float tStemX = cx - size * 0.11f;
+        canvas.DrawLine(tLeft, tTop, tRight, tTop);
+        canvas.DrawLine(tStemX, tTop, tStemX, tBottom);
+
+        // 'L'
+        var cyan = Theme.C("Cyan");
+        if (cyan != Colors.Transparent) canvas.StrokeColor = cyan;
+        float lTop = cy - size * 0.06f;
+        float lStemX = cx + size * 0.12f;
+        float lBottom = cy + size * 0.20f;
+        float lRight = cx + size * 0.28f;
+        var lPath = new PathF();
+        lPath.MoveTo(lStemX, lTop);
+        lPath.LineTo(lStemX, lBottom);
+        lPath.LineTo(lRight, lBottom);
+        canvas.DrawPath(lPath);
 
         canvas.StrokeColor = Theme.C("MintDeep");
         canvas.StrokeSize = 1f;

@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>نظام TL POS — دليل المستخدم والمسؤول الشامل</title>
+  <style>
+    /* Professional RTL Print & Screen Typography */
+    @page {
+      size: A4 portrait;
+      margin: 16mm 14mm 16mm 14mm;
+      @bottom-left {
+        content: counter(page);
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        font-size: 9pt;
+        color: #64748B;
+      }
+      @bottom-right {
+        content: "نظام TL POS — الدليل الرسمي المعتمد";
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        font-size: 9pt;
+        color: #94A3B8;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, 'Arial', sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.6;
+      color: #1E293B;
+      background: #FFFFFF;
+      margin: 0;
+      padding: 0;
+      direction: rtl;
+      text-align: right;
+    }
+
+    /* Cover Page */
+    .cover-page {
+      height: 100vh;
+      min-height: 270mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 30mm 15mm 20mm 15mm;
+      background: linear-gradient(145deg, #0F172A 0%, #1E293B 100%);
+      color: #FFFFFF;
+      page-break-after: always;
+      border-radius: 4px;
+    }
+
+    .cover-top {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cover-logo-badge {
+      width: 58px;
+      height: 58px;
+      border-radius: 12px;
+      background: #0F172A;
+      border: 2px solid #38BDF8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+    }
+
+    .cover-brand-title {
+      font-size: 26pt;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #FFFFFF;
+      margin: 0;
+      line-height: 1.1;
+    }
+
+    .cover-brand-sub {
+      font-size: 11pt;
+      color: #38BDF8;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    .cover-center {
+      margin: auto 0;
+    }
+
+    .cover-doc-tag {
+      display: inline-block;
+      padding: 6px 14px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38BDF8;
+      font-size: 10pt;
+      font-weight: 700;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+
+    .cover-main-title {
+      font-size: 34pt;
+      font-weight: 800;
+      line-height: 1.25;
+      margin: 0 0 16px 0;
+      color: #FFFFFF;
+    }
+
+    .cover-lead {
+      font-size: 13pt;
+      color: #94A3B8;
+      max-width: 680px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .cover-bottom {
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      padding-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      font-size: 9.5pt;
+      color: #94A3B8;
+    }
+
+    .cover-meta strong {
+      color: #E2E8F0;
+      display: block;
+      font-size: 10.5pt;
+      margin-bottom: 2px;
+    }
+
+    /* Page Breaks and Headings */
+    .page-break {
+      page-break-before: always;
+      padding-top: 10mm;
+    }
+
+    h1 {
+      font-size: 20pt;
+      font-weight: 800;
+      color: #0F172A;
+      margin: 0 0 16px 0;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #E2E8F0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h1 .sec-num {
+      background: #0284C7;
+      color: #FFFFFF;
+      font-size: 12pt;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+
+    h2 {
+      font-size: 14pt;
+      font-weight: 700;
+      color: #1E293B;
+      margin: 22px 0 10px 0;
+    }
+
+    h3 {
+      font-size: 11.5pt;
+      font-weight: 600;
+      color: #334155;
+      margin: 16px 0 6px 0;
+    }
+
+    p {
+      margin: 0 0 10px 0;
+      color: #334155;
+    }
+
+    /* Visual Callouts & Notes */
+    .callout {
+      border-right: 4px solid #0284C7;
+      border-left: none;
+      background: #F0F9FF;
+      padding: 12px 16px;
+      border-radius: 8px 0 0 8px;
+      margin: 14px 0;
+      font-size: 10pt;
+    }
+
+    .callout.tip {
+      border-right-color: #10B981;
+      background: #ECFDF5;
+    }
+
+    .callout.warn {
+      border-right-color: #F59E0B;
+      background: #FFFBEB;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Table Styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 9.5pt;
+    }
+
+    th, td {
+      border: 1px solid #E2E8F0;
+      padding: 8px 12px;
+      text-align: right;
+    }
+
+    th {
+      background: #F1F5F9;
+      font-weight: 700;
+      color: #0F172A;
+    }
+
+    tr:nth-child(even) td {
+      background: #F8FAFC;
+    }
+
+    /* Keycaps and UI badges */
+    kbd {
+      background: #E2E8F0;
+      border: 1px solid #CBD5E1;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: 'Consolas', monospace;
+      font-size: 9pt;
+      color: #0F172A;
+    }
+
+    .ui-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 8.5pt;
+      font-weight: 700;
+      background: #E0F2FE;
+      color: #0369A1;
+      border: 1px solid #BAE6FD;
+    }
+
+    /* Image Figure Containers */
+    figure {
+      margin: 16px 0;
+      padding: 0;
+      text-align: center;
+    }
+
+    figure img, figure svg {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid #CBD5E1;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    figcaption {
+      font-size: 8.5pt;
+      color: #64748B;
+      margin-top: 6px;
+      font-style: italic;
+    }
+
+    /* Step List (RTL) */
+    .step-list {
+      counter-reset: step-counter;
+      list-style: none;
+      padding: 0;
+      margin: 12px 0;
+    }
+
+    .step-list li {
+      counter-increment: step-counter;
+      position: relative;
+      padding-right: 36px;
+      padding-left: 0;
+      margin-bottom: 12px;
+    }
+
+    .step-list li::before {
+      content: counter(step-counter);
+      position: absolute;
+      right: 0;
+      left: auto;
+      top: 0;
+      width: 24px;
+      height: 24px;
+      background: #0284C7;
+      color: #FFFFFF;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9.5pt;
+      font-weight: 700;
+    }
+
+    /* Table of contents page */
+    .toc-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dotted #CBD5E1;
+      padding: 7px 0;
+      font-size: 10pt;
+      color: #1E293B;
+    }
+    .toc-item strong {
+      color: #0F172A;
+    }
+
+    code {
+      font-family: 'Consolas', monospace;
+      background: #F1F5F9;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 9pt;
+      color: #0F172A;
+      direction: ltr;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== COVER PAGE ==================== -->
+  <div class="cover-page">
+    <div class="cover-top">
+      <div class="cover-logo-badge">
+        <svg width="38" height="38" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="44" fill="none" stroke="#47D6AE" stroke-width="6" opacity="0.4"/>
+          <path d="M 28 32 L 72 32 M 50 32 L 50 68" fill="none" stroke="#47D6AE" stroke-width="8" stroke-linecap="round"/>
+          <path d="M 40 45 L 40 75 L 75 75" fill="none" stroke="#38BDF8" stroke-width="8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="cover-brand-title">TL POS</div>
+        <div class="cover-brand-sub">نظام نقاط البيع وإدارة المبيعات المتكامل</div>
+      </div>
+    </div>
+
+    <div class="cover-center">
+      <div class="cover-doc-tag">الوثيقة الرسمية المعتمدة &bull; الدليل الشامل</div>
+      <h1 class="cover-main-title">دليل المستخدم<br>والإدارة والتشغيل</h1>
+      <p class="cover-lead">
+        المرجع الشامل لأصحاب المتاجر والمطاعم، الكاشيرات، ومسؤولي النظام.
+        تثبيت وتشغيل ويندوز 10/11 وويندوز 7، الربط مع أجهزة أندرويد اللوحية للنوادل، تفعيل ملفات الأنشطة بنقرة واحدة،
+        الطباعة الحرارية المباشرة، موازين الباركود، والربط عن بُعد الآمن المشفر عبر شبكة Tailscale VPN.
+      </p>
+    </div>
+
+    <div class="cover-bottom">
+      <div class="cover-meta">
+        <strong>المطور والمصمم</strong>
+        لونيس تينوش (TL) &bull; حزمة برمجيات TL Software
+      </div>
+      <div class="cover-meta" style="text-align: left;">
+        <strong>إصدار النظام</strong>
+        TL POS v2.6 Pro &bull; إصدار الشبكات متعدد الأجهزة
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TABLE OF CONTENTS ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">فهرس</span> جدول المحتويات</h1>
+    
+    <div style="margin-top: 25px;">
+      <div class="toc-item"><span><strong>01. نظرة عامة على النظام والبنية التقنية</strong></span> <span>صفحة 3</span></div>
+      <div class="toc-item"><span><strong>02. التثبيت ومتطلبات التشغيل</strong></span> <span>صفحة 4</span></div>
+      <div class="toc-item"><span><strong>03. تفعيل الترخيص المشفر (ECDSA)</strong></span> <span>صفحة 6</span></div>
+      <div class="toc-item"><span><strong>04. ملفات الأنشطة التجارية بنقرة واحدة والحماية التلقائية</strong></span> <span>صفحة 8</span></div>
+      <div class="toc-item"><span><strong>05. العمليات اليومية: الكاشير، الطاولات والمبيعات</strong></span> <span>صفحة 10</span></div>
+      <div class="toc-item"><span><strong>06. العتاد والأجهزة: الطابعات، الموازين ومصمم الإيصالات</strong></span> <span>صفحة 13</span></div>
+      <div class="toc-item"><span><strong>07. تكامل أجهزة النادل اللوحية (تطبيق TL للنوادل)</strong></span> <span>صفحة 16</span></div>
+      <div class="toc-item"><span><strong>08. الربط عن بُعد وإدارة الفروع عبر شبكة Tailscale VPN</strong></span> <span>صفحة 18</span></div>
+      <div class="toc-item"><span><strong>09. إدارة المخزون، الوصفات وتتبع المكونات</strong></span> <span>صفحة 20</span></div>
+      <div class="toc-item"><span><strong>10. النسخ الاحتياطي، الصيانة ودليل معالجة الأعطال</strong></span> <span>صفحة 21</span></div>
+    </div>
+
+    <div class="callout tip" style="margin-top: 35px;">
+      <div class="callout-title">💡 فلسفة تصميم نظام TL POS</div>
+      تم تصميم نظام TL POS ليعمل بأعلى معايير الاستقرار والسرعة الفائقة في بيئات العمل التجارية الصعبة:
+      انعدام الاعتماد على أي برمجيات خارجية ثقيلة، إقلاع فوري في أقل من ثانية واحدة، حفظ ذري للبيانات يحمي من انقطاع الكهرباء المفاجئ،
+      واستقلالية تامة دون الحاجة لأي اشتراكات سحابية مدفوعة.
+    </div>
+  </div>
+
+  <!-- ==================== CHAPTER 01 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">01</span> نظرة عامة على النظام والبنية التقنية</h1>
+    
+    <h2>منظومة TL POS المتكاملة</h2>
+    <p>
+      <strong>TL POS</strong> هو نظام برمجي احترافي متكامل لإدارة نقاط البيع والمطاعم والمتاجر، 
+      تم تصميمه وتطويره بواسطة <strong>لونيس تينوش (TL)</strong>. يتميز باستجابة لحظية، واجهة عصرية فائقة السلاسة،
+      وتوافق تام بين أجهزة الكاشير المكتبية العاملة بنظام ويندوز والأجهزة اللوحية المحمولة العاملة بنظام أندرويد.
+    </p>
+
+    <figure>
+      <img src="images/ar/pos-main-order.png" alt="الشاشة الرئيسية لنظام TL POS">
+      <figcaption>شكل 1.1 — شاشة البيع الرئيسية لنظام TL POS (كتالوج المنتجات، سلة المشتريات التفاعلية، الدفع السريع ولوحة الأرقام).</figcaption>
+    </figure>
+
+    <h2>التوافق المزدوج مع أنظمة التشغيل (Dual-Target)</h2>
+    <p>
+      على عكس الأنظمة الحديثة المبنية على متصفحات ثقيلة تستهلك الذاكرة، يعمل نظام TL POS عبر محرك مبرمج خصيصاً 
+      ومجمّع بلغة ثنائية خفيفة تدعم بيئتين رئيسيتين:
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>الإصدار / المنصة</th>
+          <th>نظام التشغيل المدعوم</th>
+          <th>استهلاك الذاكرة (RAM)</th>
+          <th>الاستخدام الموصى به</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>TL POS ويندوز 10/11 (net10.0)</strong></td>
+          <td>ويندوز 10 وويندوز 11 (64 بت)</td>
+          <td>~45 ميجابايت</td>
+          <td>أجهزة نقاط البيع اللمسية الحديثة، أجهزة المدراء والمحمول.</td>
+        </tr>
+        <tr>
+          <td><strong>TL POS ويندوز 7 (net48)</strong></td>
+          <td>ويندوز 7 SP1، ويندوز 8.1، POSReady 7</td>
+          <td>~25 ميجابايت</td>
+          <td>أجهزة الكاشير اللمسية القديمة والصناعية (معالجات Atom/Celeron).</td>
+        </tr>
+        <tr>
+          <td><strong>تطبيق النادل أندرويد</strong></td>
+          <td>أندرويد 8.0 حتى أندرويد 15</td>
+          <td>~35 ميجابايت</td>
+          <td>الأجهزة اللوحية، الهواتف الذكية للنوادل في الصالات والمسابح.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <div class="callout-title">💎 نمطان للألوان ومستويان للأداء الرسومي</div>
+      <ul>
+        <li><strong>النمط الفاتح / النمط الداكن :</strong> تبديل فوري لتناسب الإضاءة المحيطة (إضاءة هادئة للمطاعم ليلاً أو إضاءة ساطعة للمتاجر نهاراً).</li>
+        <li><strong>الأداء العالي (High Tier) :</strong> تدرجات لونية عصرية، ظلال ناعمة وانتقالات سلسة بمعدل 60 إطاراً في الثانية.</li>
+        <li><strong>الأداء الخفيف (Lite Tier) :</strong> واجهة مسطحة تماماً بدون أي مؤثرات متحركة أو استهلاك للمعالج، مثالية للأجهزة الاقتصادية.</li>
+      </ul>
+    </div>
+
+    <figure>
+      <img src="images/ar/pos-main-dark.png" alt="نظام TL POS بالنمط الداكن">
+      <figcaption>شكل 1.2 — واجهة النمط الداكن: راحة بصرية فائقة وأناقة مميزة تناسب أجواء المقاهي والمطاعم.</figcaption>
+    </figure>
+  </div>
+
+  <!-- ==================== CHAPTER 02 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">02</span> التثبيت ومتطلبات التشغيل</h1>
+
+    <h2>المواصفات العتادية الموصى بها</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>المكون العتادي</th>
+          <th>الحد الأدنى للتشغيل</th>
+          <th>المواصفات الموصى بها</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>المعالج (CPU)</strong></td>
+          <td>Intel Celeron / Core 2 Duo بسرعة 1.8 جيجاهرتز</td>
+          <td>Intel Core i3 / i5 أو أحدث (أو AMD Ryzen)</td>
+        </tr>
+        <tr>
+          <td><strong>الذاكرة العشوائية (RAM)</strong></td>
+          <td>2 جيجابايت</td>
+          <td>4 إلى 8 جيجابايت</td>
+        </tr>
+        <tr>
+          <td><strong>التخزين (Disk)</strong></td>
+          <td>200 ميجابايت مساحة فارغة</td>
+          <td>قرص SSD فائق السرعة (تشغيل في ثانية واحدة)</td>
+        </tr>
+        <tr>
+          <td><strong>الشاشة</strong></td>
+          <td>1024 &times; 768 (لمسية أو شاشة تقليدية)</td>
+          <td>1920 &times; 1080 Full HD لمسية تكاثفية</td>
+        </tr>
+        <tr>
+          <td><strong>الملحقات</strong></td>
+          <td>فأرة ولوحة مفاتيح قياسية</td>
+          <td>طابعة حرارية 80 مم ESC/POS، درج نقود RJ11، وقارئ باركود</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>خطوات التثبيت السريع على ويندوز</h2>
+    <ol class="step-list">
+      <li>
+        <strong>فك الضغط ونقل الملفات :</strong>
+        ضع مجلد البرنامج في المسار <code>C:\TL POS</code> أو مباشرة على سطح المكتب.
+        البرنامج محمول بالكامل (Portable): لا يتطلب تثبيت خوادم معقدة ولا قواعد بيانات SQL خارجية ثقيلة.
+      </li>
+      <li>
+        <strong>اختيار الملف المناسب لنظامك :</strong>
+        <ul>
+          <li>لويندوز 10 و 11: استخدم الملف التنفيذي في المجلد <code>publish-win10-x64\TL POS.exe</code>.</li>
+          <li>لويندوز 7 أو POSReady: استخدم الملف في المجلد <code>publish-win7\TL POS.exe</code>.</li>
+        </ul>
+      </li>
+      <li>
+        <strong>إنشاء اختصار على سطح المكتب :</strong>
+        انقر بزر الفأرة الأيمن على ملف <code>TL POS.exe</code> &larr; <em>إرسال إلى (Send to)</em> &larr; <em>سطح المكتب (إنشاء اختصار)</em>.
+      </li>
+      <li>
+        <strong>التشغيل الأولي :</strong>
+        انقر مرتين على الاختصار، وسيبدأ البرنامج فوراً مطالباً إدخال مفتاح الترخيص عند التشغيل لأول مرة.
+      </li>
+    </ol>
+
+    <div class="callout tip">
+      <div class="callout-title">🔒 أمان وسلامة قاعدة البيانات</div>
+      يتم تخزين كافة البيانات (المنتجات، الأقسام، الطاولات، الفواتير، إعدادات الطابعات، وحسابات الموظفين) 
+      داخل المجلد <code>client database\</code> بجوار ملف البرنامج.
+      تعتمد عمليات الحفظ على تقنية الكتابة الذرية (Atomic Flush) التي تمنع تلف البيانات تماماً حتى عند انقطاع التيار الكهربائي المفاجئ.
+    </div>
+  </div>
+
+  <!-- ==================== CHAPTER 03 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">03</span> تفعيل الترخيص المشفر (ECDSA)</h1>
+
+    <h2>حماية أمنية متقدمة عبر خوارزمية ECDSA</h2>
+    <p>
+      يعتمد نظام TL POS على نظام تشفير وحماية رقمية فائق الأمان مبني على المنحنيات الإهليلجية 
+      (ECDSA P-256 مع خوارزمية التجزئة SHA-256). يضمن هذا النظام حماية الملكية الفكرية، 
+      ويمنح العميل ترخيصاً دائماً مدى الحياة دون الحاجة للاتصال بخوادم ترخيص عبر الإنترنت.
+    </p>
+
+    <figure>
+      <img src="images/ar/license-activation.png" alt="نافذة تفعيل ترخيص TL POS">
+      <figcaption>شكل 3.1 — نافذة تفعيل ترخيص نظام TL POS مع معرّف الجهاز الفريد (Machine ID).</figcaption>
+    </figure>
+
+    <h2>خطوات التفعيل خطوة بخطوة</h2>
+    <ol class="step-list">
+      <li>
+        عند تشغيل البرنامج لأول مرة، تظهر نافذة <strong>«TL POS — تفعيل الترخيص»</strong> تلقائياً.
+      </li>
+      <li>
+        يظهر <strong>معرّف الجهاز (Machine ID)</strong> المكون من 16 حرفاً ورقماً ست عشرياً 
+        (مثال: <code>A1B2-C3D4-E5F6-7890</code>). هذا الرقم يتم توليده رياضياً من المكونات العتادية للجهاز.
+      </li>
+      <li>
+        اضغط على زر <span class="ui-badge">نسخ المعرّف</span> وأرسله إلى الموزع المعتمد أو مباشرة إلى المطور <strong>لونيس تينوش (TL)</strong>.
+      </li>
+      <li>
+        ستستلم مفتاح ترخيص موقعاً رقمياً ومسجلاً باسم منشأتك التجارية.
+      </li>
+      <li>
+        اكتب <strong>اسم العميل / المنشأة</strong>، والصق <strong>مفتاح الترخيص</strong> في الخانة المخصصة، ثم اضغط على زر <span class="ui-badge">تفعيل الترخيص</span>.
+      </li>
+      <li>
+        يتحقق البرنامج من التوقيع الرياضي لحظياً، وينشئ ملف <code>license.dat</code>، ويفتح لك صلاحية الاستخدام الدائم مدى الحياة.
+      </li>
+    </ol>
+
+    <div class="callout warn">
+      <div class="callout-title">⚠️ تنبيه هام حول الترخيص</div>
+      يرتبط الترخيص باللوحة الأم والمعالج للجهاز. في حال رغبت بتغيير جهاز الكاشير مستقبلاً، 
+      يكفي التواصل مع الدعم الفني وتقديم فاتورة الشراء لإعادة إصدار ترخيص للجهاز الجديد.
+    </div>
+  </div>
+
+  <!-- ==================== CHAPTER 04 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">04</span> ملفات الأنشطة التجارية والحماية الذكية</h1>
+
+    <h2>6 قوالب جاهزة للأنشطة التجارية المختلفة</h2>
+    <p>
+      تختلف متطلبات العمل من نشاط تجاري لآخر. يوفر نظام TL POS ميزة <strong>ملفات الأنشطة بنقرة واحدة</strong>، 
+      حيث يتم تحويل كامل سلوك الشاشات، أولوية قارئ الباركود، حساب الوزن التلقائي، وتوزيع طابعات المطبخ بلمسة واحدة:
+    </p>
+
+    <figure>
+      <img src="images/store-profiles-diagram-ar.svg" alt="مخطط ملفات الأنشطة التجارية لنظام TL POS">
+      <figcaption>شكل 4.1 — بنية قوالب الأنشطة الستة مع درع الحماية الذكي «إعداداتي المخصصة».</figcaption>
+    </figure>
+
+    <table>
+      <thead>
+        <tr>
+          <th>نوع النشاط</th>
+          <th>السلوك التجاري والإعدادات التلقائية</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>🛒 سوبرماركت وبقالة</strong></td>
+          <td>أولوية قصوى للمسح السريع عبر قارئ الباركود، قراءة فورية لباركود الوزن EAN-13، مسح كميات متعددة وفتح تلقائي لدرج النقدية.</td>
+        </tr>
+        <tr>
+          <td><strong>👗 محلات الملابس والأزياء</strong></td>
+          <td>إدارة مصفوفة المقاسات والألوان، نظام نقاط الولاء للزبائن، استبدال القطع وسندات الائتمان، وبطاقات الهدايا.</td>
+        </tr>
+        <tr>
+          <td><strong>☕ مقهى ومخبزة</strong></td>
+          <td>مبيعات سريعة على الكاونتر، إدارة وجبات الإفطار والمجموعات، وفصل ضرائب الاستهلاك المحلي عن الوجبات الجاهزة (Takeaway).</td>
+        </tr>
+        <tr>
+          <td><strong>🍽️ مطاعم وصالات تقديم الطعام</strong></td>
+          <td>مخطط تفاعلي للصالة والطاولات، نقل ودمج الطاولات، طلب أطباق الوجبة (مقبلات/رئيسي/حلوى)، تقسيم الفاتورة ومزامنة أجهزة النوادل.</td>
+        </tr>
+        <tr>
+          <td><strong>🍕 بيتزا ومطاعم الوجبات السريعة</strong></td>
+          <td>بيتزا نصف ونصف، خيارات الإضافات، مناداة الزبائن بالرقم أو البيب، تتبع مناديب التوصيل وشاشات المطبخ الذكية (KDS).</td>
+        </tr>
+        <tr>
+          <td><strong>💊 صيدليات ومستلزمات صحية</strong></td>
+          <td>تتبع أرقام التشغيلات (Lot) وتواريخ الصلاحية، تجزئة العبوات (من علبة إلى شريط)، وحسابات التأمين الصحي للعملاء.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>درع الحماية الذكي «إعداداتي المخصصة» (Safeguard)</h2>
+    <p>
+      لحماية بياناتك وإعداداتك الخاصة (اسم المحل، نسبة الضريبة، الطابعات المربوطة، وتفضيلات الفواتير) من التغيير غير المقصود عند استعراض القوالب، 
+      يحتوي نظام TL POS على آلية أمان ذكية:
+    </p>
+    <ul>
+      <li>بمجرد تعديل أي خيار في الإعدادات، يتم حفظه فوراً في ملفك الشخصي المخصص.</li>
+      <li>إذا قمت بالنقر على أحد القوالب التجريبية للاطلاع عليه، يظل زر <span class="ui-badge">استعادة إعداداتي</span> ظاهراً في أعلى الشاشة للعودة لتكوينك الأصلي بنقرة واحدة.</li>
+    </ul>
+  </div>
+
+  <!-- ==================== CHAPTER 05 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">05</span> العمليات اليومية: الكاشير، الطاولات والمبيعات</h1>
+
+    <h2>1. تسجيل دخول الموظف وفتح الصندوق (العهدة النقدية)</h2>
+    <p>
+      عند تشغيل النظام أو تبديل الوردية، تظهر شاشة القفل وتطلب من الكاشير أو النادل اختيار اسمه وإدخال رمزه السري المكون من 4 أرقام.
+    </p>
+
+    <figure>
+      <img src="images/ar/login-screen.png" alt="شاشة تسجيل دخول الموظفين">
+      <figcaption>شكل 5.1 — شاشة اختيار الموظف مع شعار TL العصري ولوحة الأرقام اللمسية.</figcaption>
+    </figure>
+
+    <div class="callout tip">
+      <div class="callout-title">💰 إدخال رصيد بداية اليوم (العهدة الصباحية)</div>
+      عند أول فتح للوردية في الصباح، يطلب البرنامج تسجيل قيمة <strong>العهدة النقدية في الدرج</strong> (رصيد الفكة).
+      يتم عزل هذا المبلغ تماماً عن إيرادات المبيعات واحتسابه تلقائياً عند جرد الصندوق في نهاية اليوم (تقرير Z).
+    </div>
+
+    <h2>2. تسجيل الطلبات في نمط المطاعم (الصالة والطاولات)</h2>
+    <ol class="step-list">
+      <li>اضغط على تبويب <span class="ui-badge">الصالات والطاولات</span> في شريط التنقل العلوي.</li>
+      <li>اختر الصالة المطلوبة (مثال: <em>الصالة الرئيسية</em>، <em>الشرفة الخارجية</em>، <em>الدور العلوي</em>).</li>
+      <li>
+        تظهر الطاولات المشغولة باللون <strong>الأزرق / السماوي</strong> مع قيمة الحساب والوقت المنقضي، بينما تظهر الطاولات الشاغرة باللون المحايد.
+      </li>
+      <li>المس الطاولة الشاغرة لفتح طلب جديد، وسيظهر كتالوج الأقسام والمنتجات.</li>
+      <li>
+        المس الأصناف لإضافتها للسلة. لتحديد خيارات خاصة (مثل: <em>بدون بصل</em>، <em>شواء خفيف</em>)، 
+        انقر على الصنف في السلة لفتح قائمة الملاحظات والإضافات.
+      </li>
+      <li>
+        اضغط على زر <span class="ui-badge">إرسال للمطبخ</span>، وستتم طباعة بون الطلب فوراً في طابعة المطبخ المختصة، وتتحول الطاولة إلى مشغولة.
+      </li>
+    </ol>
+
+    <figure>
+      <img src="images/ar/pos-rooms-tables.png" alt="مخطط صالة المطعم في نظام TL POS">
+      <figcaption>شكل 5.2 — مخطط الصالات التفاعلي: متابعة مباشرة للطاولات المشغولة والشاغرة وقيم الطلبات في الوقت الفعلي.</figcaption>
+    </figure>
+
+    <h2>3. تسجيل الطلبات في نمط المبيعات السريعة (محلات / وجبات سريعة)</h2>
+    <p>
+      في نمط الكاونتر السريع، يقوم الكاشير بتمرير السلع أمام قارئ الباركود أو الضغط على المنتجات على الشاشة اللمسية، 
+      ويتم تسجيل الطلب مباشرة دون الحاجة لاختيار طاولة.
+    </p>
+
+    <h2>4. طرق الدفع وتقسيم الفاتورة</h2>
+    <p>
+      عند رغبة العميل بالحساب، اضغط على زر <span class="ui-badge">دفع الحساب</span> :
+    </p>
+    <ul>
+      <li><strong>نقداً (Cash) :</strong> اكتب المبلغ المستلم من الزبون، فيعرض النظام المبلغ المتبقي المستحق للعميل بخط كبير ويفتح درج النقود تلقائياً.</li>
+      <li><strong>بطاقة بنكية (Card) :</strong> تسجيل الدفع الإلكتروني عبر جهاز الدفع (TPE / POS).</li>
+      <li><strong>دفع مختلط / تقسيم الحساب :</strong> يتيح دفع جزء نقداً وجزء بالبطاقة، أو تقسيم الفاتورة بالتساوي بين الزبائن.</li>
+    </ul>
+
+    <h2>5. إغلاق الصندوق اليومي (تقارير X و Z)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>نوع التقرير</th>
+          <th>الوظيفة والأثر المحاسبي</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>تقرير القراءة X (تقرير مؤقت)</strong></td>
+          <td>يعطي كشفاً فورياً بحجم المبيعات خلال الوردية دون إغلاق الصندوق، ومتاح للمدير في أي وقت خلال اليوم.</td>
+        </tr>
+        <tr>
+          <td><strong>تقرير الإغلاق النهائي Z (التقرير اليومي)</strong></td>
+          <td>
+            يتم إصداره نهاية اليوم: يطبع إجمالي المبيعات، تفاصيل الضرائب، مجموع المقبوضات حسب وسيلة الدفع (نقداً، بطاقات، شيكات)، 
+            فروقات الصندوق، ويقوم بأرشفة عمليات اليوم وتصفير العداد لليوم التالي.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ==================== CHAPTER 06 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">06</span> العتاد والأجهزة: الطابعات، الموازين والفواتير</h1>
+
+    <h2>1. إعداد الطابعات الحرارية (خادم الطباعة وأوامر ESC/POS)</h2>
+    <p>
+      يدعم نظام TL POS جميع طابعات الإيصالات الحرارية العالمية (Epson, Star Micronics, Bixolon, Xprinter, Munbyn وغيرها) 
+      سواء عبر تعريفات ويندوز القياسية، أو عبر أوامر البث المباشر <strong>ESC/POS</strong> عبر منافذ USB، الشبكة المحلية LAN، أو Wi-Fi.
+    </p>
+
+    <div class="callout tip">
+      <div class="callout-title">⚡ حماية متطورة عند توقف خادم الطباعة (Windows Spooler)</div>
+      في حال تعطلت خدمة الطباعة في ويندوز <em>(Spooler / RPC Server Unavailable)</em>، فإن نظام TL POS لا ينهار: 
+      بل يكتشف المشكلة فوراً، ويدخل في وضع الحماية مع إرشادك لإعادة تشغيل الخدمة بأمر سطر الأوامر البسيط: <code>net start spooler</code>.
+    </div>
+
+    <h2>2. مصمم الإيصالات والفواتير المرئي (WYSIWYG Designer)</h2>
+    <p>
+      من خلال مسار <strong>الإعدادات &larr; الأجهزة &larr; الطابعات &larr; تعديل مظهر الفاتورة</strong>، 
+      يمكنك تخصيص كل جزء من فواتيرك وبونات المطبخ عبر محرر مرئي متطور:
+    </p>
+
+    <figure>
+      <img src="images/ar/ticket-designer.png" alt="مصمم الفواتير والإيصالات المرئي">
+      <figcaption>شكل 6.1 — استوديو تصميم الفواتير: إضافة الشعار، الترويسة، حجم الخطوط، وقاطع الورق التلقائي.</figcaption>
+    </figure>
+
+    <ul>
+      <li><strong>شعار المنشأة (Logo) :</strong> استيراد شعارك بصيغة واضحة عالية التباين لطباعة حرارية ناصعة.</li>
+      <li><strong>الترويسة وبيانات التواصل :</strong> اسم المؤسسة، السجل التجاري، الرقم الضريبي، وأرقام الهواتف.</li>
+      <li><strong>قاطع الورق التلقائي :</strong> تفعيل أمر القطع التلقائي للورق فور انتهاء طباعة الفاتورة.</li>
+      <li><strong>رمز الاستجابة السريعة (QR Code) :</strong> طباعة كود الفاتورة الإلكترونية المتوافق مع المتطلبات الرسمية.</li>
+    </ul>
+
+    <h2>3. موازين الباركود الإلكترونية وأكواد EAN-13 متغيرة الوزن</h2>
+    <p>
+      للملاحم، محلات الأسماك، والمخابز التي تستخدم موازين إلكترونية تصدر ملصقات باركود، 
+      يتضمن نظام TL POS قارئاً ذكياً لأكواد <strong>EAN-13 متغيرة الوزن والسعر</strong> (البادئات: 20، 21، 22، 23، 24، 28):
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>نوع الكود</th>
+          <th>تركيبة أرقام الباركود</th>
+          <th>مثال رقمي</th>
+          <th>طريقة معالجة النظام للسلعة</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>باركود بالوزن</strong></td>
+          <td><code>20 + [رقم الصنف 4 خانات] + [الوزن بالجرام 5 خانات] + [رمز التحقق]</code></td>
+          <td><code>200142012503</code></td>
+          <td>صنف رقم 142 (مثال: لحم مفروم)، الوزن: <strong>1.250 كجم</strong>. يحسب السعر تلقائياً.</td>
+        </tr>
+        <tr>
+          <td><strong>باركود بالسعر</strong></td>
+          <td><code>22 + [رقم الصنف 4 خانات] + [السعر بالقروش 5 خانات] + [رمز التحقق]</code></td>
+          <td><code>220085007502</code></td>
+          <td>صنف رقم 85 (مثال: أجبان مستوردة)، السعر الإجمالي: <strong>7.50 د.ج / ر.س / $</strong>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>4. أدراج النقدية وقوارئ الباركود</h2>
+    <ul>
+      <li><strong>درج النقدية :</strong> يتم توصيله عبر كابل RJ11 خلف الطابعة الحرارية مباشرة، ويرسل النظام نبضة الفتح تلقائياً عند الدفع النقدي.</li>
+      <li><strong>قوارئ الباركود (USB / Bluetooth) :</strong> تعمل تلقائياً بمجرد التوصيل بنمط محاكاة لوحة المفاتيح دون الحاجة لأي تعريفات إضافية.</li>
+    </ul>
+  </div>
+
+  <!-- ==================== CHAPTER 07 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">07</span> تكامل أجهزة النادل اللوحية (تطبيق TL للنوادل)</h1>
+
+    <h2>أخذ الطلبات اللمسي على الطاولات</h2>
+    <p>
+      يحول تطبيق <strong>TL للنوادل (TL Waiter)</strong> المطور بتقنية .NET MAUI أي جهاز لوحي أو هاتف أندرويد 
+      إلى محطة بيع متنقلة وفائقة السرعة للنوادل داخل الصالات، في الشرفات الخارجية، أو بجوار المسابح.
+    </p>
+
+    <figure>
+      <div style="display: flex; gap: 15px; justify-content: center;">
+        <img src="images/ar/tablet-tables.png" alt="مخطط الطاولات على جهاز النادل" style="width: 48%;">
+        <img src="images/ar/tablet-order.png" alt="قائمة المنتجات على جهاز النادل" style="width: 48%;">
+      </div>
+      <figcaption>شكل 7.1 — تطبيق النادل على أندرويد: مخطط تفاعلي للطاولات وتصفح لمسي سريع لقائمة الطعام.</figcaption>
+    </figure>
+
+    <h2>الاتصال بالشبكة المحلية (Wi-Fi)</h2>
+    <p>
+      يحتوي جهاز الكاشير الرئيسي على خادم REST مدمج يعمل على المنفذ <code>8080</code>.
+      لربط الأجهزة اللوحية داخل المنشأة:
+    </p>
+    <ol class="step-list">
+      <li>اربط الجهاز اللوحي بنفس شبكة الواي فاي المتصل بها جهاز الكاشير.</li>
+      <li>
+        على جهاز الكاشير، افتح <strong>الإعدادات &larr; الشبكة</strong> لمعرفة عنوان IP المحلي للجهاز (مثال: <code>192.168.1.50</code>).
+      </li>
+      <li>
+        افتح تطبيق <strong>TL للنوادل</strong> على الجهاز اللوحي، واضغط على القائمة <kbd>...</kbd> أعلى الشاشة، ثم اكتب عنوان الخادم: <code>http://192.168.1.50:8080</code>.
+      </li>
+      <li>تتم مزامنة الأصناف والصالات والطلبات فوراً في أقل من ثانية واحدة.</li>
+    </ol>
+  </div>
+
+  <!-- ==================== CHAPTER 08 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">08</span> الربط عن بُعد وإدارة الفروع عبر Tailscale VPN</h1>
+
+    <h2>لماذا يعتبر Tailscale الحل الأفضل لنظام TL POS؟</h2>
+    <p>
+      تقليدياً، كان ربط الأجهزة الخارجية (مثل طاولات الشارع المقابل، عربات الطعام الخارجية، أو مراقبة المدير لمتجره من المنزل) 
+      يتطلب اشتراك IP ثابت ودفع تكاليف شهرية باهظة وفتح منافذ في الراوتر (Port Forwarding)، مما يجعل الشبكة عرضة للاختراق.
+    </p>
+    <p>
+      مع خدمة <strong>Tailscale</strong>، يتم إنشاء <strong>شبكة افتراضية مشفرة من جهاز لجهاز (Mesh VPN)</strong> 
+      باستخدام بروتوكول <strong>WireGuard</strong> العسكري فائق الأمان. تتصل الأجهزة ببعضها مباشرة في أي مكان في العالم 
+      حتى عبر شبكات إنترنت الجيل الرابع والخامس (4G/5G) وخلف جدران الحماية المعقدة (CGNAT)!
+    </p>
+
+    <figure>
+      <img src="images/tailscale-architecture-ar.svg" alt="بنية الربط عن بعد لنظام TL POS عبر Tailscale">
+      <figcaption>شكل 8.1 — مخطط المعمارية والربط الآمن بين الكاشير والأجهزة اللوحية الخارجية والملاك عبر Tailscale VPN.</figcaption>
+    </figure>
+
+    <h2>الخطوة 1: تثبيت Tailscale على جهاز الكاشير الرئيسي (ويندوز)</h2>
+    <ol class="step-list">
+      <li>ادخل على موقع <code>https://tailscale.com</code> وأنشئ حساباً مجانياً (يدعم حتى 100 جهاز مجاناً).</li>
+      <li>قم بتحميل وتثبيت برنامج Tailscale لويندوز على جهاز الكاشير الرئيسي وسجل الدخول بحسابك.</li>
+      <li>يمنحك البرنامج <strong>عنوان IP ثابت خاص</strong> يبدأ بالرقم <code>100.x.y.z</code> (مثال: <code>100.85.12.44</code>).</li>
+    </ol>
+
+    <h2>الخطوة 2: ربط جهاز النادل اللوحي عبر 4G/5G أو واي فاي خارجي</h2>
+    <ol class="step-list">
+      <li>على هاتف أو تابلت النادل، ثبت تطبيق <strong>Tailscale</strong> من متجر Google Play.</li>
+      <li>سجل الدخول بنفس الحساب، وسينضم الجهاز فوراً للشبكة المشفرة.</li>
+      <li>افتح تطبيق <strong>TL للنوادل</strong>، واكتب في عنوان الخادم:<br>
+        <code>http://100.85.12.44:8080</code> (مع استبدال الرقم بعنوان IP Tailscale الخاص بكاشيرك).
+      </li>
+      <li>يمكن للنادل الآن استقبال الطلبات في أي مكان خارجي وتصل الطلبات للمطبخ لحظياً.</li>
+    </ol>
+
+    <h2>الخطوة 3: لوحة متابعة حية لمالك المشروع (من المنزل أو الهاتف)</h2>
+    <p>
+      من أي جهاز كمبيوتر شخصي أو هاتف ذكي خاص بالمالك مثبت عليه Tailscale، افتح متصفح الإنترنت واكتب الرابط:<br>
+      <code>http://100.85.12.44:8080/reports</code><br>
+      ستظهر لك لوحة تحكم فورية تعرض إجمالي المبيعات، متوسط الفاتورة، الطاولات المشغولة، وحركة المخزون لحظة بلحظة دون التأثير على عمل الكاشير.
+    </p>
+  </div>
+
+  <!-- ==================== CHAPTER 09 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">09</span> إدارة المخزون، الوصفات وتتبع المكونات</h1>
+
+    <h2>1. تتبع المخزون البسيط (المواد الجاهزة)</h2>
+    <p>
+      للمنتجات التي تباع كما هي (المشروبات المعبأة، السناكس، الملابس، الأجهزة)، 
+      قم بتفعيل خيار <em>تتبع المخزون</em> في بطاقة المنتج. مع كل عملية بيع يتم خصم الكمية تلقائياً، 
+      وتظهر تنبيهات للكاشير فور وصول الرصيد إلى الحد الأدنى لإعادة الطلب.
+    </p>
+
+    <h2>2. بطاقات التكلفة وخصم المكونات آلياً (المطاعم والكافيهات)</h2>
+    <p>
+      في المطاعم والمطابخ وصناع القهوة، بيع وجبة أو مشروب يجب أن يخصم مكوناته الأولية الخام من المستودع. 
+      يتضمن نظام TL POS محرك وصفات متطوراً:
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>الصنف المباع</th>
+          <th>المكونات المخصومة تلقائياً من المستودع</th>
+          <th>وحدة القياس</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>بيتزا رويال (عائلية)</strong></td>
+          <td>عجينة بيتزا (1 حبة) &bull; صلصة طماطم (80 جم) &bull; جبن موزاريلا (120 جم) &bull; لحم مفروم (70 جم) &bull; فطر (50 جم)</td>
+          <td>جرام / حبة</td>
+        </tr>
+        <tr>
+          <td><strong>موهيتو ليمون ونعناع</strong></td>
+          <td>مياه غازية (150 مل) &bull; سيروب نعناع (30 مل) &bull; أوراق نعناع طازجة (6 ورقات) &bull; نصف ليمونة (0.5 حبة)</td>
+          <td>مل / حبة</td>
+        </tr>
+        <tr>
+          <td><strong>برجر اللحم الكلاسيكي</strong></td>
+          <td>خبز بريوش (1 حبة) &bull; شريحة لحم بقري (150 جم) &bull; شريحة شيدر (40 جم) &bull; صوص البرجر (30 جم)</td>
+          <td>جرام / حبة</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ==================== CHAPTER 10 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">10</span> النسخ الاحتياطي، الصيانة ودليل معالجة الأعطال</h1>
+
+    <h2>1. نسخ احتياطي شامل في 10 ثوانٍ فقط</h2>
+    <p>
+      لأن بياناتك التجارية لا تقدر بثمن، جعل نظام TL POS عملية الحفظ في غاية السهولة: 
+      <strong>دون أي تعامل مع خوادم SQL أو أوامر برمجية معقدة</strong>:
+    </p>
+    <ol class="step-list">
+      <li>أغلق برنامج TL POS.</li>
+      <li>انسخ المجلد الفرعي <code>client database\</code> بالكامل وضعه على قرص فلاش USB خارجي.</li>
+      <li>تم الأمر بنجاح! يحتوي هذا المجلد على كل الأصناف، الفواتير، المبيعات السابقة، وإعدادات المستخدمين.</li>
+    </ol>
+
+    <h2>2. نقل البرنامج إلى جهاز كمبيوتر جديد</h2>
+    <p>
+      يكفي نسخ مجلد البرنامج كاملاً إلى الكمبيوتر الجديد. كافة بياناتك وفواتيرك وإعداداتك 
+      ستعمل فوراً على الجهاز الجديد دون الحاجة لأي تهيئة إضافية.
+    </p>
+
+    <h2>3. دليل حلول الأعطال الشائعة</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>المشكلة الظاهرة</th>
+          <th>السبب المحتمل</th>
+          <th>طريقة الحل الفوري</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>ظهور رسالة «Le serveur RPC n'est pas disponible» عند فتح الطابعات</strong></td>
+          <td>خدمة الطباعة في ويندوز <em>(Spooler)</em> متوقفة أو تعطلت في النظام.</td>
+          <td>افتح موجه الأوامر (CMD) كمسؤول ونفذ الأمر: <code>net start spooler</code>، وسيعود الاتصال بالطابعات فوراً.</td>
+        </tr>
+        <tr>
+          <td><strong>درج النقدية لا يفتح عند البيع النقدي</strong></td>
+          <td>سلك RJ11 غير متصل بإحكام أو متصل بمنفذ خاطئ.</td>
+          <td>تأكد أن كابل RJ11 موصل بمنفذ <em>DK (Drawer Kick)</em> خلف الطابعة الحرارية وليس بمنفذ شبكة الإنترنت.</td>
+        </tr>
+        <tr>
+          <td><strong>الجهاز اللوحي لا يتصل بجهاز الكاشير</strong></td>
+          <td>جدار حماية ويندوز يمنع المنفذ 8080 أو اختلاف شبكة الواي فاي.</td>
+          <td>في جهاز الكاشير، اسمح للمنفذ TCP <code>8080</code> في جدار حماية ويندوز وتأكد من اتصال الجهازين بنفس الشبكة أو عبر Tailscale.</td>
+        </tr>
+        <tr>
+          <td><strong>قارئ الباركود لا يكتب الأرقام بشكل صحيح</strong></td>
+          <td>لغة إدخال لوحة المفاتيح غير متطابقة مع قارئ الباركود.</td>
+          <td>امسح كود الإعداد الافتراضي في كتيب قارئ الباركود (Default USB HID Keyboard) للتوافق التلقائي.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top: 40px; text-align: center; border-top: 1px solid #E2E8F0; padding-top: 20px; color: #64748B; font-size: 9.5pt;">
+      <strong>حزمة برمجيات TL POS</strong> &bull; تم التصميم والتطوير بواسطة <strong>لونيس تينوش (TL)</strong> &bull; جميع الحقوق محفوظة.
+    </div>
+  </div>
+
+</body>
+</html>

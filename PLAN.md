@@ -12,7 +12,7 @@
 
 ## 0. Project summary
 
-Restaurant POS suite by Vectron (client: Boitexinfo). Two products, one design language:
+Restaurant and retail POS suite created by Lounes Tinouche (TL POS). Two products, one design language:
 
 | Product | Tech | Ship variants |
 |---|---|---|
@@ -30,7 +30,7 @@ The test version is only for tests; the main apps are Win10, Win7, Android.
   `$env:JAVA_HOME="$env:LOCALAPPDATA\jdk-17\jdk-17.0.20.1+1"; dotnet build "VectronTablet\VectronTablet.csproj" -f net10.0-android -c Release -p:AndroidSdkDirectory="$env:LOCALAPPDATA\Android\Sdk" -p:JavaSdkDirectory="$env:JAVA_HOME"`
   → APK output: `VectronTablet\bin\Release\net10.0-android\com.vectron.waiter-Signed.apk` → copy to repo root as `Vectron-Waiter-v1.2.0.apk`
 - **adb**: per-PC — see the PC blocks at the end of this section.
-- **Test server**: POS itself serves REST on `http://192.168.1.80:8080`, API key `boitexinfo2026` (must be enabled in Settings > REST API; stored in `client database\feature-settings.json` → `ApiEnabled`/`ApiKey`). Tablet endpoints: `/api/tablet/bootstrap?key=KEY`, `/api/menu`. Auth is the **`?key=` query parameter** (not a header).
+- **Test server**: POS itself serves REST on `http://192.168.1.80:8080`, API key `tlpos2026` (must be enabled in Settings > REST API; stored in `client database\feature-settings.json` → `ApiEnabled`/`ApiKey`). Tablet endpoints: `/api/tablet/bootstrap?key=KEY`, `/api/menu`. Auth is the **`?key=` query parameter** (not a header).
 - **License gate**: `Main` in `Program.cs` loops `while (!License.IsActive)` — no bypass, ever. `License.cs` fingerprint differs per TFM on the SAME PC: net10 → REQ `A396-5417-972A-66C2`, net48 → REQ `703B-C277-C377-7A35`. Two keys per PC is CORRECT and chosen by the user — do not "fix" it. Win7 client key `VECT-AE2BLADY-…` exp 2027-10-18; Win10/test key `VECT-AGIVW2YR-…` exp 2027-10-28. Key records: `LicenseGen\publish\clients\*.csv`.
 - **User's working folders**: the user launches from `publish-win10-x64\` and `publish-win7\` (NOT from the zips). After any Windows build, **update those two folders in place** (exe/dlls only — NEVER touch their `client database\`), keep images merged, and restart the POS. Old exe backups are named `Vectron POS.old-18oct.exe`.
 - **Release zips** (repo root): `VectronPOS-v1.2.0-Win10-x64.zip`, `…-Win7-x86-x64.zip`, `…-Win7-Full-x86-x64.zip`, `tester-release.zip`, `Vectron-Waiter-v1.2.0.apk`. Zips must contain `images\` (7 PNGs) + `client database\products.json` starter catalog, and NEVER license.dat/license.time/feature-settings/.pdb.
@@ -532,7 +532,7 @@ uiautomator dump, input tap/text all verified), so Android verification no longe
 clicking or PrintWindow.
 **End-to-end test PASSED on this PC:** APK installed → login page (P1.7 card renders: VECTRON /
 Waiter terminal / address / API key / Connect) → set `http://192.168.1.80:8080` + key
-`boitexinfo2026` → Connect → operator picker pulled live from the POS (Manager, Cashier) → Sign in →
+`tlpos2026` → Connect → operator picker pulled live from the POS (Manager, Cashier) → Sign in →
 tables page with real data (Main dining 8 tables, `Table 1 #1 · 1 · 7`, `Table 4 #1 · 1 · 0.02`) →
 Table 1 order page (`1 × Cheesecake 7.00 EUR`, stepper, chips, tiles, Send). Screenshots:
 `.opencode\screenshots\ld-login-2.png`, `ld-after-connect.png`, `ld-tables.png`, `ld-order.png`.
@@ -758,7 +758,7 @@ both early-return on `!IsHigh`. Lite registers no timers and no idle repaints.
 - APK: `Vectron-Waiter-v1.2.0.apk` at repo root, 29,550,110 B, built 0 errors after the `Restyle`
   fix, installed on LDPlayer and driven through all four states.
 - Live POS restarted from `publish-win10-x64\` (PID 12220) → `/api/menu` 200 on 127.0.0.1 **and**
-  192.168.1.80, `/api/tablet/bootstrap?key=boitexinfo2026` 200 (622 B) → tablet reconnected and
+  192.168.1.80, `/api/tablet/bootstrap?key=tlpos2026` 200 (622 B) → tablet reconnected and
   repopulated its tables within one poll (`p5-tablet-after-ship.png`).
 - Tablet left on the shipped defaults: **Dark + Auto** (Auto resolves High — "5.8 GB RAM, 4 cores").
 
@@ -1384,7 +1384,7 @@ Rule: never start step *n+1* with a red build. Each step compiles for `net10.0-w
   (`/` separators, no base dir), rebuild the APK (`build-apk.ps1`) → repo root, install on
   LDPlayer, verify login → tables → order → image.
 - Restart the live POS from `publish-win10-x64\`, confirm `/api/menu` 200 and
-  `/api/tablet/bootstrap?key=boitexinfo2026` 200 on 127.0.0.1 **and** 192.168.1.80, tablet
+  `/api/tablet/bootstrap?key=tlpos2026` 200 on 127.0.0.1 **and** 192.168.1.80, tablet
   repopulates.
 - Zip content rules (§1): `images\` (7 PNGs) + starter `products.json`, **0**
   license.dat / license.time / feature-settings.json / .pdb.

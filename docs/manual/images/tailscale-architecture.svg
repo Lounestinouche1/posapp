@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" width="100%" height="100%" style="background:#0F172A; font-family:'Segoe UI',system-ui,-apple-system,sans-serif;">
+  <defs>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4338CA"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#38BDF8"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#34D399"/>
+    </marker>
+  </defs>
+
+  <!-- Title & Subtitle -->
+  <text x="480" y="38" text-anchor="middle" fill="#F8FAFC" font-size="20" font-weight="700" letter-spacing="0.5">TL POS — Long Distance &amp; Remote Access Architecture</text>
+  <text x="480" y="62" text-anchor="middle" fill="#94A3B8" font-size="13">Zero Port-Forwarding • Secure WireGuard Mesh via Tailscale • Worldwide 4G/5G Access</text>
+
+  <!-- STORE LOCAL NETWORK (LEFT) -->
+  <g transform="translate(40, 90)">
+    <rect width="280" height="340" rx="16" fill="#1E293B" stroke="#334155" stroke-width="2" filter="url(#cardShadow)"/>
+    <rect width="280" height="42" rx="16" fill="#334155"/>
+    <rect y="26" width="280" height="16" fill="#334155"/>
+    <text x="140" y="27" text-anchor="middle" fill="#38BDF8" font-size="14" font-weight="700">🏪 STORE / RESTAURANT</text>
+
+    <!-- Main POS Terminal Card -->
+    <g transform="translate(16, 56)">
+      <rect width="248" height="140" rx="10" fill="#0F172A" stroke="#2563EB" stroke-width="1.5"/>
+      <rect x="12" y="12" width="28" height="28" rx="6" fill="url(#primaryGrad)"/>
+      <text x="26" y="31" text-anchor="middle" fill="#FFFFFF" font-size="16">🖥</text>
+      <text x="48" y="24" fill="#F8FAFC" font-size="13" font-weight="700">TL POS Host</text>
+      <text x="48" y="38" fill="#38BDF8" font-size="11" font-weight="600">Windows 10 / 11 / 7</text>
+
+      <rect x="12" y="52" width="224" height="26" rx="6" fill="#1E293B"/>
+      <text x="20" y="69" fill="#94A3B8" font-size="11">Tailscale IP:</text>
+      <text x="95" y="69" fill="#34D399" font-size="11" font-weight="700">100.85.12.44</text>
+
+      <rect x="12" y="84" width="224" height="26" rx="6" fill="#1E293B"/>
+      <text x="20" y="101" fill="#94A3B8" font-size="11">Built-in REST API:</text>
+      <text x="125" y="101" fill="#FBBF24" font-size="11" font-weight="700">Port 8080</text>
+      
+      <circle cx="22" cy="125" r="4" fill="#10B981"/>
+      <text x="32" y="128" fill="#E2E8F0" font-size="10">Active Background Listener</text>
+    </g>
+
+    <!-- Peripherals Connected -->
+    <g transform="translate(16, 212)">
+      <rect width="248" height="108" rx="8" fill="#0F172A" stroke="#334155" stroke-width="1"/>
+      <text x="124" y="24" text-anchor="middle" fill="#CBD5E1" font-size="11" font-weight="600">Local POS Hardware</text>
+      
+      <g transform="translate(14, 38)">
+        <rect width="105" height="54" rx="6" fill="#1E293B"/>
+        <text x="52" y="24" text-anchor="middle" fill="#FFFFFF" font-size="14">🖨️</text>
+        <text x="52" y="42" text-anchor="middle" fill="#94A3B8" font-size="10">Thermal Printers</text>
+      </g>
+      <g transform="translate(129, 38)">
+        <rect width="105" height="54" rx="6" fill="#1E293B"/>
+        <text x="52" y="24" text-anchor="middle" fill="#FFFFFF" font-size="14">⚖️</text>
+        <text x="52" y="42" text-anchor="middle" fill="#94A3B8" font-size="10">Barcode Scales</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- TAILSCALE ENCRYPTED MESH (CENTER) -->
+  <g transform="translate(365, 120)">
+    <rect width="230" height="280" rx="16" fill="#1E1B4B" stroke="#6366F1" stroke-width="2" filter="url(#cardShadow)"/>
+    <rect width="230" height="42" rx="16" fill="url(#cloudGrad)"/>
+    <rect y="26" width="230" height="16" fill="url(#cloudGrad)"/>
+    <text x="115" y="27" text-anchor="middle" fill="#FFFFFF" font-size="13" font-weight="700">🔒 TAILSCALE VPN MESH</text>
+
+    <!-- Cloud Icon & Wireguard Tag -->
+    <text x="115" y="80" text-anchor="middle" fill="#818CF8" font-size="32">☁️</text>
+    <text x="115" y="105" text-anchor="middle" fill="#F8FAFC" font-size="13" font-weight="700">Encrypted WireGuard</text>
+    <text x="115" y="123" text-anchor="middle" fill="#A5B4FC" font-size="11">Peer-to-Peer Tunnel</text>
+
+    <g transform="translate(16, 140)">
+      <rect width="198" height="118" rx="8" fill="#0F172A" stroke="#4338CA" stroke-width="1"/>
+      <text x="14" y="24" fill="#34D399" font-size="11" font-weight="600">✔ Zero Port-Forwarding</text>
+      <text x="14" y="46" fill="#34D399" font-size="11" font-weight="600">✔ NAT &amp; 4G CGNAT Bypass</text>
+      <text x="14" y="68" fill="#34D399" font-size="11" font-weight="600">✔ End-to-End 256-bit AES</text>
+      <text x="14" y="90" fill="#34D399" font-size="11" font-weight="600">✔ Static 100.x.y.z IP</text>
+      <text x="14" y="108" fill="#94A3B8" font-size="10">Works worldwide on any carrier</text>
+    </g>
+  </g>
+
+  <!-- REMOTE CLIENTS (RIGHT) -->
+  <g transform="translate(640, 90)">
+    <rect width="280" height="340" rx="16" fill="#1E293B" stroke="#334155" stroke-width="2" filter="url(#cardShadow)"/>
+    <rect width="280" height="42" rx="16" fill="#334155"/>
+    <rect y="26" width="280" height="16" fill="#334155"/>
+    <text x="140" y="27" text-anchor="middle" fill="#34D399" font-size="14" font-weight="700">🌍 REMOTE CLIENTS</text>
+
+    <!-- Remote Waiter Tablet -->
+    <g transform="translate(16, 56)">
+      <rect width="248" height="95" rx="8" fill="#0F172A" stroke="#10B981" stroke-width="1.5"/>
+      <rect x="12" y="12" width="28" height="28" rx="6" fill="url(#accentGrad)"/>
+      <text x="26" y="31" text-anchor="middle" fill="#FFFFFF" font-size="16">📱</text>
+      <text x="48" y="24" fill="#F8FAFC" font-size="12" font-weight="700">Android Waiter Tablet</text>
+      <text x="48" y="38" fill="#34D399" font-size="10">Tailscale App + TL Waiter</text>
+
+      <rect x="12" y="48" width="224" height="36" rx="4" fill="#1E293B"/>
+      <text x="20" y="63" fill="#94A3B8" font-size="10">API Endpoint Setting:</text>
+      <text x="20" y="77" fill="#38BDF8" font-size="10" font-weight="700">http://100.85.12.44:8080</text>
+    </g>
+
+    <!-- Remote Owner Dashboard -->
+    <g transform="translate(16, 162)">
+      <rect width="248" height="95" rx="8" fill="#0F172A" stroke="#6366F1" stroke-width="1.5"/>
+      <rect x="12" y="12" width="28" height="28" rx="6" fill="url(#cloudGrad)"/>
+      <text x="26" y="31" text-anchor="middle" fill="#FFFFFF" font-size="16">💻</text>
+      <text x="48" y="24" fill="#F8FAFC" font-size="12" font-weight="700">Owner Remote PC / Mobile</text>
+      <text x="48" y="38" fill="#818CF8" font-size="10">Live Dashboard &amp; Z-Reports</text>
+
+      <rect x="12" y="48" width="224" height="36" rx="4" fill="#1E293B"/>
+      <text x="20" y="63" fill="#94A3B8" font-size="10">Direct Web Access:</text>
+      <text x="20" y="77" fill="#FBBF24" font-size="10" font-weight="700">http://100.85.12.44:8080/reports</text>
+    </g>
+
+    <!-- Branch Connection -->
+    <g transform="translate(16, 268)">
+      <rect width="248" height="52" rx="8" fill="#0F172A" stroke="#334155" stroke-width="1"/>
+      <text x="18" y="22" fill="#F8FAFC" font-size="11" font-weight="600">🏢 Multi-Branch / Food Truck</text>
+      <text x="18" y="38" fill="#94A3B8" font-size="10">Orders sync back in real-time over 4G/5G</text>
+    </g>
+  </g>
+
+  <!-- CONNECTING ARROWS -->
+  <!-- POS to Mesh -->
+  <path d="M 320 200 L 360 200" stroke="#38BDF8" stroke-width="3" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+  <!-- Mesh to Remote -->
+  <path d="M 600 200 L 635 200" stroke="#34D399" stroke-width="3" stroke-dasharray="6,4" marker-end="url(#arrowGreen)"/>
+
+  <!-- Footer Banner -->
+  <rect x="40" y="445" width="880" height="24" rx="4" fill="#1E293B"/>
+  <text x="480" y="461" text-anchor="middle" fill="#64748B" font-size="11">TL POS Suite • Proprietary Dual-Target Architecture • Zero Cloud Subscription Required</text>
+</svg>

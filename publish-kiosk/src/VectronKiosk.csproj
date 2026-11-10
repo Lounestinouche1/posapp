@@ -6,8 +6,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <AssemblyName>Vectron Kiosk</AssemblyName>
+    <AssemblyName>TL Kiosk</AssemblyName>
     <RootNamespace>VectronKiosk</RootNamespace>
+    <Product>TL Kiosk</Product>
+    <Company>TL Software</Company>
+    <Authors>Lounes Tinouche</Authors>
     <NoWarn>$(NoWarn);WFO1000;CS0414;CS8600;CS8601;CS8602;CS8603;CS8604;CS8605;CS8618;CS8622;CS8625;CS8632;CS0649;CS0169;CS4014</NoWarn>
   </PropertyGroup>
 

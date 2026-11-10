@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿#nullable enable
+﻿﻿﻿#nullable enable
 
 using Timer = System.Windows.Forms.Timer;
 
@@ -4075,7 +4075,7 @@ namespace VectronKiosk
 
 		private string customerName = "Guest #042";
 
-		private string restaurantName = "VECTRON RESTAURANT";
+		private string restaurantName = "TL RESTAURANT";
 
 		private string currency = "EUR";
 
@@ -4127,7 +4127,7 @@ namespace VectronKiosk
 			KioskLang.Current = config.Language;
 			KioskSkin.Theme = ((!(config.Theme == "Dark")) ? KioskThemeMode.Light : KioskThemeMode.Dark);
 			KioskSkin.Quality = ((config.GraphicsQuality == "Lite") ? KioskQualityTier.Lite : KioskQualityTier.High);
-			Text = "Vectron Kiosk";
+			Text = "TL Kiosk";
 			FormBorderStyle = FormBorderStyle.None;
 			if (!IsHeadlessSnapshot)
 			{

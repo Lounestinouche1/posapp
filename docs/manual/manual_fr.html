@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Suite TL POS — Manuel Officiel d'Utilisation & d'Administration</title>
+  <style>
+    /* Professional Print & Screen Typography */
+    @page {
+      size: A4 portrait;
+      margin: 16mm 14mm 16mm 14mm;
+      @bottom-right {
+        content: counter(page);
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 9pt;
+        color: #64748B;
+      }
+      @bottom-left {
+        content: "Suite TL POS — Manuel Officiel d'Utilisation & d'Administration";
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 9pt;
+        color: #94A3B8;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: #1E293B;
+      background: #FFFFFF;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Cover Page */
+    .cover-page {
+      height: 100vh;
+      min-height: 270mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 30mm 15mm 20mm 15mm;
+      background: linear-gradient(145deg, #0F172A 0%, #1E293B 100%);
+      color: #FFFFFF;
+      page-break-after: always;
+      border-radius: 4px;
+    }
+
+    .cover-top {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cover-logo-badge {
+      width: 58px;
+      height: 58px;
+      border-radius: 12px;
+      background: #0F172A;
+      border: 2px solid #38BDF8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+    }
+
+    .cover-brand-title {
+      font-size: 26pt;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #FFFFFF;
+      margin: 0;
+      line-height: 1.1;
+    }
+
+    .cover-brand-sub {
+      font-size: 11pt;
+      color: #38BDF8;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .cover-center {
+      margin: auto 0;
+    }
+
+    .cover-doc-tag {
+      display: inline-block;
+      padding: 6px 14px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38BDF8;
+      font-size: 9.5pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+
+    .cover-main-title {
+      font-size: 34pt;
+      font-weight: 800;
+      line-height: 1.15;
+      margin: 0 0 16px 0;
+      color: #FFFFFF;
+    }
+
+    .cover-lead {
+      font-size: 13pt;
+      color: #94A3B8;
+      max-width: 650px;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .cover-bottom {
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      padding-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      font-size: 9pt;
+      color: #94A3B8;
+    }
+
+    .cover-meta strong {
+      color: #E2E8F0;
+      display: block;
+      font-size: 10pt;
+      margin-bottom: 2px;
+    }
+
+    /* Page Breaks and Headings */
+    .page-break {
+      page-break-before: always;
+      padding-top: 10mm;
+    }
+
+    h1 {
+      font-size: 20pt;
+      font-weight: 800;
+      color: #0F172A;
+      margin: 0 0 16px 0;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #E2E8F0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h1 .sec-num {
+      background: #0284C7;
+      color: #FFFFFF;
+      font-size: 12pt;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    h2 {
+      font-size: 13.5pt;
+      font-weight: 700;
+      color: #1E293B;
+      margin: 22px 0 10px 0;
+    }
+
+    h3 {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #334155;
+      margin: 16px 0 6px 0;
+    }
+
+    p {
+      margin: 0 0 10px 0;
+      color: #334155;
+    }
+
+    /* Visual Callouts & Notes */
+    .callout {
+      border-left: 4px solid #0284C7;
+      background: #F0F9FF;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 14px 0;
+      font-size: 10pt;
+    }
+
+    .callout.tip {
+      border-left-color: #10B981;
+      background: #ECFDF5;
+    }
+
+    .callout.warn {
+      border-left-color: #F59E0B;
+      background: #FFFBEB;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Table Styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 9.5pt;
+    }
+
+    th, td {
+      border: 1px solid #E2E8F0;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #F1F5F9;
+      font-weight: 700;
+      color: #0F172A;
+    }
+
+    tr:nth-child(even) td {
+      background: #F8FAFC;
+    }
+
+    /* Keycaps and UI badges */
+    kbd {
+      background: #E2E8F0;
+      border: 1px solid #CBD5E1;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: 'Consolas', monospace;
+      font-size: 9pt;
+      color: #0F172A;
+    }
+
+    .ui-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 8.5pt;
+      font-weight: 700;
+      background: #E0F2FE;
+      color: #0369A1;
+      border: 1px solid #BAE6FD;
+    }
+
+    /* Image Figure Containers */
+    figure {
+      margin: 16px 0;
+      padding: 0;
+      text-align: center;
+    }
+
+    figure img, figure svg {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid #CBD5E1;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    figcaption {
+      font-size: 8.5pt;
+      color: #64748B;
+      margin-top: 6px;
+      font-style: italic;
+    }
+
+    /* Step List */
+    .step-list {
+      counter-reset: step-counter;
+      list-style: none;
+      padding: 0;
+      margin: 12px 0;
+    }
+
+    .step-list li {
+      counter-increment: step-counter;
+      position: relative;
+      padding-left: 36px;
+      margin-bottom: 12px;
+    }
+
+    .step-list li::before {
+      content: counter(step-counter);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 24px;
+      height: 24px;
+      background: #0284C7;
+      color: #FFFFFF;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9.5pt;
+      font-weight: 700;
+    }
+
+    /* Table of contents page */
+    .toc-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dotted #CBD5E1;
+      padding: 7px 0;
+      font-size: 10pt;
+      color: #1E293B;
+    }
+    .toc-item strong {
+      color: #0F172A;
+    }
+
+    code {
+      font-family: 'Consolas', monospace;
+      background: #F1F5F9;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 9pt;
+      color: #0F172A;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== COVER PAGE ==================== -->
+  <div class="cover-page">
+    <div class="cover-top">
+      <div class="cover-logo-badge">
+        <svg width="38" height="38" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="44" fill="none" stroke="#47D6AE" stroke-width="6" opacity="0.4"/>
+          <path d="M 28 32 L 72 32 M 50 32 L 50 68" fill="none" stroke="#47D6AE" stroke-width="8" stroke-linecap="round"/>
+          <path d="M 40 45 L 40 75 L 75 75" fill="none" stroke="#38BDF8" stroke-width="8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="cover-brand-title">TL POS</div>
+        <div class="cover-brand-sub">Logiciel de Caisse &amp; Gestion Commerciale</div>
+      </div>
+    </div>
+
+    <div class="cover-center">
+      <div class="cover-doc-tag">Documentation Officielle &bull; Manuel Complet</div>
+      <h1 class="cover-main-title">Guide d'Utilisation<br>&amp; d'Administration</h1>
+      <p class="cover-lead">
+        Guide de référence complet pour les caissiers, restaurateurs, gérants et administrateurs réseau.
+        Déploiement Windows 10/11 &amp; Windows 7, prise de commande sur tablettes Android, profils métiers instantanés,
+        impression thermique directe, balances code-barres et accès distant sécurisé par maillage VPN Tailscale.
+      </p>
+    </div>
+
+    <div class="cover-bottom">
+      <div class="cover-meta">
+        <strong>Auteur &amp; Concepteur</strong>
+        Lounes Tinouche (TL) &bull; TL Software Suite
+      </div>
+      <div class="cover-meta" style="text-align: right;">
+        <strong>Version du Système</strong>
+        TL POS v2.6 Pro &bull; Édition Multi-Postes
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TABLE OF CONTENTS ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">SOM</span> Table des Matières</h1>
+    
+    <div style="margin-top: 25px;">
+      <div class="toc-item"><span><strong>01. Présentation Générale &amp; Architecture Système</strong></span> <span>Page 3</span></div>
+      <div class="toc-item"><span><strong>02. Installation &amp; Prérequis Matériels</strong></span> <span>Page 4</span></div>
+      <div class="toc-item"><span><strong>03. Activation de la Licence Cryptographique (ECDSA)</strong></span> <span>Page 6</span></div>
+      <div class="toc-item"><span><strong>04. Profils Métiers en 1 Clic &amp; Sauvegarde Personnalisée</strong></span> <span>Page 8</span></div>
+      <div class="toc-item"><span><strong>05. Opérations Quotidiennes de Caisse &amp; Restauration</strong></span> <span>Page 10</span></div>
+      <div class="toc-item"><span><strong>06. Matériel : Imprimantes, Balances &amp; Éditeur de Ticket</strong></span> <span>Page 13</span></div>
+      <div class="toc-item"><span><strong>07. Intégration des Tablettes Serveurs Android (TL Serveur)</strong></span> <span>Page 16</span></div>
+      <div class="toc-item"><span><strong>08. Accès Distant Longue Distance &amp; Multi-Sites via Tailscale VPN</strong></span> <span>Page 18</span></div>
+      <div class="toc-item"><span><strong>09. Gestion des Stocks, Fiches Techniques &amp; Ingrédients</strong></span> <span>Page 20</span></div>
+      <div class="toc-item"><span><strong>10. Sauvegarde, Maintenance &amp; Guide de Dépannage</strong></span> <span>Page 21</span></div>
+    </div>
+
+    <div class="callout tip" style="margin-top: 35px;">
+      <div class="callout-title">💡 Philosophie de Conception de TL POS</div>
+      TL POS a été conçu dès l'origine pour une fiabilité absolue en environnement de vente intensif : 
+      zéro dépendance externe lourde, démarrage instantané en moins d'une seconde, stockage local atomique 
+      immunisé contre les coupures d'électricité, et autonomie complète sans nécessiter d'abonnement cloud récurrent.
+    </div>
+  </div>
+
+  <!-- ==================== CHAPTER 01 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">01</span> Présentation Générale &amp; Architecture</h1>
+    
+    <h2>L'Écosystème TL POS</h2>
+    <p>
+      <strong>TL POS</strong> est une suite logicielle complète pour points de vente et restauration,
+      créée et développée par <strong>Lounes Tinouche (TL)</strong>. Conçue pour une réactivité extrême, 
+      elle offre une interface fluide, intuitive et élégante tant sur les ordinateurs de caisse Windows que sur les 
+      terminaux mobiles Android dédiés aux serveurs en salle.
+    </p>
+
+    <figure>
+      <img src="images/fr/pos-main-order.png" alt="Écran principal de caisse TL POS">
+      <figcaption>Figure 1.1 — Écran principal de caisse TL POS (Catalogue produits, panier interactif, encaissement direct et pavé numérique).</figcaption>
+    </figure>
+
+    <h2>Compatibilité Double Système d'Exploitation (Dual-Target)</h2>
+    <p>
+      Contrairement aux solutions modernes basées sur Electron ou Chromium qui saturent la mémoire vive, 
+      TL POS s'exécute sur un moteur binaire ultra-optimisé compilé nativement pour deux cibles :
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Version / Cible</th>
+          <th>Système d'Exploitation Supporté</th>
+          <th>Consommation RAM</th>
+          <th>Profil Idéal</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>TL POS Win10/11 (net10.0)</strong></td>
+          <td>Windows 10, Windows 11 (64-bit)</td>
+          <td>~45 Mo</td>
+          <td>PC de caisse tactiles modernes, postes gérants, ordinateurs portables récents.</td>
+        </tr>
+        <tr>
+          <td><strong>TL POS Win7 (net48)</strong></td>
+          <td>Windows 7 SP1, Windows 8.1, POSReady 7</td>
+          <td>~25 Mo</td>
+          <td>Anciens terminaux point de vente tactiles industriels (POSReady/Atom/Celeron).</td>
+        </tr>
+        <tr>
+          <td><strong>TL Serveur Android</strong></td>
+          <td>Android 8.0 jusqu'à Android 15</td>
+          <td>~35 Mo</td>
+          <td>Tablettes tactiles de prise de commande, smartphones serveurs, terminaux mobiles.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <div class="callout-title">💎 Deux Thèmes Graphiques &amp; Deux Niveaux de Performance</div>
+      <ul>
+        <li><strong>Thème Clair / Thème Sombre :</strong> Basculement instantané selon l'ambiance lumineuse (restaurant tamisé le soir ou boutique très éclairée le jour).</li>
+        <li><strong>Qualité Haute (High Tier) :</strong> Dégradés cybernétiques, ombres douces et transitions animées à 60 images par seconde.</li>
+        <li><strong>Qualité Légère (Lite Tier) :</strong> Interface 100% à plat, aucun timer d'animation, aucune charge CPU résiduelle, idéale pour les processeurs d'ancienne génération.</li>
+      </ul>
+    </div>
+
+    <figure>
+      <img src="images/fr/pos-main-dark.png" alt="TL POS en Thème Sombre">
+      <figcaption>Figure 1.2 — Interface en Thème Sombre : confort visuel parfait pour les ambiances de bar et restaurant.</figcaption>
+    </figure>
+  </div>
+
+  <!-- ==================== CHAPTER 02 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">02</span> Installation &amp; Prérequis Matériels</h1>
+
+    <h2>Prérequis Matériels Recommandés</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Composant</th>
+          <th>Configuration Minimale</th>
+          <th>Configuration Recommandée</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Processeur (CPU)</strong></td>
+          <td>Intel Celeron / Intel Core 2 Duo 1.8 GHz</td>
+          <td>Intel Core i3 / i5 ou supérieur (ou AMD Ryzen)</td>
+        </tr>
+        <tr>
+          <td><strong>Mémoire Vive (RAM)</strong></td>
+          <td>2 Go de RAM</td>
+          <td>4 Go à 8 Go de RAM</td>
+        </tr>
+        <tr>
+          <td><strong>Disque Dur</strong></td>
+          <td>200 Mo d'espace libre</td>
+          <td>Disque SSD (lancement en moins d'une seconde)</td>
+        </tr>
+        <tr>
+          <td><strong>Affichage</strong></td>
+          <td>1024 &times; 768 (Tactile ou Écran classique)</td>
+          <td>1920 &times; 1080 Full HD tactile capacitif</td>
+        </tr>
+        <tr>
+          <td><strong>Périphériques</strong></td>
+          <td>Clavier, souris standard</td>
+          <td>Imprimante thermique 80mm ESC/POS, tiroir-caisse RJ11, douchette USB</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Procédure d'Installation Pas à Pas sous Windows</h2>
+    <ol class="step-list">
+      <li>
+        <strong>Télécharger ou Décompresser l'archive :</strong>
+        Placez le dossier d'installation dans <code>C:\TL POS</code> ou directement sur le bureau.
+        L'application est entièrement portable : elle ne nécessite aucun service Windows externe lourd, 
+        ni Microsoft SQL Server, ni MySQL.
+      </li>
+      <li>
+        <strong>Choisir l'exécutable adapté :</strong>
+        <ul>
+          <li>Pour Windows 10 et 11 : Utilisez le dossier <code>publish-win10-x64\TL POS.exe</code>.</li>
+          <li>Pour Windows 7 SP1 ou POSReady : Utilisez le dossier <code>publish-win7\TL POS.exe</code>.</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Créer un raccourci Bureau :</strong>
+        Faites un clic droit sur <code>TL POS.exe</code> &rarr; <em>Envoyer vers</em> &rarr; <em>Bureau (créer un raccourci)</em>.
+      </li>
+      <li>
+        <strong>Lancement initial :</strong>
+        Double-cliquez sur le raccourci. L'application démarre immédiatement et vous invite à renseigner votre clé de licence lors de la toute première ouverture.
+      </li>
+    </ol>
+
+    <div class="callout tip">
+      <div class="callout-title">🔒 Intégrité de la Base de Données</div>
+      Toutes les données (articles, familles, tables, ventes, paramètres d'imprimantes, comptes opérateurs) 
+      sont stockées dans le dossier <code>client database\</code> adjacent à l'exécutable.
+      Les écritures s'effectuent par écriture atomique sur fichier temporaire puis remplacement éclair, 
+      garantissant l'absence de corruption de données même en cas de coupure de courant soudaine en plein encaissement.
+    </div>
+  </div>
+
+  <!-- ==================== CHAPTER 03 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">03</span> Licence Cryptographique &amp; Activation</h1>
+
+    <h2>Sécurité de la Licence par Signature ECDSA</h2>
+    <p>
+      TL POS intègre un système d'activation cryptographique inviolable basé sur la cryptographie sur courbes elliptiques 
+      (ECDSA P-256 avec hachage SHA-256). Ce mécanisme assure à la fois la protection intellectuelle du concepteur 
+      et la garantie d'une licence perpétuelle pour l'acquéreur, sans dépendance vis-à-vis d'un serveur d'activation en ligne.
+    </p>
+
+    <figure>
+      <img src="images/fr/license-activation.png" alt="Boîte de dialogue d'activation TL POS">
+      <figcaption>Figure 3.1 — Fenêtre d'activation de la licence TL POS avec identifiant matériel unique (Machine ID).</figcaption>
+    </figure>
+
+    <h2>Procédure d'Activation Pas à Pas</h2>
+    <ol class="step-list">
+      <li>
+        Au premier démarrage, la fenêtre <strong>« TL POS — Activation de Licence »</strong> s'affiche à l'écran.
+      </li>
+      <li>
+        Votre <strong>Identifiant Machine (Machine ID)</strong> à 16 caractères hexadécimaux apparaît automatiquement 
+        (ex: <code>A1B2-C3D4-E5F6-7890</code>). Cet identifiant est calculé à partir des composants matériels de la machine hôte.
+      </li>
+      <li>
+        Cliquez sur le bouton <span class="ui-badge">Copier l'identifiant</span> et transmettez-le à votre distributeur agréé ou directement à <strong>Lounes Tinouche (TL)</strong>.
+      </li>
+      <li>
+        En retour, vous recevez un code de licence signé correspondant à votre nom d'établissement.
+      </li>
+      <li>
+        Saisissez le <strong>Nom du Client</strong>, collez la <strong>Clé de Licence</strong> dans le champ prévu, puis cliquez sur <span class="ui-badge">Activer la Licence</span>.
+      </li>
+      <li>
+        Le logiciel vérifie la signature mathématique instantanément, génère le fichier <code>license.dat</code> et déverrouille l'accès complet à vie.
+      </li>
+    </ol>
+
+    <div class="callout warn">
+      <div class="callout-title">⚠️ Règle de Sécurité Importante</div>
+      La licence est liée à la carte mère et au processeur du terminal. Si vous devez remplacer l'ordinateur de caisse, 
+      il vous suffit de contacter le support muni de votre facture pour régénérer une nouvelle clé pour le nouvel appareil.
+    </div>
+  </div>
+
+  <!-- ==================== CHAPTER 04 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">04</span> Profils Métiers en 1 Clic &amp; Sauvegarde</h1>
+
+    <h2>Les 6 Métiers Préconfigurés</h2>
+    <p>
+      Chaque commerce possède des exigences opérationnelles bien distinctes. TL POS intègre un sélecteur de 
+      <strong>Profils Métiers en 1 Clic</strong> qui reconfigure instantanément l'intégralité du comportement logiciel 
+      (écrans de vente, priorité douchette, pesée automatique, ventilation des tickets en cuisine, gestion des tables).
+    </p>
+
+    <figure>
+      <img src="images/store-profiles-diagram-fr.svg" alt="Diagramme des profils métiers TL POS">
+      <figcaption>Figure 4.1 — Architecture des 6 profils d'activités avec bouclier de sauvegarde « Ma Configuration Personnalisée ».</figcaption>
+    </figure>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Profil Métier</th>
+          <th>Comportement &amp; Réglages Automatiques</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>🛒 Supermarché &amp; Épicerie</strong></td>
+          <td>Priorité absolue à la douchette code-barres, décodage des balances poids EAN-13, encaissement au scanner rapide, multi-scan par quantité, ouverture tiroir automatique.</td>
+        </tr>
+        <tr>
+          <td><strong>👗 Boutique &amp; Prêt-à-Porter</strong></td>
+          <td>Gestion des déclinaisons taille/couleur, programme de fidélité clients, gestion des retours et avoirs, émission de chèques-cadeaux.</td>
+        </tr>
+        <tr>
+          <td><strong>☕ Café &amp; Boulangerie</strong></td>
+          <td>Vente comptoir express, gestion des formules repas midi, déduction de TVA différenciée (sur place vs à emporter), préparation rapide des boissons.</td>
+        </tr>
+        <tr>
+          <td><strong>🍽️ Restaurant Traditionnel</strong></td>
+          <td>Plan de salle interactif par zones, transfert et regroupement de tables, réclame des suites (Entrée/Plat/Dessert), partage de l'addition, synchronisation tablettes serveurs.</td>
+        </tr>
+        <tr>
+          <td><strong>🍕 Pizzeria &amp; Restauration Rapide</strong></td>
+          <td>Pizzas moitié-moitié, suppléments d'ingrédients, appel client par bipeur, affectation des livreurs avec suivi départ/retour, écran cuisine tactile.</td>
+        </tr>
+        <tr>
+          <td><strong>💊 Pharmacie &amp; Parapharmacie</strong></td>
+          <td>Traçabilité des numéros de lot et dates de péremption, déconditionnement (boîte vers plaquette), tiers payant et historique ordonnances clients.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Le Bouclier « Ma Configuration Personnalisée »</h2>
+    <p>
+      Pour éviter toute perte accidentelle de vos réglages spécifiques (nom du commerce, TVA locale, imprimantes mappées, options d'arrondi) 
+      lorsque vous explorez les différents profils, TL POS intègre le mécanisme <strong>My Customized Setup Safeguard</strong> :
+    </p>
+    <ul>
+      <li>Dès que vous modifiez un commutateur dans les Paramètres, vos préférences sont sauvegardées dans votre profil sur-mesure.</li>
+      <li>Si vous cliquez sur un profil d'exemple pour le tester, un bouton <span class="ui-badge">Restaurer ma configuration</span> reste visible en haut de l'écran pour retrouver instantanément vos réglages d'origine en un seul clic.</li>
+    </ul>
+  </div>
+
+  <!-- ==================== CHAPTER 05 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">05</span> Opérations Quotidiennes de Caisse</h1>
+
+    <h2>1. Connexion Opérateur &amp; Ouverture de Caisse</h2>
+    <p>
+      À l'ouverture du logiciel ou au changement d'équipe, l'écran de verrouillage invite le serveur ou caissier 
+      à sélectionner son profil et à saisir son code confidentiel à 4 chiffres.
+    </p>
+
+    <figure>
+      <img src="images/fr/login-screen.png" alt="Écran de connexion opérateur">
+      <figcaption>Figure 5.1 — Écran de sélection des opérateurs avec nouveau logo TL et pavé numérique tactile.</figcaption>
+    </figure>
+
+    <div class="callout tip">
+      <div class="callout-title">💰 Saisie du Fond de Caisse Matinal</div>
+      Lors de la première ouverture de journée, le logiciel demande à l'administrateur ou au caissier 
+      de saisir le montant du <strong>Fond de Caisse</strong> (espèces en tiroir). Ce montant est isolé du chiffre d'affaires 
+      et réintégré automatiquement lors du calcul de la clôture de caisse Z le soir.
+    </div>
+
+    <h2>2. Prise de Commande en Mode Salle (Restauration)</h2>
+    <ol class="step-list">
+      <li>Cliquez sur l'onglet <span class="ui-badge">Salles &amp; Tables</span> dans la barre de navigation supérieure.</li>
+      <li>Sélectionnez la salle (ex: <em>Terrasse</em>, <em>Salle Principale</em>, <em>Étage</em>).</li>
+      <li>
+        Les tables occupées apparaissent en <strong>Bleu / Cyan</strong> avec le montant en cours et la durée d'occupation. 
+        Les tables libres apparaissent en fond neutre disponible.
+      </li>
+      <li>Touchez une table libre pour ouvrir une commande. Le catalogue des familles et articles s'affiche.</li>
+      <li>
+        Touchez les articles pour les ajouter au panier. Pour ajouter des cuissons ou suppléments (ex: <em>À point</em>, <em>Sans oignons</em>), 
+        cliquez sur la ligne d'article dans le panier pour afficher la feuille de modificateurs.
+      </li>
+      <li>
+        Cliquez sur <span class="ui-badge">Envoyer en Cuisine</span>. Le bon de commande s'imprime instantanément sur l'imprimante cuisine 
+        ou s'affiche sur l'écran KDS, et la table passe en statut occupée.
+      </li>
+    </ol>
+
+    <figure>
+      <img src="images/fr/pos-rooms-tables.png" alt="Plan de salle restaurant TL POS">
+      <figcaption>Figure 5.2 — Plan de salle interactif : visualisation en temps réel des tables occupées, montants et temps écoulé.</figcaption>
+    </figure>
+
+    <h2>3. Prise de Commande en Vente Comptoir Directe (Boutique / Fast-Food)</h2>
+    <p>
+      En mode comptoir, le caissier scanne les articles avec la douchette ou clique sur les tuiles produits à l'écran. 
+      La commande s'enregistre immédiatement sans affectation de table.
+    </p>
+
+    <h2>4. Modes de Paiement &amp; Partage d'Addition</h2>
+    <p>
+      Lorsque le client souhaite régler, cliquez sur le bouton <span class="ui-badge">Encaisser</span> :
+    </p>
+    <ul>
+      <li><strong>Espèces :</strong> Tapez le montant remis par le client sur le pavé tactile. Le rendu de monnaie s'affiche en gros caractères et le tiroir-caisse s'ouvre automatiquement.</li>
+      <li><strong>Carte Bancaire / TPE :</strong> Validation directe du paiement par carte.</li>
+      <li><strong>Paiement Mixte / Partage :</strong> Permet d'encaisser une partie en carte bancaire, une partie en espèces, ou de diviser l'addition à parts égales entre les convives.</li>
+    </ul>
+
+    <h2>5. Clôture de Journée (Rapports X &amp; Z)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Type de Rapport</th>
+          <th>Fonction &amp; Conséquence</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Rapport X (Lecture de Caisse)</strong></td>
+          <td>Fournit un état des ventes en cours de journée sans réinitialiser la caisse. Consultable à tout moment par le gérant.</td>
+        </tr>
+        <tr>
+          <td><strong>Rapport Z (Clôture Définitive)</strong></td>
+          <td>
+            Généré en fin de journée : imprime le total du chiffre d'affaires ventilé par taux de TVA, 
+            le montant total par mode de paiement (espèces, cartes, chèques), l'écart éventuel de caisse, 
+            archive la journée et remet le compteur journalier à zéro.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ==================== CHAPTER 06 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">06</span> Matériel : Imprimantes, Balances &amp; Tickets</h1>
+
+    <h2>1. Configuration des Imprimantes Thermiques (Spouleur &amp; ESC/POS)</h2>
+    <p>
+      TL POS communique directement avec toutes les imprimantes thermiques du marché (Epson, Star Micronics, Bixolon, Xprinter, Munbyn, etc.) 
+      soit via le pilote Windows standard, soit en commandes brutes directes <strong>ESC/POS</strong> par port USB, Ethernet/LAN ou Wi-Fi.
+    </p>
+
+    <div class="callout tip">
+      <div class="callout-title">⚡ Résilience en cas d'Arrêt du Spouleur Windows</div>
+      Si le service Windows <em>Spouleur d'impression (spoolsv.exe)</em> s'arrête ou devient inaccessible (erreur RPC), 
+      TL POS ne plante pas : il détecte automatiquement la situation, bascule en mode de repli sécurisé et affiche 
+      un avertissement pour redémarrer le service via la commande administrative <code>net start spooler</code>.
+    </div>
+
+    <h2>2. Concepteur Visuel de Ticket (WYSIWYG)</h2>
+    <p>
+      Dans <strong>Paramètres &rarr; Matériel &rarr; Imprimantes &rarr; Éditer le format de ticket</strong>, 
+      vous disposez d'un studio visuel permettant de personnaliser chaque élément de vos reçus et tickets de cuisine :
+    </p>
+
+    <figure>
+      <img src="images/fr/ticket-designer.png" alt="Éditeur de ticket de caisse TL POS">
+      <figcaption>Figure 6.1 — Studio de conception visuelle de ticket : ajout du logo, en-tête, police, cadrage et pied de page.</figcaption>
+    </figure>
+
+    <ul>
+      <li><strong>Logo de l'établissement :</strong> Importez votre logo en noir et blanc haute résolution pour une impression thermique nette.</li>
+      <li><strong>En-tête &amp; Coordonnées :</strong> Nom de la société, adresse, numéro fiscal / TVA, numéro de téléphone.</li>
+      <li><strong>Options du massicot :</strong> Déclenchement automatique de la découpe papier en fin de ticket.</li>
+      <li><strong>Code-barres / Code QR :</strong> Impression d'un QR code pour le lien de paiement, facture électronique ou programme fidélité.</li>
+    </ul>
+
+    <h2>3. Balances Électroniques &amp; Codes-Barres Poids Variable EAN-13</h2>
+    <p>
+      Pour les boucheries, poissonneries, boulangeries et épiceries fines équipées d'une balance de pesée à étiquettes, 
+      TL POS intègre un décodeur automatique des codes-barres <strong>EAN-13 à préfixe poids</strong> (préfixes 20, 21, 22, 23, 24 ou 28) :
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Format EAN-13</th>
+          <th>Structure du Code-Barres</th>
+          <th>Exemple</th>
+          <th>Interprétation par TL POS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Poids Intégré</strong></td>
+          <td><code>20 + [Article 4 chiffres] + [Poids en grammes 5 chiffres] + [Clé]</code></td>
+          <td><code>200142012503</code></td>
+          <td>Article N° 142 (ex: Viande Hachée), Poids : <strong>1,250 kg</strong>. Calcul du prix automatique.</td>
+        </tr>
+        <tr>
+          <td><strong>Prix Intégré</strong></td>
+          <td><code>22 + [Article 4 chiffres] + [Prix en centimes 5 chiffres] + [Clé]</code></td>
+          <td><code>220085007502</code></td>
+          <td>Article N° 85 (ex: Fromage Affiné), Montant total : <strong>7,50 &euro;</strong>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>4. Tiroirs-Caisses &amp; Douchettes Code-Barres</h2>
+    <ul>
+      <li><strong>Tiroir-Caisse :</strong> Connecté en prise RJ11 directement derrière l'imprimante thermique. TL POS envoie l'impulsion ESC/POS <code>27, 112, 0, 25, 250</code> lors de la validation d'un règlement en espèces.</li>
+      <li><strong>Lecteurs Code-Barres (USB / Bluetooth) :</strong> Fonctionnent nativement en émulation clavier sans aucun pilote spécifique. Dès qu'un code est scanné, l'article est localisé et ajouté instantanément au panier.</li>
+    </ul>
+  </div>
+
+  <!-- ==================== CHAPTER 07 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">07</span> Tablettes Serveurs Mobiles (TL Serveur)</h1>
+
+    <h2>Prise de Commande Tactile en Salle</h2>
+    <p>
+      L'application mobile <strong>TL Serveur</strong> (.NET MAUI optimisé) transforme n'importe quelle tablette ou smartphone 
+      Android en terminal de commande mobile ultra-rapide pour les serveurs en salle, terrasse ou étage.
+    </p>
+
+    <figure>
+      <div style="display: flex; gap: 15px; justify-content: center;">
+        <img src="images/fr/tablet-tables.png" alt="Plan de table tablette serveur" style="width: 48%;">
+        <img src="images/fr/tablet-order.png" alt="Prise de commande tablette serveur" style="width: 48%;">
+      </div>
+      <figcaption>Figure 7.1 — Application mobile TL Serveur Android : plan de salle interactif et catalogue de commande tactile.</figcaption>
+    </figure>
+
+    <h2>Connexion Locale en Réseau Wi-Fi</h2>
+    <p>
+      Le terminal Windows principal héberge un micro-serveur REST haute performance sur le port <code>8080</code>.
+      Pour connecter les tablettes au sein de votre établissement :
+    </p>
+    <ol class="step-list">
+      <li>Connectez la tablette Android au même réseau Wi-Fi que l'ordinateur de caisse Windows.</li>
+      <li>
+        Sur le PC de caisse, ouvrez <strong>Paramètres &rarr; Réseau</strong> pour noter l'adresse IP locale 
+        (ex: <code>192.168.1.50</code>).
+      </li>
+      <li>
+        Sur la tablette Android, lancez <strong>TL Serveur</strong>, appuyez sur le menu <kbd>...</kbd> en haut à droite, 
+        et saisissez l'adresse de l'API : <code>http://192.168.1.50:8080</code>.
+      </li>
+      <li>La liste des salles, tables et articles se synchronise immédiatement en moins d'une seconde.</li>
+    </ol>
+  </div>
+
+  <!-- ==================== CHAPTER 08 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">08</span> Accès Distant &amp; Multi-Sites via Tailscale</h1>
+
+    <h2>Pourquoi Tailscale est la Solution Idéale pour TL POS</h2>
+    <p>
+      Traditionnellement, connecter des terminaux distants (serveurs en terrasse éloignée, food trucks, gérant à domicile) 
+      exigeait une adresse IP publique fixe coûteuse et l'ouverture de ports sur la box Internet (Port Forwarding), 
+      ce qui expose le réseau aux attaques informatiques.
+    </p>
+    <p>
+      Avec <strong>Tailscale</strong>, vous créez un <strong>réseau maillé sécurisé (Mesh VPN)</strong> chiffré de bout en bout 
+      avec le protocole militaire <strong>WireGuard</strong>. Les appareils communiquent directement de pair à pair 
+      (Peer-to-Peer) à travers le monde entier, même derrière des routeurs 4G/5G stricts (CGNAT) !
+    </p>
+
+    <figure>
+      <img src="images/tailscale-architecture-fr.svg" alt="Architecture d'accès distant Tailscale pour TL POS">
+      <figcaption>Figure 8.1 — Schéma d'architecture d'interconnexion sécurisée via le maillage VPN Tailscale.</figcaption>
+    </figure>
+
+    <h2>Étape 1 : Installer Tailscale sur le PC de Caisse Windows</h2>
+    <ol class="step-list">
+      <li>Rendez-vous sur <code>https://tailscale.com</code> et créez un compte gratuit (valable jusqu'à 100 appareils).</li>
+      <li>Téléchargez et installez l'application Tailscale pour Windows sur votre ordinateur de caisse principal.</li>
+      <li>Connectez-vous à votre compte. Tailscale attribue à votre caisse une <strong>adresse IP statique privée</strong> commençant par <code>100.x.y.z</code> (ex: <code>100.85.12.44</code>).</li>
+    </ol>
+
+    <h2>Étape 2 : Connecter la Tablette Serveur en 4G/5G ou Wi-Fi Distant</h2>
+    <ol class="step-list">
+      <li>Sur la tablette Android du serveur, installez l'application <strong>Tailscale</strong> depuis le Google Play Store.</li>
+      <li>Connectez-vous avec le même compte. La tablette rejoint automatiquement le maillage sécurisé.</li>
+      <li>Ouvrez l'application <strong>TL Serveur</strong>, entrez dans les paramètres et indiquez simplement :<br>
+        <code>http://100.85.12.44:8080</code> (en remplaçant par l'IP Tailscale de votre PC de caisse).
+      </li>
+      <li>Vos serveurs peuvent désormais prendre des commandes sur le trottoir d'en face, en terrasse extérieure ou sur un événement mobile sans aucune déconnexion.</li>
+    </ol>
+
+    <h2>Étape 3 : Tableau de Bord Live pour le Propriétaire (Depuis chez Soi ou en Déplacement)</h2>
+    <p>
+      Depuis votre ordinateur personnel ou votre smartphone, installez Tailscale, ouvrez votre navigateur internet favori et tapez :<br>
+      <code>http://100.85.12.44:8080/reports</code><br>
+      Vous visualisez en temps réel le chiffre d'affaires, le panier moyen, les tables ouvertes et l'état des stocks sans jamais interrompre le travail des caissiers sur place.
+    </p>
+  </div>
+
+  <!-- ==================== CHAPTER 09 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">09</span> Gestion des Stocks &amp; Fiches Techniques</h1>
+
+    <h2>1. Suivi des Stocks Simples</h2>
+    <p>
+      Pour les articles vendus tels quels (boissons en bouteille, snacks, vêtements, articles manufacturés), 
+      activez l'option <em>Suivi de stock</em> dans la fiche produit. Chaque vente décrémente automatiquement le stock restant.
+      Des alertes visuelles préviennent le caissier dès qu'un produit passe sous le seuil d'alerte défini.
+    </p>
+
+    <h2>2. Fiches Techniques &amp; Déduction des Ingrédients (Restauration)</h2>
+    <p>
+      Pour les restaurants, pizzerias, boulangeries et bars, la vente d'un plat fini doit déstocker ses ingrédients élémentaires. 
+      TL POS intègre un moteur de recettes multicouches :
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Plat Vendu</th>
+          <th>Ingrédients Déstockés Automatiquement</th>
+          <th>Unité de Mesure</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Pizza Reine</strong></td>
+          <td>Pâton à pizza (1 pc) &bull; Sauce tomate (80 g) &bull; Mozzarella (120 g) &bull; Jambon cuit (70 g) &bull; Champignons (50 g)</td>
+          <td>Grammes / Pièces</td>
+        </tr>
+        <tr>
+          <td><strong>Cocktail Mojito</strong></td>
+          <td>Rhum blanc (5 cl) &bull; Eau gazeuse (10 cl) &bull; Sirop de canne (2 cl) &bull; Feuilles de menthe (6 pcs) &bull; Citron vert (0.5 pc)</td>
+          <td>Centilitres / Pièces</td>
+        </tr>
+        <tr>
+          <td><strong>Burger Gourmet</strong></td>
+          <td>Pain Brioché (1 pc) &bull; Steak haché pur bœuf (150 g) &bull; Cheddar affiné (40 g) &bull; Sauce maison (30 g)</td>
+          <td>Grammes / Pièces</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ==================== CHAPTER 10 ==================== -->
+  <div class="page-break">
+    <h1><span class="sec-num">10</span> Sauvegarde, Maintenance &amp; Dépannage</h1>
+
+    <h2>1. Sauvegarde Complète en 10 Secondes</h2>
+    <p>
+      Parce que vos données commerciales sont précieuses, TL POS simplifie la sauvegarde à l'extrême : 
+      <strong>aucune procédure complexe de base de données SQL n'est nécessaire</strong>.
+    </p>
+    <ol class="step-list">
+      <li>Fermez l'application TL POS.</li>
+      <li>Copiez simplement le sous-dossier <code>client database\</code> sur une clé USB ou un disque externe sécurisé.</li>
+      <li>C'est terminé ! Ce dossier contient l'ensemble de votre catalogue, historiques des ventes, utilisateurs et personnalisations.</li>
+    </ol>
+
+    <h2>2. Déplacement du Logiciel sur un Nouvel Ordinateur</h2>
+    <p>
+      Copiez l'intégralité du dossier du logiciel sur le nouvel ordinateur. Vos données, historiques et paramétrages 
+      sont immédiatement disponibles sans aucune manipulation supplémentaire.
+    </p>
+
+    <h2>3. Guide de Dépannage des Pannes Courantes</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Symptôme Constaté</th>
+          <th>Cause Probable</th>
+          <th>Procédure de Résolution Immédiate</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>« Le serveur RPC n'est pas disponible » à l'ouverture des imprimantes</strong></td>
+          <td>Le service Windows <em>Spouleur d'impression (Spooler)</em> a été désactivé ou a planté.</td>
+          <td>Ouvrez l'invite de commandes en mode administrateur et exécutez la commande : <code>net start spooler</code>. TL POS détectera instantanément vos imprimantes.</td>
+        </tr>
+        <tr>
+          <td><strong>Le tiroir-caisse ne s'ouvre pas lors d'un paiement en espèces</strong></td>
+          <td>Câble RJ11 mal enclenché ou mauvaise imprimante par défaut.</td>
+          <td>Vérifiez que le câble RJ11 est bien inséré dans la prise <em>DK (Drawer Kick)</em> de l'imprimante thermique et non dans une prise Ethernet réseau.</td>
+        </tr>
+        <tr>
+          <td><strong>La tablette Android n'arrive pas à se connecter à la caisse</strong></td>
+          <td>Pare-feu Windows bloquant le port 8080 ou réseau Wi-Fi différent.</td>
+          <td>Sur le PC de caisse, ouvrez le <em>Pare-feu Windows</em> et autorisez le trafic entrant sur le port TCP <code>8080</code>. Vérifiez que la tablette est sur le même Wi-Fi ou connectée au VPN Tailscale.</td>
+        </tr>
+        <tr>
+          <td><strong>Le lecteur de code-barres ne transmet pas le code</strong></td>
+          <td>Câble USB débranché ou mauvais encodage clavier (QWERTY/AZERTY).</td>
+          <td>Scannez le code-barres de configuration « French AZERTY Keyboard » présent sur la notice de votre douchette pour caler les chiffres.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top: 40px; text-align: center; border-top: 1px solid #E2E8F0; padding-top: 20px; color: #64748B; font-size: 9pt;">
+      <strong>TL POS Suite</strong> &bull; Conçu et développé par <strong>Lounes Tinouche (TL)</strong> &bull; Tous droits réservés.
+    </div>
+  </div>
+
+</body>
+</html>

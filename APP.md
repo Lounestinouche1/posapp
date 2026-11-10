@@ -11,16 +11,16 @@
 
 ## 1. What the product is
 
-**Vectron POS Suite** — a restaurant point-of-sale (POS) product line built by **Vectron** for the
-client **Boitexinfo**. It ships as **two applications that share one design language and one
+**TL POS Suite** — a restaurant and retail point-of-sale (POS) product line created and built by
+**Lounes Tinouche (TL)**. It ships as **two applications that share one design language and one
 on-premise data store**:
 
 | # | App | What it does | Platform |
 |---|---|---|---|
-| 1 | **Vectron POS** | The operator terminal: orders, tables, payments, stock, staff, reports, kitchen display, printing, settings, licensing. The "brain" — it hosts the data store and the REST API. | Windows desktop (WinForms) |
-| 2 | **Vectron Waiter** | The waiter companion: order at the table on a tablet, fire/bill, live alerts — talks to Vectron POS over LAN REST. | Android tablet (`.NET MAUI`) |
+| 1 | **TL POS** | The operator terminal: orders, tables, payments, stock, staff, reports, kitchen display, printing, settings, licensing. The "brain" — it hosts the data store and the REST API. | Windows desktop (WinForms) |
+| 2 | **TL Waiter** | The waiter companion: order at the table on a tablet, fire/bill, live alerts — talks to TL POS over LAN REST. | Android tablet (`.NET MAUI`) |
 
-**Vendor:** Vectron · **Client:** Boitexinfo · **Current release:** v1.2.0 (Windows) / v1.2.0 (APK)
+**Author & Owner:** Lounes Tinouche (TL POS) · **Current release:** v1.2.0 (Windows) / v1.2.0 (APK)
 **Repo:** `https://github.com/Lounestinouche1/posapp.git` (root folder `D:\VectronPOS`)
 
 ### What it does (feature domain)

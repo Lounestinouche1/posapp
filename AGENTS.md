@@ -1,6 +1,6 @@
 # AGENTS.md — read this first
 
-**Vectron POS** — restaurant POS suite by Vectron (client: Boitexinfo). Two apps, one design
+**TL POS** — restaurant and retail POS suite by Lounes Tinouche (TL). Two apps, one design
 language, same brand colours. This file is the orientation page for any AI agent or developer
 opening the repository. It is deliberately short.
 
