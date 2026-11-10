@@ -5187,6 +5187,47 @@ internal sealed class PosForm : Form
 		internal void ShowSettingsForCapture() => ShowSettings();
 		internal SettingsForm? GetActiveSettingsFormForCapture() => viewPanel.Controls.OfType<Panel>().SelectMany(p => p.Controls.OfType<SettingsForm>()).FirstOrDefault();
 
+		internal void ReapplyLanguage(string code)
+		{
+			try
+			{
+				Tr.Lang = code;
+				store.Features.Language = code;
+				Text = Tr.T("TL POS");
+				pillOrder.Text = Tr.T("Order");
+				pillRooms.Text = Tr.T("Rooms");
+				pillOperator.Text = Tr.T("Operator");
+				pillSettings.Text = Tr.T("Settings");
+				orderLabel.Text = OrderContextText();
+				quickSaleBtn.Text = Tr.T("⚡ Quick sale");
+				salesCaption.Text = Tr.T("TODAY");
+				statusText.Text = isOrderPc ? Tr.T("ORDER PC") : Tr.T("MAIN PC");
+				LayoutAppBar();
+				RenderProducts();
+				RenderRooms();
+				RenderBasket();
+				var categoryTabs = menuPanel.Controls.OfType<FlowLayoutPanel>().FirstOrDefault();
+				if (categoryTabs != null)
+				{
+					foreach (Control c in categoryTabs.Controls)
+					{
+						if (c is Button b && b.Tag is string cat)
+						{
+							b.Text = Tr.T(cat);
+							b.Size = new Size(Math.Max(96, TextRenderer.MeasureText(Tr.T(cat), b.Font).Width + 38), 34);
+							ApplyPillRegion(b, 17);
+						}
+					}
+					UpdateTabs(categoryTabs);
+				}
+				Rtl.Apply(this);
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine("ReapplyLanguage error: " + ex.Message);
+			}
+		}
+
 		public PosForm(bool skipLogin = false, string? overrideLang = null)
 		{
 			Program.ActivePosForm = this;
@@ -25553,7 +25594,7 @@ internal sealed class SettingsForm : Form
 		titleLabel.Location = new Point(58, 16);
 		appBar.Controls.Add(titleLabel);
 
-		breadcrumbLabel.Text = "Settings / Appearance";
+		breadcrumbLabel.Text = Tr.T("Settings") + " / " + Tr.T("Appearance");
 		breadcrumbLabel.AutoSize = true;
 		breadcrumbLabel.Font = new Font("Segoe UI", 9f);
 		breadcrumbLabel.ForeColor = Skin.TextDim;
@@ -25844,7 +25885,7 @@ internal sealed class SettingsForm : Form
 	{
 		pageTitleLabel.Text = title;
 		pageSubtitleLabel.Text = subtitle;
-		breadcrumbLabel.Text = "Settings / " + title;
+		breadcrumbLabel.Text = Tr.T("Settings") + " / " + title;
 	}
 
 	private void AddToggleCard(string title, string desc, string featurePropName, Action onAction = null, string actionText = null, Func<bool> isActionVisible = null, Action onAction2 = null, string actionText2 = null, Func<bool> isAction2Visible = null)
@@ -26330,13 +26371,24 @@ internal sealed class SettingsForm : Form
 	{
 		if (code != Tr.Lang)
 		{
+			Tr.Lang = code;
 			features.Language = code;
 			saveFeatures(features);
-			if (MessageBox.Show(Tr.T("Language changed. TL POS will now restart."), Tr.T("Language"), MessageBoxButtons.OK, MessageBoxIcon.Asterisk) == DialogResult.OK)
-			{
-				Program.SafeRestart();
-			}
+			ApplyLanguageChange(code);
+			Program.ActivePosForm?.ReapplyLanguage(code);
 		}
+	}
+
+	public void ApplyLanguageChange(string code)
+	{
+		Tr.Lang = code;
+		Text = Tr.T("Settings");
+		titleLabel.Text = Tr.T("Settings");
+		doneBtn.Text = Tr.T("Done");
+		backBtn.Text = Tr.T("← Back");
+		BuildNavRail();
+		ShowPage(currentCategory, recordHistory: false);
+		Rtl.Apply(this);
 	}
 
 	private void PopulateSystem()
